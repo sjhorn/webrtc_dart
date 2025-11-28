@@ -210,3 +210,8 @@ Uint8List hash(String algorithm, Uint8List data) {
   final digest = hashAlgorithm.convert(data);
   return Uint8List.fromList(digest.bytes);
 }
+
+/// Calculate MD5 hash
+Uint8List md5Hash(Uint8List data) {
+  return hash('md5', data);
+}

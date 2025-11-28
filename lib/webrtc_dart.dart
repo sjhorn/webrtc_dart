@@ -14,6 +14,10 @@ export 'src/sdp/sdp.dart';
 export 'src/ice/ice_connection.dart';
 export 'src/ice/candidate.dart';
 
+// TURN
+export 'src/turn/turn_client.dart';
+export 'src/turn/channel_data.dart';
+
 // Data Channels
 export 'src/datachannel/data_channel.dart';
 export 'src/datachannel/dcep.dart';

@@ -26,3 +26,4 @@ export 'src/media/rtp_transceiver.dart';
 // Codecs
 export 'src/codec/codec_parameters.dart';
 export 'src/codec/opus.dart';
+export 'src/codec/vp8.dart';

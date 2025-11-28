@@ -36,3 +36,8 @@ export 'src/codec/vp9.dart';
 // Statistics
 export 'src/stats/rtc_stats.dart';
 export 'src/stats/rtp_stats.dart';
+
+// RTCP Feedback
+export 'src/rtcp/psfb/pli.dart';
+export 'src/rtcp/psfb/fir.dart';
+export 'src/rtcp/psfb/psfb.dart';

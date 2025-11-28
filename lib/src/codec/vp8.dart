@@ -134,7 +134,7 @@ class Vp8RtpPayload {
     }
 
     // Skip TID/KEYIDX if T=1 or K=1
-    if (vp8.lBit == 1 || vp8.kBit == 1) {
+    if (vp8.tBit == 1 || vp8.kBit == 1) {
       if (offset >= buf.length) {
         vp8.payload = Uint8List(0);
         return vp8;

@@ -28,3 +28,7 @@ export 'src/codec/codec_parameters.dart';
 export 'src/codec/opus.dart';
 export 'src/codec/vp8.dart';
 export 'src/codec/vp9.dart';
+
+// Statistics
+export 'src/stats/rtc_stats.dart';
+export 'src/stats/rtp_stats.dart';

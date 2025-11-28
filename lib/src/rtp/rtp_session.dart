@@ -9,6 +9,8 @@ import 'package:webrtc_dart/src/rtp/retransmission_buffer.dart';
 import 'package:webrtc_dart/src/rtp/nack_handler.dart';
 import 'package:webrtc_dart/src/rtp/rtx.dart';
 import 'package:webrtc_dart/src/rtcp/nack.dart';
+import 'package:webrtc_dart/src/stats/rtc_stats.dart';
+import 'package:webrtc_dart/src/stats/rtp_stats.dart';
 
 /// RTP Session
 /// Manages RTP/RTCP streams with encryption and statistics tracking
@@ -534,6 +536,43 @@ class RtpSession {
   }) {
     _rtxSsrcMap[rtxSsrc] = originalSsrc;
     _rtxPayloadTypeMap[originalPayloadType] = rtxPayloadType;
+  }
+
+  /// Get RTP statistics as RTCStatsReport
+  RTCStatsReport getStats() {
+    final stats = <RTCStats>[];
+    final timestamp = getStatsTimestamp();
+
+    // Add outbound RTP stats (sender)
+    if (senderStats.packetsSent > 0) {
+      final outboundId = generateStatsId('outbound-rtp', [localSsrc]);
+      stats.add(RTCOutboundRtpStreamStats(
+        timestamp: timestamp,
+        id: outboundId,
+        ssrc: localSsrc,
+        packetsSent: senderStats.packetsSent,
+        bytesSent: senderStats.bytesSent,
+      ));
+    }
+
+    // Add inbound RTP stats (receivers)
+    for (final entry in _receiverStats.entries) {
+      final ssrc = entry.key;
+      final receiverStats = entry.value;
+
+      final inboundId = generateStatsId('inbound-rtp', [ssrc]);
+      stats.add(RTCInboundRtpStreamStats(
+        timestamp: timestamp,
+        id: inboundId,
+        ssrc: ssrc,
+        packetsReceived: receiverStats.packetsReceived,
+        packetsLost: receiverStats.lostPackets,
+        jitter: receiverStats.jitter,
+        bytesReceived: receiverStats.bytesReceived,
+      ));
+    }
+
+    return RTCStatsReport(stats);
   }
 
   /// Reset session statistics

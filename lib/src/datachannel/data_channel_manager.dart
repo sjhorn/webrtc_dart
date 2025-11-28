@@ -1,0 +1,140 @@
+import 'dart:async';
+import 'dart:typed_data';
+import 'package:webrtc_dart/src/datachannel/data_channel.dart';
+import 'package:webrtc_dart/src/datachannel/dcep.dart';
+import 'package:webrtc_dart/src/sctp/association.dart';
+import 'package:webrtc_dart/src/sctp/const.dart';
+
+/// DataChannel Manager
+/// Manages multiple DataChannels over a single SCTP association
+class DataChannelManager {
+  /// SCTP association
+  final SctpAssociation _association;
+
+  /// Map of stream ID to DataChannel
+  final Map<int, DataChannel> _channels = {};
+
+  /// Next stream ID for outgoing channels
+  int _nextStreamId = 0;
+
+  /// Stream controller for new channels
+  final StreamController<DataChannel> _channelController =
+      StreamController<DataChannel>.broadcast();
+
+  DataChannelManager({
+    required SctpAssociation association,
+  }) : _association = association {
+    // Listen for incoming data from SCTP
+    // Note: This requires modifying SctpAssociation to expose a stream
+    // For now, we'll set up the callback
+  }
+
+  /// Stream of new incoming DataChannels
+  Stream<DataChannel> get onDataChannel => _channelController.stream;
+
+  /// Create a new outbound DataChannel
+  DataChannel createDataChannel({
+    required String label,
+    String protocol = '',
+    bool ordered = true,
+    int? maxRetransmits,
+    int? maxPacketLifeTime,
+    int priority = 0,
+  }) {
+    // Determine channel type based on reliability parameters
+    DataChannelType channelType;
+    int reliabilityParameter;
+
+    if (maxRetransmits != null) {
+      channelType = ordered
+          ? DataChannelType.partialReliableRexmit
+          : DataChannelType.partialReliableRexmitUnordered;
+      reliabilityParameter = maxRetransmits;
+    } else if (maxPacketLifeTime != null) {
+      channelType = ordered
+          ? DataChannelType.partialReliableTimed
+          : DataChannelType.partialReliableTimedUnordered;
+      reliabilityParameter = maxPacketLifeTime;
+    } else {
+      channelType =
+          ordered ? DataChannelType.reliable : DataChannelType.reliableUnordered;
+      reliabilityParameter = 0;
+    }
+
+    // Allocate stream ID (even numbers for locally initiated channels)
+    final streamId = _nextStreamId;
+    _nextStreamId += 2;
+
+    // Create channel
+    final channel = DataChannel(
+      label: label,
+      protocol: protocol,
+      streamId: streamId,
+      channelType: channelType,
+      priority: priority,
+      reliabilityParameter: reliabilityParameter,
+      association: _association,
+    );
+
+    // Register channel
+    _channels[streamId] = channel;
+
+    // Open the channel (sends DCEP OPEN)
+    channel.open().catchError((e) {
+      // Handle error
+      print('Failed to open DataChannel: $e');
+    });
+
+    return channel;
+  }
+
+  /// Handle incoming SCTP data
+  void handleIncomingData(int streamId, Uint8List data, int ppid) {
+    // Check if we have a channel for this stream
+    var channel = _channels[streamId];
+
+    if (channel == null) {
+      // New incoming channel, check if this is a DCEP OPEN
+      if (ppid == SctpPpid.dcep.value) {
+        final message = parseDcepMessage(data);
+        if (message is DcepOpenMessage) {
+          // Create incoming channel
+          channel = DataChannel(
+            label: message.label,
+            protocol: message.protocol,
+            streamId: streamId,
+            channelType: message.channelType,
+            priority: message.priority,
+            reliabilityParameter: message.reliabilityParameter,
+            association: _association,
+          );
+
+          _channels[streamId] = channel;
+
+          // Deliver the OPEN message to trigger ACK
+          channel.handleIncomingData(data, ppid);
+
+          // Notify listeners of new channel
+          _channelController.add(channel);
+          return;
+        }
+      }
+
+      // Unknown stream, ignore
+      print('Received data on unknown stream $streamId');
+      return;
+    }
+
+    // Deliver to channel
+    channel.handleIncomingData(data, ppid);
+  }
+
+  /// Close all channels
+  Future<void> close() async {
+    for (final channel in _channels.values) {
+      await channel.close();
+    }
+    _channels.clear();
+    await _channelController.close();
+  }
+}

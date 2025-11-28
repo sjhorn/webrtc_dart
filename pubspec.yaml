@@ -1,0 +1,17 @@
+name: webrtc_dart
+description: Pure Dart WebRTC implementation - port of werift-webrtc
+version: 0.1.0
+# repository: https://github.com/my_org/my_repo
+
+environment:
+  sdk: ^3.9.2
+
+# Add regular dependencies here.
+dependencies:
+  cryptography: ^2.8.0
+  crypto: ^3.0.6
+  pointycastle: ^3.9.1
+
+dev_dependencies:
+  lints: ^6.0.0
+  test: ^1.25.6

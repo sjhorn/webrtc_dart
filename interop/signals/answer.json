@@ -1,0 +1,4 @@
+{
+  "sdp": "v=0\r\no=- 18088186 0 IN IP4 0.0.0.0\r\ns=-\r\nt=0 0\r\na=group:BUNDLE 0\r\na=extmap-allow-mixed\r\na=msid-semantic:WMS *\r\nm=application 9 UDP/DTLS/SCTP webrtc-datachannel\r\nc=IN IP4 0.0.0.0\r\na=ice-ufrag:baaf\r\na=ice-pwd:139a03e02fb69a2d98b56c\r\na=ice-options:trickle\r\na=fingerprint:sha-256 99:E5:5C:AE:BF:33:15:75:68:DA:B0:69:40:29:56:C3:32:80:5A:43:A0:B2:34:A3:F0:DD:2D:A6:11:08:0B:9E\r\na=setup:active\r\na=mid:0\r\na=sctp-port:5000\r\na=max-message-size:65536\r\n",
+  "type": "answer"
+}

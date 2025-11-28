@@ -1,0 +1,246 @@
+import 'dart:typed_data';
+import 'package:webrtc_dart/src/dtls/cipher/const.dart';
+import 'package:webrtc_dart/src/dtls/cipher/key_derivation.dart';
+import 'package:webrtc_dart/src/dtls/client_handshake.dart';
+import 'package:webrtc_dart/src/dtls/context/cipher_context.dart';
+import 'package:webrtc_dart/src/dtls/context/dtls_context.dart';
+import 'package:webrtc_dart/src/dtls/context/srtp_context.dart';
+import 'package:webrtc_dart/src/dtls/context/transport.dart';
+import 'package:webrtc_dart/src/dtls/handshake/const.dart';
+import 'package:webrtc_dart/src/dtls/handshake/extensions/use_srtp.dart';
+import 'package:webrtc_dart/src/dtls/handshake/handshake_header.dart';
+import 'package:webrtc_dart/src/dtls/handshake/message/alert.dart';
+import 'package:webrtc_dart/src/dtls/record/const.dart';
+import 'package:webrtc_dart/src/dtls/record/record_layer.dart';
+import 'package:webrtc_dart/src/dtls/socket.dart';
+
+/// DTLS Client
+/// Initiates DTLS handshake as the client
+class DtlsClient extends DtlsSocket {
+  /// Supported cipher suites
+  final List<CipherSuite> cipherSuites;
+
+  /// Supported elliptic curves
+  final List<NamedCurve> supportedCurves;
+
+  /// Supported SRTP profiles
+  final List<SrtpProtectionProfile> srtpProfiles;
+
+  /// Handshake coordinator
+  late final ClientHandshakeCoordinator _handshakeCoordinator;
+
+  /// Record layer
+  late final DtlsRecordLayer _recordLayer;
+
+  /// Processing lock to ensure sequential message processing
+  Future<void>? _processingLock;
+
+  DtlsClient({
+    required DtlsTransport transport,
+    DtlsContext? dtlsContext,
+    CipherContext? cipherContext,
+    SrtpContext? srtpContext,
+    List<CipherSuite>? cipherSuites,
+    List<NamedCurve>? supportedCurves,
+    List<SrtpProtectionProfile>? srtpProfiles,
+  })  : cipherSuites = cipherSuites ??
+            [
+              CipherSuite.tlsEcdheEcdsaWithAes128GcmSha256,
+              CipherSuite.tlsEcdheRsaWithAes128GcmSha256,
+            ],
+        supportedCurves = supportedCurves ??
+            [
+              NamedCurve.x25519,
+              NamedCurve.secp256r1,
+            ],
+        srtpProfiles = srtpProfiles ??
+            [
+              SrtpProtectionProfile.srtpAeadAes128Gcm,
+              SrtpProtectionProfile.srtpAes128CmHmacSha1_80,
+            ],
+        super(
+          transport: transport,
+          dtlsContext: dtlsContext,
+          cipherContext: cipherContext ?? CipherContext(isClient: true),
+          srtpContext: srtpContext,
+          initialState: DtlsSocketState.closed,
+        ) {
+    // Initialize record layer
+    _recordLayer = DtlsRecordLayer(
+      dtlsContext: this.dtlsContext,
+      cipherContext: this.cipherContext,
+    );
+
+    // Initialize handshake coordinator
+    _handshakeCoordinator = ClientHandshakeCoordinator(
+      dtlsContext: this.dtlsContext,
+      cipherContext: this.cipherContext,
+      recordLayer: _recordLayer,
+      flightManager: flightManager,
+      cipherSuites: this.cipherSuites,
+      supportedCurves: this.supportedCurves,
+    );
+  }
+
+  @override
+  Future<void> connect() async {
+    if (state != DtlsSocketState.closed) {
+      throw StateError('Client already connecting or connected');
+    }
+
+    initializeTransport();
+    setState(DtlsSocketState.connecting);
+
+    try {
+      // Start handshake via coordinator
+      await _handshakeCoordinator.start();
+
+      // Send the initial ClientHello flight
+      await _sendPendingFlights();
+    } catch (e) {
+      setState(DtlsSocketState.failed);
+      rethrow;
+    }
+  }
+
+  @override
+  Future<void> send(Uint8List data) async {
+    if (!isConnected) {
+      throw StateError('Cannot send data: socket not connected');
+    }
+
+    // Create application data record
+    final record = _recordLayer.wrapApplicationData(data);
+
+    // Encrypt and send
+    final encrypted = await _recordLayer.encryptRecord(record);
+    await transport.send(encrypted);
+  }
+
+  @override
+  void processReceivedData(Uint8List data) async {
+    // Ensure sequential processing by chaining with previous processing
+    _processingLock = (_processingLock ?? Future.value()).then((_) async {
+      try {
+        // Parse DTLS records
+        final records = await _recordLayer.processRecords(data);
+
+        for (final processed in records) {
+          switch (processed.contentType) {
+            case ContentType.handshake:
+              await _processHandshakeRecord(processed.data);
+              break;
+
+            case ContentType.changeCipherSpec:
+              // CCS received - increment read epoch for decryption
+              dtlsContext.readEpoch++;
+              break;
+
+            case ContentType.applicationData:
+              // Application data received
+              if (isConnected) {
+                dataController.add(processed.data);
+              }
+              break;
+
+            case ContentType.alert:
+              // Alert received - handle error
+              await _processAlert(processed.data);
+              break;
+          }
+        }
+
+        // Check if handshake is complete
+        if (_handshakeCoordinator.isComplete && !isConnected) {
+          _onHandshakeComplete();
+        }
+      } catch (e) {
+        errorController.add(e);
+        setState(DtlsSocketState.failed);
+      }
+    });
+  }
+
+  /// Process handshake record
+  Future<void> _processHandshakeRecord(Uint8List data) async {
+    // Parse handshake message
+    final handshakeMsg = HandshakeMessage.parse(data);
+
+    // Process via coordinator
+    await _handshakeCoordinator.processHandshakeWithType(
+      handshakeMsg.header.messageType,
+      handshakeMsg.body,
+    );
+
+    // Send any pending flights
+    await _sendPendingFlights();
+  }
+
+  /// Send pending flights
+  Future<void> _sendPendingFlights() async {
+    final currentFlight = flightManager.currentFlight;
+    if (currentFlight != null && !currentFlight.sent && currentFlight.messages.isNotEmpty) {
+      print('[CLIENT] Sending flight ${currentFlight.flight.flightNumber} with ${currentFlight.messages.length} messages');
+      for (var i = 0; i < currentFlight.messages.length; i++) {
+        final message = currentFlight.messages[i];
+        print('[CLIENT]   Message $i: ${message.length} bytes');
+        await transport.send(message);
+      }
+      currentFlight.markSent();
+    }
+  }
+
+  /// Called when handshake completes
+  void _onHandshakeComplete() {
+    print('[CLIENT] Handshake complete!');
+
+    // Export SRTP keys
+    final srtpKeyMaterial = KeyDerivation.exportSrtpKeys(
+      dtlsContext,
+      60, // Standard SRTP key material length
+      true, // isClient
+    );
+
+    // Store in SRTP context
+    srtpContext.keyMaterial = srtpKeyMaterial;
+
+    // Mark as connected
+    dtlsContext.handshakeComplete = true;
+    setState(DtlsSocketState.connected);
+  }
+
+  /// Process alert message
+  Future<void> _processAlert(Uint8List data) async {
+    try {
+      final alert = Alert.parse(data);
+      print('[CLIENT] Received alert: $alert');
+
+      if (alert.isFatal) {
+        print('[CLIENT] Fatal alert received, closing connection');
+        errorController.add(Exception('Fatal alert: ${alert.description}'));
+        setState(DtlsSocketState.failed);
+        await close();
+      } else if (alert.description == AlertDescription.closeNotify) {
+        print('[CLIENT] Close notify received, closing connection');
+        await close();
+      } else {
+        print('[CLIENT] Warning alert: ${alert.description}');
+      }
+    } catch (e) {
+      print('[CLIENT] Error processing alert: $e');
+      errorController.add(e);
+    }
+  }
+
+  /// Send alert message
+  Future<void> sendAlert(Alert alert) async {
+    try {
+      final alertRecord = _recordLayer.wrapAlert(alert);
+      final serialized = await _recordLayer.encryptRecord(alertRecord);
+      await transport.send(serialized);
+      print('[CLIENT] Sent alert: $alert');
+    } catch (e) {
+      print('[CLIENT] Error sending alert: $e');
+    }
+  }
+}

@@ -5,6 +5,10 @@ import 'package:webrtc_dart/src/srtp/rtcp_packet.dart';
 import 'package:webrtc_dart/src/srtp/srtp_session.dart';
 import 'package:webrtc_dart/src/rtp/rtp_statistics.dart';
 import 'package:webrtc_dart/src/rtp/rtcp_reports.dart';
+import 'package:webrtc_dart/src/rtp/retransmission_buffer.dart';
+import 'package:webrtc_dart/src/rtp/nack_handler.dart';
+import 'package:webrtc_dart/src/rtp/rtx.dart';
+import 'package:webrtc_dart/src/rtcp/nack.dart';
 
 /// RTP Session
 /// Manages RTP/RTCP streams with encryption and statistics tracking
@@ -39,6 +43,33 @@ class RtpSession {
   /// Last SR send time (NTP format)
   int? _lastSrSendTime;
 
+  /// Retransmission buffer for sent packets
+  final RetransmissionBuffer _retransmissionBuffer;
+
+  /// NACK handler for packet loss detection
+  NackHandler? _nackHandler;
+
+  /// RTX handler for retransmission packets
+  RtxHandler? _rtxHandler;
+
+  /// Enable RTX (retransmission) support
+  final bool rtxEnabled;
+
+  /// Enable NACK (negative acknowledgement) support
+  final bool nackEnabled;
+
+  /// RTX payload type (if RTX is enabled)
+  final int? rtxPayloadType;
+
+  /// RTX SSRC (if RTX is enabled)
+  final int? rtxSsrc;
+
+  /// Map of RTX SSRC to original SSRC
+  final Map<int, int> _rtxSsrcMap = {};
+
+  /// Map of original payload type to RTX payload type
+  final Map<int, int> _rtxPayloadTypeMap = {};
+
   RtpSession({
     required this.localSsrc,
     this.srtpSession,
@@ -46,7 +77,35 @@ class RtpSession {
     this.onSendRtcp,
     this.onSendRtp,
     this.onReceiveRtp,
-  }) : senderStats = RtpSenderStatistics(ssrc: localSsrc);
+    this.rtxEnabled = false,
+    this.nackEnabled = false,
+    this.rtxPayloadType,
+    this.rtxSsrc,
+    int? retransmissionBufferSize,
+  })  : senderStats = RtpSenderStatistics(ssrc: localSsrc),
+        _retransmissionBuffer = RetransmissionBuffer(
+          bufferSize: retransmissionBufferSize ??
+              RetransmissionBuffer.defaultBufferSize,
+        ) {
+    // Initialize RTX handler if enabled
+    if (rtxEnabled && rtxPayloadType != null && rtxSsrc != null) {
+      _rtxHandler = RtxHandler(
+        rtxPayloadType: rtxPayloadType!,
+        rtxSsrc: rtxSsrc!,
+      );
+    }
+
+    // Initialize NACK handler if enabled
+    if (nackEnabled) {
+      _nackHandler = NackHandler(
+        senderSsrc: localSsrc,
+        onSendNack: _sendNack,
+        onPacketLost: (seqNum) {
+          // Packet permanently lost, could log or emit event
+        },
+      );
+    }
+  }
 
   /// Start the session
   void start() {
@@ -81,6 +140,9 @@ class RtpSession {
       payload: payload,
     );
 
+    // Store in retransmission buffer
+    _retransmissionBuffer.store(packet);
+
     // Update statistics
     senderStats.updateSent(payloadSize: payload.length);
 
@@ -101,11 +163,25 @@ class RtpSession {
   /// Receive RTP/SRTP packet
   Future<void> receiveRtp(Uint8List data) async {
     // Decrypt if SRTP is enabled
-    final RtpPacket packet;
+    RtpPacket packet;
     if (srtpSession != null) {
       packet = await srtpSession!.decryptSrtp(data);
     } else {
       packet = RtpPacket.parse(data);
+    }
+
+    // Check if this is an RTX packet and unwrap if needed
+    final originalSsrc = _rtxSsrcMap[packet.ssrc];
+    if (originalSsrc != null && _rtxHandler != null) {
+      // This is an RTX packet, unwrap it
+      final originalPayloadType = _getOriginalPayloadType(packet.payloadType);
+      if (originalPayloadType != null) {
+        packet = RtxHandler.unwrapRtx(
+          packet,
+          originalPayloadType,
+          originalSsrc,
+        );
+      }
     }
 
     // Get or create statistics for this SSRC
@@ -122,6 +198,11 @@ class RtpSession {
       payloadSize: packet.payload.length,
       arrivalTime: arrivalTime,
     );
+
+    // Feed to NACK handler for loss detection
+    if (nackEnabled && _nackHandler != null) {
+      _nackHandler!.addPacket(packet);
+    }
 
     // Notify callback
     if (onReceiveRtp != null) {
@@ -269,10 +350,15 @@ class RtpSession {
       case RtcpPacketType.receiverReport:
         _handleReceiverReport(packet);
         break;
+      case RtcpPacketType.transportFeedback:
+        // Handle NACK (FMT=1)
+        if (packet.reportCount == GenericNack.fmt) {
+          _handleNack(packet);
+        }
+        break;
       case RtcpPacketType.sourceDescription:
       case RtcpPacketType.goodbye:
       case RtcpPacketType.applicationDefined:
-      case RtcpPacketType.transportFeedback:
       case RtcpPacketType.payloadFeedback:
         // TODO: Implement other RTCP packet types
         break;
@@ -371,16 +457,97 @@ class RtpSession {
     return senderStats;
   }
 
+  /// Handle received NACK packet
+  void _handleNack(RtcpPacket packet) async {
+    try {
+      final nack = GenericNack.deserialize(packet);
+
+      // Retransmit requested packets
+      for (final seqNum in nack.lostSeqNumbers) {
+        final originalPacket = _retransmissionBuffer.retrieve(seqNum);
+
+        if (originalPacket != null) {
+          // Packet found in buffer, retransmit
+          RtpPacket packetToSend;
+
+          if (rtxEnabled && _rtxHandler != null) {
+            // Wrap as RTX packet
+            packetToSend = _rtxHandler!.wrapRtx(originalPacket);
+          } else {
+            // Resend original packet
+            packetToSend = originalPacket;
+          }
+
+          // Encrypt if needed
+          final Uint8List data;
+          if (srtpSession != null) {
+            data = await srtpSession!.encryptRtp(packetToSend);
+          } else {
+            data = packetToSend.serialize();
+          }
+
+          // Send retransmission
+          if (onSendRtp != null) {
+            await onSendRtp!(data);
+          }
+        }
+      }
+    } catch (e) {
+      // Invalid NACK packet, ignore
+    }
+  }
+
+  /// Send NACK packet
+  Future<void> _sendNack(GenericNack nack) async {
+    if (onSendRtcp == null) return;
+
+    final packet = nack.toRtcpPacket();
+
+    // Encrypt if SRTCP is enabled
+    final Uint8List data;
+    if (srtpSession != null) {
+      data = await srtpSession!.encryptRtcp(packet);
+    } else {
+      data = packet.serialize();
+    }
+
+    await onSendRtcp!(data);
+  }
+
+  /// Get original payload type from RTX payload type
+  int? _getOriginalPayloadType(int rtxPayloadType) {
+    for (final entry in _rtxPayloadTypeMap.entries) {
+      if (entry.value == rtxPayloadType) {
+        return entry.key;
+      }
+    }
+    return null;
+  }
+
+  /// Register RTX mapping
+  /// Maps RTX SSRC and payload type to original stream
+  void registerRtxMapping({
+    required int originalSsrc,
+    required int rtxSsrc,
+    required int originalPayloadType,
+    required int rtxPayloadType,
+  }) {
+    _rtxSsrcMap[rtxSsrc] = originalSsrc;
+    _rtxPayloadTypeMap[originalPayloadType] = rtxPayloadType;
+  }
+
   /// Reset session statistics
   void reset() {
     senderStats.reset();
     _receiverStats.clear();
     _lastSrSendTime = null;
+    _retransmissionBuffer.clear();
   }
 
   /// Dispose resources
   void dispose() {
     stop();
+    _nackHandler?.close();
     reset();
   }
 

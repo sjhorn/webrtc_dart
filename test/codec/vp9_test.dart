@@ -6,8 +6,8 @@ void main() {
   group('VP9 RTP Payload Depacketization', () {
     test('should parse minimal packet (no extensions)', () {
       // I:0 P:0 L:0 F:0 B:1 E:0 V:0 Z:0
-      // Binary: 00010000 = 0x10
-      final packet = Uint8List.fromList([0x10, 0xAA, 0xBB, 0xCC]);
+      // Binary: 00001000 = 0x08
+      final packet = Uint8List.fromList([0x08, 0xAA, 0xBB, 0xCC]);
       final vp9 = Vp9RtpPayload.deserialize(packet);
 
       expect(vp9.iBit, equals(0));
@@ -25,8 +25,8 @@ void main() {
 
     test('should parse packet with beginning flag (B=1)', () {
       // I:0 P:0 L:0 F:0 B:1 E:0 V:0 Z:0
-      // Binary: 00010000 = 0x10
-      final packet = Uint8List.fromList([0x10, 0xAA, 0xBB]);
+      // Binary: 00001000 = 0x08
+      final packet = Uint8List.fromList([0x08, 0xAA, 0xBB]);
       final vp9 = Vp9RtpPayload.deserialize(packet);
 
       expect(vp9.bBit, equals(1));
@@ -35,8 +35,8 @@ void main() {
 
     test('should parse packet with end flag (E=1)', () {
       // I:0 P:0 L:0 F:0 B:0 E:1 V:0 Z:0
-      // Binary: 00100000 = 0x20
-      final packet = Uint8List.fromList([0x20, 0xAA, 0xBB]);
+      // Binary: 00000100 = 0x04
+      final packet = Uint8List.fromList([0x04, 0xAA, 0xBB]);
       final vp9 = Vp9RtpPayload.deserialize(packet);
 
       expect(vp9.eBit, equals(1));
@@ -44,9 +44,9 @@ void main() {
 
     test('should parse 7-bit Picture ID', () {
       // I:1 P:0 L:0 F:0 B:0 E:0 V:0 Z:0
-      // Binary: 00000001 = 0x01
+      // Binary: 10000000 = 0x80
       final packet = Uint8List.fromList([
-        0x01, // I:1
+        0x80, // I:1
         0x7F, // M:0, PictureID:127
         0xAA, // payload
       ]);
@@ -60,9 +60,9 @@ void main() {
 
     test('should parse 15-bit Picture ID', () {
       // I:1 P:0 L:0 F:0 B:0 E:0 V:0 Z:0
-      // Binary: 00000001 = 0x01
+      // Binary: 10000000 = 0x80
       final packet = Uint8List.fromList([
-        0x01, // I:1
+        0x80, // I:1
         0xFF, // M:1, PictureID[8-14]:0x7F
         0xFF, // PictureID[0-7]:0xFF
         0xBB, // payload
@@ -76,9 +76,9 @@ void main() {
 
     test('should parse 15-bit Picture ID with value 1234', () {
       // I:1 P:0 L:0 F:0 B:0 E:0 V:0 Z:0
-      // Binary: 00000001 = 0x01
+      // Binary: 10000000 = 0x80
       final packet = Uint8List.fromList([
-        0x01, // I:1
+        0x80, // I:1
         0x84, // M:1, bits[8-14]:0x04
         0xD2, // bits[0-7]:0xD2
         0xCC, // payload
@@ -92,9 +92,9 @@ void main() {
 
     test('should detect keyframe (P=0, B=1, L=0)', () {
       // I:0 P:0 L:0 F:0 B:1 E:0 V:0 Z:0
-      // Binary: 00010000 = 0x10
+      // Binary: 00001000 = 0x08
       final packet = Uint8List.fromList([
-        0x10, // I:0 P:0 L:0 F:0 B:1 E:0 V:0 Z:0
+        0x08, // I:0 P:0 L:0 F:0 B:1 E:0 V:0 Z:0
         0xAA, // payload
       ]);
       final vp9 = Vp9RtpPayload.deserialize(packet);
@@ -107,9 +107,9 @@ void main() {
 
     test('should detect interframe (P=1)', () {
       // I:0 P:1 L:0 F:0 B:1 E:0 V:0 Z:0
-      // Binary: 00010010 = 0x12
+      // Binary: 01001000 = 0x48
       final packet = Uint8List.fromList([
-        0x12, // I:0 P:1 L:0 F:0 B:1 E:0 V:0 Z:0
+        0x48, // I:0 P:1 L:0 F:0 B:1 E:0 V:0 Z:0
         0xBB, // payload
       ]);
       final vp9 = Vp9RtpPayload.deserialize(packet);
@@ -120,9 +120,9 @@ void main() {
 
     test('should parse layer indices with flexible mode (F=1)', () {
       // I:0 P:0 L:1 F:1 B:0 E:0 V:0 Z:0
-      // Binary: 00001100 = 0x0C
+      // Binary: 00110000 = 0x30
       final packet = Uint8List.fromList([
-        0x0C, // I:0 P:0 L:1 F:1 B:0 E:0 V:0 Z:0
+        0x30, // I:0 P:0 L:1 F:1 B:0 E:0 V:0 Z:0
         0xA5, // TID:5(0b101) U:0 SID:2(0b010) D:1
         0xEE, // payload
       ]);
@@ -140,9 +140,9 @@ void main() {
 
     test('should parse layer indices with non-flexible mode (F=0)', () {
       // I:0 P:0 L:1 F:0 B:0 E:0 V:0 Z:0
-      // Binary: 00000100 = 0x04
+      // Binary: 00100000 = 0x20
       final packet = Uint8List.fromList([
-        0x04, // I:0 P:0 L:1 F:0 B:0 E:0 V:0 Z:0
+        0x20, // I:0 P:0 L:1 F:0 B:0 E:0 V:0 Z:0
         0xA5, // TID:5 U:0 SID:2 D:1
         0x42, // TL0PICIDX value
         0xFF, // payload
@@ -159,9 +159,9 @@ void main() {
 
     test('should parse single reference frame (P_DIFF, N=0)', () {
       // I:0 P:1 L:1 F:1 B:0 E:0 V:0 Z:0
-      // Binary: 00001110 = 0x0E
+      // Binary: 01110000 = 0x70
       final packet = Uint8List.fromList([
-        0x0E, // I:0 P:1 L:1 F:1 B:0 E:0 V:0 Z:0
+        0x70, // I:0 P:1 L:1 F:1 B:0 E:0 V:0 Z:0
         0x21, // TID:1 U:0 SID:0 D:1
         0x05, // P_DIFF:5 N:0 (references frame 5 frames back)
         0xDD, // payload
@@ -177,9 +177,9 @@ void main() {
 
     test('should parse multiple reference frames (P_DIFF with N=1)', () {
       // I:0 P:1 L:1 F:1 B:0 E:0 V:0 Z:0
-      // Binary: 00001110 = 0x0E
+      // Binary: 01110000 = 0x70
       final packet = Uint8List.fromList([
-        0x0E, // I:0 P:1 L:1 F:1 B:0 E:0 V:0 Z:0
+        0x70, // I:0 P:1 L:1 F:1 B:0 E:0 V:0 Z:0
         0x21, // TID:1 U:0 SID:0 D:1
         0x85, // P_DIFF:5 N:1 (first reference, more to follow)
         0x03, // P_DIFF:3 N:0 (second reference, last one)
@@ -197,10 +197,10 @@ void main() {
 
     test('should parse scalability structure with resolutions (V=1, Y=1)', () {
       // I:0 P:0 L:0 F:0 B:0 E:0 V:1 Z:0
-      // Binary: 01000000 = 0x40
+      // Binary: 00000010 = 0x02
       final packet = Uint8List.fromList([
-        0x40, // I:0 P:0 L:0 F:0 B:0 E:0 V:1 Z:0
-        0xC1, // N_S:1 (2 layers) Y:1 G:0
+        0x02, // I:0 P:0 L:0 F:0 B:0 E:0 V:1 Z:0
+        0x30, // N_S:1 (2 layers) Y:1 G:0 (bits 7-5=001, bit 4=1, bit 3=0)
         // Layer 0 resolution
         0x05, 0x00, // width: 1280 (5 * 256)
         0x02, 0xD0, // height: 720 (2 * 256 + 208)
@@ -225,18 +225,18 @@ void main() {
 
     test('should parse scalability structure with picture groups (G=1)', () {
       // I:0 P:0 L:0 F:0 B:0 E:0 V:1 Z:0
-      // Binary: 01000000 = 0x40
+      // Binary: 00000010 = 0x02
       final packet = Uint8List.fromList([
-        0x40, // V:1
-        0x81, // N_S:0 (1 layer) Y:0 G:1
+        0x02, // V:1
+        0x28, // N_S:1 (2 layers) Y:0 G:1 (bits 7-5=001, bit 4=0, bit 3=1)
         0x02, // N_G:2 (2 picture groups)
         // PG 0
-        0x45, // T:2(0b010) U:0 R:5(0b00101)
+        0x4C, // T:2 U:0 R:3 (bits 7-5=010, bit 4=0, bits 3-2=11)
         0x03, // P_DIFF[0]:3
         0x02, // P_DIFF[1]:2
         0x01, // P_DIFF[2]:1
         // PG 1
-        0x21, // T:1 U:0 R:1
+        0x24, // T:1 U:0 R:1 (bits 7-5=001, bit 4=0, bits 3-2=01)
         0x01, // P_DIFF[0]:1
         0xAA, // payload
       ]);
@@ -264,9 +264,9 @@ void main() {
 
     test('should parse complex packet with all extensions', () {
       // I:1 P:0 L:1 F:0 B:1 E:0 V:0 Z:1
-      // Binary: 10010101 = 0x95
+      // Binary: 10101001 = 0xA9
       final packet = Uint8List.fromList([
-        0x95, // I:1 P:0 L:1 F:0 B:1 E:0 V:0 Z:1
+        0xA9, // I:1 P:0 L:1 F:0 B:1 E:0 V:0 Z:1
         0x7F, // M:0, PictureID:127
         0x21, // TID:1 U:0 SID:0 D:1
         0x10, // TL0PICIDX
@@ -297,9 +297,9 @@ void main() {
     test('should handle truncated packets gracefully', () {
       // Packet claims to have Picture ID but buffer is too short
       // I:1 P:0 L:0 F:0 B:0 E:0 V:0 Z:0
-      // Binary: 00000001 = 0x01
+      // Binary: 10000000 = 0x80
       final packet = Uint8List.fromList([
-        0x01, // I:1 (claims Picture ID present)
+        0x80, // I:1 (claims Picture ID present)
         // Missing Picture ID bytes
       ]);
       final vp9 = Vp9RtpPayload.deserialize(packet);
@@ -309,9 +309,9 @@ void main() {
 
     test('should parse Picture ID at boundary (7-bit: 0)', () {
       // I:1 P:0 L:0 F:0 B:0 E:0 V:0 Z:0
-      // Binary: 00000001 = 0x01
+      // Binary: 10000000 = 0x80
       final packet = Uint8List.fromList([
-        0x01, // I:1
+        0x80, // I:1
         0x00, // M:0, PictureID:0
         0xFF,
       ]);
@@ -322,9 +322,9 @@ void main() {
 
     test('should parse Picture ID at boundary (15-bit: 0)', () {
       // I:1 P:0 L:0 F:0 B:0 E:0 V:0 Z:0
-      // Binary: 00000001 = 0x01
+      // Binary: 10000000 = 0x80
       final packet = Uint8List.fromList([
-        0x01, // I:1
+        0x80, // I:1
         0x80, // M:1, PictureID[8-14]:0
         0x00, // PictureID[0-7]:0
         0xFF,
@@ -336,9 +336,9 @@ void main() {
 
     test('should detect keyframe with spatial layer 0 (P=0, B=1, SID=0)', () {
       // I:0 P:0 L:1 F:0 B:1 E:0 V:0 Z:0
-      // Binary: 00010100 = 0x14
+      // Binary: 00101000 = 0x28
       final packet = Uint8List.fromList([
-        0x14, // I:0 P:0 L:1 F:0 B:1 E:0 V:0 Z:0
+        0x28, // I:0 P:0 L:1 F:0 B:1 E:0 V:0 Z:0
         0x01, // TID:0 U:0 SID:0 D:1
         0xAA,
       ]);
@@ -353,10 +353,10 @@ void main() {
 
     test('should not be keyframe with spatial layer > 0', () {
       // I:0 P:0 L:1 F:0 B:1 E:0 V:0 Z:0
-      // Binary: 00010100 = 0x14
+      // Binary: 00101000 = 0x28
       final packet = Uint8List.fromList([
-        0x14, // I:0 P:0 L:1 F:0 B:1 E:0 V:0 Z:0
-        0x11, // TID:0 U:0 SID:1 D:1
+        0x28, // I:0 P:0 L:1 F:0 B:1 E:0 V:0 Z:0
+        0x03, // TID:0 U:0 SID:1 D:1 (bits 7-5=000, bit 4=0, bits 3-1=001, bit 0=1)
         0xAA,
       ]);
       final vp9 = Vp9RtpPayload.deserialize(packet);
@@ -369,8 +369,8 @@ void main() {
 
     test('should correctly identify partition head (B=1)', () {
       // I:0 P:0 L:0 F:0 B:1 E:0 V:0 Z:0
-      // Binary: 00010000 = 0x10
-      var packet = Uint8List.fromList([0x10, 0xAA]); // B:1
+      // Binary: 00001000 = 0x08
+      var packet = Uint8List.fromList([0x08, 0xAA]); // B:1
       var vp9 = Vp9RtpPayload.deserialize(packet);
       expect(vp9.isPartitionHead, isTrue);
 
@@ -383,9 +383,9 @@ void main() {
 
     test('toString should include relevant fields', () {
       // I:1 P:0 L:0 F:0 B:1 E:0 V:0 Z:0
-      // Binary: 00010001 = 0x11
+      // Binary: 10001000 = 0x88
       final packet = Uint8List.fromList([
-        0x11, // I:1 P:0 L:0 F:0 B:1 E:0 V:0 Z:0
+        0x88, // I:1 P:0 L:0 F:0 B:1 E:0 V:0 Z:0
         0x42, // PictureID:66
         0xAA,
         0xBB,
@@ -400,9 +400,9 @@ void main() {
 
     test('should parse maximum P_DIFF reference count', () {
       // I:0 P:1 L:1 F:1 B:0 E:0 V:0 Z:0
-      // Binary: 00001110 = 0x0E
+      // Binary: 01110000 = 0x70
       final packet = Uint8List.fromList([
-        0x0E, // I:0 P:1 L:1 F:1 B:0 E:0 V:0 Z:0
+        0x70, // I:0 P:1 L:1 F:1 B:0 E:0 V:0 Z:0
         0x21, // TID:1 U:0 SID:0 D:1
         0x87, // P_DIFF:7 N:1 (first reference)
         0x85, // P_DIFF:5 N:1 (second reference)
@@ -419,9 +419,9 @@ void main() {
 
     test('should parse scalability structure with maximum layers', () {
       // I:0 P:0 L:0 F:0 B:0 E:0 V:1 Z:0
-      // Binary: 01000000 = 0x40
+      // Binary: 00000010 = 0x02
       final packet = Uint8List.fromList([
-        0x40, // V:1
+        0x02, // V:1
         0xF9, // N_S:7 (8 layers) Y:1 G:0
         // 8 layers worth of resolutions (8 * 4 bytes = 32 bytes)
         0x02, 0x80, 0x01, 0x68, // 640x360

@@ -6,6 +6,7 @@
 import 'dart:async';
 import 'package:test/test.dart';
 import 'package:webrtc_dart/webrtc_dart.dart';
+import 'package:webrtc_dart/src/ice/candidate.dart';
 
 void main() {
   group('Connection Stability', () {
@@ -17,8 +18,27 @@ void main() {
       final pcOffer = RtcPeerConnection();
       final pcAnswer = RtcPeerConnection();
 
-      // Wait for transport initialization (certificate generation, SCTP setup)
-      await Future.delayed(Duration(milliseconds: 1000));
+      // Wait for transport initialization (certificate generation)
+      await Future.delayed(Duration(milliseconds: 500));
+
+      // Track ICE candidates - MUST be set up before any SDP exchange
+      // to avoid missing candidates that are emitted during setLocalDescription
+      final offerCandidates = <Candidate>[];
+      final answerCandidates = <Candidate>[];
+
+      pcOffer.onIceCandidate.listen((candidate) {
+        print('Offer candidate: ${candidate.type} ${candidate.host}:${candidate.port}');
+        offerCandidates.add(candidate);
+      });
+
+      pcAnswer.onIceCandidate.listen((candidate) {
+        print('Answer candidate: ${candidate.type} ${candidate.host}:${candidate.port}');
+        answerCandidates.add(candidate);
+      });
+
+      // Create data channel - can now be called before connection is established
+      // Returns a ProxyDataChannel that will be wired to real channel when SCTP is ready
+      final dc = pcOffer.createDataChannel('stability-test');
 
       // Track messages
       var offerMessageCount = 0;
@@ -27,6 +47,7 @@ void main() {
 
       // Monitor connection state
       pcOffer.onConnectionStateChange.listen((state) {
+        print('Offer connection state: $state');
         if (state == PeerConnectionState.failed ||
             state == PeerConnectionState.closed) {
           connectionLost = true;
@@ -34,44 +55,57 @@ void main() {
       });
 
       pcAnswer.onConnectionStateChange.listen((state) {
+        print('Answer connection state: $state');
         if (state == PeerConnectionState.failed ||
             state == PeerConnectionState.closed) {
           connectionLost = true;
         }
       });
 
-      // Perform offer/answer exchange
-      final offerDc = pcOffer.createDataChannel('stability-test');
-      final offer = await pcOffer.createOffer();
-      await pcOffer.setLocalDescription(offer);
-
-      // Set up answer datachannel handler
-      DataChannel? answerDc;
-      pcAnswer.onDataChannel.listen((dc) {
-        answerDc = dc;
-        dc.onMessage.listen((data) {
+      // Set up answer datachannel handler BEFORE SDP exchange
+      pcAnswer.onDataChannel.listen((incomingDc) {
+        print('Answer received data channel: ${incomingDc.label}');
+        incomingDc.onMessage.listen((data) {
           answerMessageCount++;
           // Echo back
-          dc.send(data);
+          incomingDc.send(data);
         });
       });
 
+      // Perform offer/answer exchange
+      print('Creating offer...');
+      final offer = await pcOffer.createOffer();
+      print('Setting local description (offer)...');
+      await pcOffer.setLocalDescription(offer);
+
+      print('Setting remote description (offer) on answer...');
       await pcAnswer.setRemoteDescription(offer);
+      print('Creating answer...');
       final answer = await pcAnswer.createAnswer();
+      print('Setting local description (answer)...');
       await pcAnswer.setLocalDescription(answer);
+      print('Setting remote description (answer) on offer...');
       await pcOffer.setRemoteDescription(answer);
 
-      // Exchange ICE candidates
-      pcOffer.onIceCandidate.listen((candidate) async {
-        await pcAnswer.addIceCandidate(candidate);
-      });
+      // Wait for ICE gathering to complete
+      await Future.delayed(Duration(milliseconds: 500));
 
-      pcAnswer.onIceCandidate.listen((candidate) async {
+      print('Offer gathered ${offerCandidates.length} candidates');
+      print('Answer gathered ${answerCandidates.length} candidates');
+
+      // Exchange ICE candidates
+      for (final candidate in offerCandidates) {
+        await pcAnswer.addIceCandidate(candidate);
+      }
+      for (final candidate in answerCandidates) {
         await pcOffer.addIceCandidate(candidate);
-      });
+      }
+
+      // Signal end of candidates
+      print('Signaling end of candidates...');
 
       // Set up offer datachannel handler
-      offerDc.onMessage.listen((data) {
+      dc.onMessage.listen((data) {
         offerMessageCount++;
       });
 
@@ -79,7 +113,7 @@ void main() {
       print('Waiting for connection establishment...');
       await Future.doWhile(() async {
         await Future.delayed(Duration(milliseconds: 100));
-        return offerDc.state != DataChannelState.open;
+        return dc.state != DataChannelState.open;
       }).timeout(Duration(seconds: 10));
 
       print('✓ Connection established!\n');
@@ -96,7 +130,7 @@ void main() {
         }
 
         messagesSent++;
-        offerDc.send('Stability test message #$messagesSent'.codeUnits);
+        dc.send('Stability test message #$messagesSent'.codeUnits);
 
         await Future.delayed(Duration(seconds: 2));
 

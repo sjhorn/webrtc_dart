@@ -178,17 +178,20 @@ void main() {
       expect(states, contains(PeerConnectionState.closed));
     });
 
-    test('creates data channel throws before SCTP is ready', () async {
+    test('creates data channel before SCTP is ready (returns ProxyDataChannel)', () async {
       final pc = RtcPeerConnection();
 
       // Wait for async initialization (certificate generation, transport setup)
       await Future.delayed(Duration(milliseconds: 100));
 
       // SCTP is not ready until ICE/DTLS/SCTP handshakes complete
-      expect(
-        () => pc.createDataChannel('test'),
-        throwsA(isA<StateError>()),
-      );
+      // But createDataChannel now returns a ProxyDataChannel that will be
+      // wired to a real DataChannel when SCTP becomes ready
+      final channel = pc.createDataChannel('test');
+
+      // The channel should be in connecting state until SCTP is ready
+      expect(channel.label, equals('test'));
+      expect(channel.state, equals(DataChannelState.connecting));
 
       await pc.close();
     });

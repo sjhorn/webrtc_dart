@@ -14,6 +14,7 @@ import 'package:webrtc_dart/src/codec/codec_parameters.dart';
 import 'package:webrtc_dart/src/srtp/rtp_packet.dart';
 import 'package:webrtc_dart/src/srtp/rtcp_packet.dart';
 import 'package:webrtc_dart/src/srtp/srtp_session.dart';
+import 'package:webrtc_dart/src/stats/rtc_stats.dart';
 
 /// RTCPeerConnection State
 enum PeerConnectionState {
@@ -740,7 +741,10 @@ class RtcPeerConnection {
   }
 
   /// Create data channel
-  DataChannel createDataChannel(
+  /// Returns a DataChannel or ProxyDataChannel (which has the same API).
+  /// If called before SCTP is ready, returns a ProxyDataChannel that will
+  /// be wired up to a real DataChannel once the connection is established.
+  dynamic createDataChannel(
     String label, {
     String protocol = '',
     bool ordered = true,
@@ -1129,6 +1133,49 @@ class RtcPeerConnection {
   /// Get receivers
   List<RtpReceiver> getReceivers() {
     return _transceivers.map((t) => t.receiver).toList();
+  }
+
+  /// Get RTC statistics
+  /// Returns statistics about the peer connection
+  ///
+  /// [selector] - Optional MediaStreamTrack to filter stats (not yet implemented)
+  ///
+  /// MVP implementation includes:
+  /// - peer-connection stats (basic connection info)
+  /// - RTP stats from all active sessions (inbound/outbound)
+  ///
+  /// TODO: Full implementation should include:
+  /// - data-channel stats
+  /// - media-source stats
+  /// - codec stats
+  /// - transport/ICE/certificate stats
+  /// - track selector filtering
+  Future<RTCStatsReport> getStats([MediaStreamTrack? selector]) async {
+    final stats = <RTCStats>[];
+    final timestamp = getStatsTimestamp();
+
+    // Add peer-connection level stats
+    final pcId = generateStatsId('peer-connection');
+    stats.add(RTCPeerConnectionStats(
+      timestamp: timestamp,
+      id: pcId,
+      // TODO: Track data channel open/close counts
+      dataChannelsOpened: null,
+      dataChannelsClosed: null,
+    ));
+
+    // Collect RTP stats from all sessions
+    for (final session in _rtpSessions.values) {
+      final sessionStats = session.getStats();
+      stats.addAll(sessionStats.values);
+    }
+
+    // TODO: Add data channel stats
+    // TODO: Add media source stats for each transceiver
+    // TODO: Add codec stats from SDP negotiation
+    // TODO: Implement track selector filtering
+
+    return RTCStatsReport(stats);
   }
 
   /// Close the peer connection

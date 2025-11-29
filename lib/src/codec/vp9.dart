@@ -151,10 +151,11 @@ class Vp9RtpPayload {
         return (vp9: vp9, offset: offset);
       }
 
-      vp9.tid = getBit(buf[offset], 0, 3);
-      vp9.u = getBit(buf[offset], 3, 1);
-      vp9.sid = getBit(buf[offset], 4, 3);
-      vp9.d = getBit(buf[offset], 7, 1);
+      final layerByte = buf[offset];
+      vp9.tid = (layerByte >> 5) & 0x07; // Bits 7-5: temporal layer index
+      vp9.u = (layerByte >> 4) & 0x01; // Bit 4: switching up point
+      vp9.sid = (layerByte >> 1) & 0x07; // Bits 3-1: spatial layer index
+      vp9.d = layerByte & 0x01; // Bit 0: inter-layer dependency
       offset++;
 
       // TL0PICIDX only in non-flexible mode
@@ -170,8 +171,9 @@ class Vp9RtpPayload {
     // Parse reference indices in flexible mode for P-frames
     if (vp9.fBit == 1 && vp9.pBit == 1) {
       while (offset < buf.length) {
-        final pDiffValue = getBit(buf[offset], 0, 7);
-        final n = getBit(buf[offset], 7, 1);
+        final byte = buf[offset];
+        final pDiffValue = byte & 0x7F; // Lower 7 bits
+        final n = (byte >> 7) & 0x01; // Upper bit
         vp9.pDiff.add(pDiffValue);
         offset++;
 
@@ -186,9 +188,10 @@ class Vp9RtpPayload {
       }
 
       // Parse SS header
-      vp9.nS = getBit(buf[offset], 0, 3);
-      vp9.y = getBit(buf[offset], 3, 1);
-      vp9.g = getBit(buf[offset], 4, 1);
+      final ssByte = buf[offset];
+      vp9.nS = (ssByte >> 5) & 0x07; // Bits 5-7: N_S (number of spatial layers - 1)
+      vp9.y = (ssByte >> 4) & 0x01; // Bit 4: Y (resolution present)
+      vp9.g = (ssByte >> 3) & 0x01; // Bit 3: G (picture groups present)
       offset++;
 
       // Parse resolutions if Y-bit is set
@@ -224,9 +227,10 @@ class Vp9RtpPayload {
             return (vp9: vp9, offset: offset);
           }
 
-          vp9.pgT.add(getBit(buf[offset], 0, 3));
-          vp9.pgU.add(getBit(buf[offset], 3, 1));
-          final r = getBit(buf[offset], 4, 2); // Reference count
+          final byte = buf[offset];
+          vp9.pgT.add((byte >> 5) & 0x07); // Bits 5-7: temporal layer
+          vp9.pgU.add((byte >> 4) & 0x01); // Bit 4: switching up point
+          final r = (byte >> 2) & 0x03; // Bits 2-3: reference count
           offset++;
 
           // Parse reference indices for this picture group

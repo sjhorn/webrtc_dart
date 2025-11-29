@@ -247,100 +247,204 @@ class DataChannel {
   }
 }
 
-/// Data Channel Manager
-/// Manages multiple data channels over an SCTP association
-class DataChannelManager {
-  /// SCTP association
-  final SctpAssociation association;
+/// Configuration for a pending data channel
+/// Used to store data channel parameters before SCTP is ready
+class PendingDataChannelConfig {
+  final String label;
+  final String protocol;
+  final bool ordered;
+  final int? maxRetransmits;
+  final int? maxPacketLifeTime;
+  final int priority;
 
-  /// Data channels by stream ID
-  final Map<int, DataChannel> _channels = {};
+  /// The proxy data channel that will be wired up when initialized
+  final ProxyDataChannel proxy;
 
-  /// Next even stream ID (for locally initiated channels)
-  int _nextEvenStreamId = 0;
+  PendingDataChannelConfig({
+    required this.label,
+    required this.proxy,
+    this.protocol = '',
+    this.ordered = true,
+    this.maxRetransmits,
+    this.maxPacketLifeTime,
+    this.priority = 0,
+  });
+}
 
-  DataChannelManager({required this.association}) {
-    // Setup association data handler
-    // Note: This would need to be integrated with SctpAssociation.onReceiveData
-  }
+/// A proxy data channel that forwards to a real channel once SCTP is ready.
+/// This allows createDataChannel() to return immediately while the real
+/// channel is created asynchronously when the connection is established.
+class ProxyDataChannel {
+  /// Channel configuration
+  final String _label;
+  final String _protocol;
+  final bool _ordered;
+  final int? _maxRetransmits;
+  final int? _maxPacketLifeTime;
+  final int _priority;
 
-  /// Create a new data channel
-  Future<DataChannel> createDataChannel({
+  /// The real data channel (set when SCTP is ready)
+  DataChannel? _realChannel;
+
+  /// Current state (before real channel is created)
+  DataChannelState _state = DataChannelState.connecting;
+
+  /// Queued messages to send when channel opens
+  final List<dynamic> _pendingMessages = [];
+
+  /// Stream controllers for events before real channel exists
+  final StreamController<dynamic> _messageController =
+      StreamController.broadcast();
+  final StreamController<dynamic> _errorController =
+      StreamController.broadcast();
+  final StreamController<DataChannelState> _stateController =
+      StreamController.broadcast();
+
+  /// Completer for when channel is ready
+  final Completer<DataChannel> _readyCompleter = Completer<DataChannel>();
+
+  ProxyDataChannel({
     required String label,
     String protocol = '',
-    DataChannelType channelType = DataChannelType.reliable,
+    bool ordered = true,
+    int? maxRetransmits,
+    int? maxPacketLifeTime,
     int priority = 0,
-    int reliabilityParameter = 0,
-  }) async {
-    // Allocate even stream ID (locally initiated)
-    final streamId = _nextEvenStreamId;
-    _nextEvenStreamId += 2;
+  })  : _label = label,
+        _protocol = protocol,
+        _ordered = ordered,
+        _maxRetransmits = maxRetransmits,
+        _maxPacketLifeTime = maxPacketLifeTime,
+        _priority = priority;
 
-    final channel = DataChannel(
-      label: label,
-      protocol: protocol,
-      streamId: streamId,
-      channelType: channelType,
-      priority: priority,
-      reliabilityParameter: reliabilityParameter,
-      association: association,
-    );
+  // DataChannel-like interface
 
-    _channels[streamId] = channel;
+  String get label => _realChannel?.label ?? _label;
+  String get protocol => _realChannel?.protocol ?? _protocol;
+  int get streamId => _realChannel?.streamId ?? -1;
+  int get priority => _realChannel?.priority ?? _priority;
+  bool get ordered => _realChannel?.ordered ?? _ordered;
+  DataChannelState get state => _realChannel?.state ?? _state;
 
-    // Open the channel
-    await channel.open();
-
-    return channel;
+  DataChannelType get channelType {
+    if (_realChannel != null) return _realChannel!.channelType;
+    if (_maxRetransmits != null) {
+      return _ordered
+          ? DataChannelType.partialReliableRexmit
+          : DataChannelType.partialReliableRexmitUnordered;
+    } else if (_maxPacketLifeTime != null) {
+      return _ordered
+          ? DataChannelType.partialReliableTimed
+          : DataChannelType.partialReliableTimedUnordered;
+    }
+    return _ordered ? DataChannelType.reliable : DataChannelType.reliableUnordered;
   }
 
-  /// Handle incoming data on a stream
-  Future<void> handleIncomingData(
-      int streamId, Uint8List data, int ppid) async {
-    var channel = _channels[streamId];
+  bool get reliable => _realChannel?.reliable ?? channelType.isReliable;
 
-    // If channel doesn't exist and this is a DCEP OPEN, create it
-    if (channel == null && ppid == SctpPpid.dcep.value) {
+  Stream<dynamic> get onMessage =>
+      _realChannel?.onMessage ?? _messageController.stream;
+
+  Stream<dynamic> get onError =>
+      _realChannel?.onError ?? _errorController.stream;
+
+  Stream<DataChannelState> get onStateChange =>
+      _realChannel?.onStateChange ?? _stateController.stream;
+
+  /// Future that completes when channel is ready
+  Future<DataChannel> get ready => _readyCompleter.future;
+
+  /// Whether the channel has been initialized
+  bool get isInitialized => _realChannel != null;
+
+  /// Initialize with a real DataChannel (called when SCTP is ready)
+  void initializeWithChannel(DataChannel channel) {
+    if (_realChannel != null) return;
+
+    _realChannel = channel;
+
+    // Forward events from real channel to our controllers
+    channel.onMessage.listen((msg) {
+      _messageController.add(msg);
+    });
+    channel.onError.listen((err) {
+      _errorController.add(err);
+    });
+    channel.onStateChange.listen((newState) {
+      _state = newState;
+      _stateController.add(newState);
+
+      // Send queued messages when channel opens
+      if (newState == DataChannelState.open && _pendingMessages.isNotEmpty) {
+        _flushPendingMessages();
+      }
+    });
+
+    // Update state
+    _state = channel.state;
+    _stateController.add(_state);
+
+    // If already open, flush pending messages
+    if (_state == DataChannelState.open && _pendingMessages.isNotEmpty) {
+      _flushPendingMessages();
+    }
+
+    // Complete the ready future
+    if (!_readyCompleter.isCompleted) {
+      _readyCompleter.complete(channel);
+    }
+  }
+
+  void _flushPendingMessages() {
+    if (_realChannel == null) return;
+    for (final msg in _pendingMessages) {
       try {
-        final message = parseDcepMessage(data);
-        if (message is DcepOpenMessage) {
-          channel = DataChannel(
-            label: message.label,
-            protocol: message.protocol,
-            streamId: streamId,
-            channelType: message.channelType,
-            priority: message.priority,
-            reliabilityParameter: message.reliabilityParameter,
-            association: association,
-          );
-          _channels[streamId] = channel;
-        }
+        _realChannel!.send(msg);
       } catch (e) {
-        // Invalid DCEP message, ignore
-        return;
+        // Ignore send errors for queued messages
       }
     }
+    _pendingMessages.clear();
+  }
 
-    if (channel != null) {
-      await channel.handleIncomingData(data, ppid);
+  Future<void> send(dynamic message) async {
+    if (_realChannel != null && _realChannel!.state == DataChannelState.open) {
+      await _realChannel!.send(message);
+    } else {
+      _pendingMessages.add(message);
     }
   }
 
-  /// Get data channel by stream ID
-  DataChannel? getChannel(int streamId) {
-    return _channels[streamId];
-  }
-
-  /// Get all data channels
-  List<DataChannel> getAllChannels() {
-    return _channels.values.toList();
-  }
-
-  /// Close all data channels
-  Future<void> closeAll() async {
-    for (final channel in _channels.values) {
-      await channel.close();
+  Future<void> sendString(String message) async {
+    if (_realChannel != null && _realChannel!.state == DataChannelState.open) {
+      await _realChannel!.sendString(message);
+    } else {
+      _pendingMessages.add(message);
     }
-    _channels.clear();
+  }
+
+  Future<void> sendBinary(Uint8List message) async {
+    if (_realChannel != null && _realChannel!.state == DataChannelState.open) {
+      await _realChannel!.sendBinary(message);
+    } else {
+      _pendingMessages.add(message);
+    }
+  }
+
+  Future<void> close() async {
+    if (_realChannel != null) {
+      await _realChannel!.close();
+    } else {
+      _state = DataChannelState.closed;
+      _stateController.add(_state);
+    }
+    await _messageController.close();
+    await _errorController.close();
+    await _stateController.close();
+  }
+
+  @override
+  String toString() {
+    return 'ProxyDataChannel(label="$_label", initialized=${_realChannel != null}, state=$_state)';
   }
 }

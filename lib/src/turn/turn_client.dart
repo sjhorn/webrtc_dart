@@ -196,23 +196,41 @@ class TurnClient {
 
     var response = await _sendRequest(request);
 
-    // Handle 401 Unauthorized - need credentials
+    // Handle 401 Unauthorized or 438 Stale Nonce - need/update credentials
     if (response.messageClass == StunClass.errorResponse) {
       final errorCode = response.getAttribute(StunAttributeType.errorCode);
       if (errorCode != null && errorCode is (int, String)) {
         final (code, reason) = errorCode;
-        if (code == 401) {
+        // 401: Unauthorized (initial auth required)
+        // 438: Stale Nonce (nonce expired, need new one)
+        if (code == 401 || (code == 438 && _realm != null)) {
           // Extract realm and nonce
-          _realm = response.getAttribute(StunAttributeType.realm) as String?;
-          _nonce = response.getAttribute(StunAttributeType.nonce) as Uint8List?;
+          final newRealm = response.getAttribute(StunAttributeType.realm) as String?;
+          final newNonce = response.getAttribute(StunAttributeType.nonce) as Uint8List?;
 
-          if (_realm == null || _nonce == null) {
-            throw Exception('401 response missing realm or nonce');
+          if (newNonce == null) {
+            throw Exception('$code response missing nonce');
+          }
+
+          // For 401, realm is required
+          if (code == 401 && newRealm == null) {
+            throw Exception('401 response missing realm');
+          }
+
+          // Update nonce (always)
+          _nonce = newNonce;
+
+          // Update realm if provided (401 always has it, 438 optionally)
+          if (newRealm != null) {
+            _realm = newRealm;
           }
 
           // Compute integrity key: MD5(username:realm:password)
-          final keyInput = '$username:$_realm:$password';
-          _integrityKey = md5Hash(Uint8List.fromList(keyInput.codeUnits));
+          // Only recompute if realm changed or not yet set
+          if (_integrityKey == null || newRealm != null) {
+            final keyInput = '$username:$_realm:$password';
+            _integrityKey = md5Hash(Uint8List.fromList(keyInput.codeUnits));
+          }
 
           // Retry with credentials
           request = StunMessage(
@@ -526,4 +544,88 @@ class TurnClient {
 
     await _receiveController.close();
   }
+}
+
+/// Parse TURN URL
+/// Supports: turn:host:port, turns:host:port, turn:host:port?transport=tcp
+/// Returns (host, port, transport, secure)
+(String, int, TurnTransport, bool)? parseTurnUrl(String url) {
+  if (url.isEmpty) return null;
+
+  // Split scheme from rest
+  final colonIndex = url.indexOf(':');
+  if (colonIndex == -1) return null;
+
+  final scheme = url.substring(0, colonIndex);
+  final secure = scheme == 'turns';
+  if (scheme != 'turn' && scheme != 'turns') {
+    return null;
+  }
+
+  // Get default port based on scheme
+  final defaultPort = secure ? 5349 : 3478;
+
+  // Parse remainder (host:port?query)
+  var remainder = url.substring(colonIndex + 1);
+
+  // Extract query parameters
+  var transport = TurnTransport.udp;
+  final queryIndex = remainder.indexOf('?');
+  if (queryIndex != -1) {
+    final query = remainder.substring(queryIndex + 1);
+    remainder = remainder.substring(0, queryIndex);
+
+    // Parse query parameters
+    for (final param in query.split('&')) {
+      final parts = param.split('=');
+      if (parts.length == 2 && parts[0] == 'transport' && parts[1] == 'tcp') {
+        transport = TurnTransport.tcp;
+      }
+    }
+  }
+
+  // Parse host and port
+  String host;
+  int port = defaultPort;
+
+  // Handle IPv6 addresses [2001:db8::1]:port
+  if (remainder.startsWith('[')) {
+    final closeBracket = remainder.indexOf(']');
+    if (closeBracket == -1) return null;
+
+    host = remainder.substring(1, closeBracket);
+    if (host.isEmpty) return null;
+
+    // Check for port after ]
+    if (closeBracket + 1 < remainder.length) {
+      if (remainder[closeBracket + 1] != ':') return null;
+      final portStr = remainder.substring(closeBracket + 2);
+      if (portStr.isNotEmpty) {
+        port = int.tryParse(portStr) ?? defaultPort;
+      }
+    }
+  } else {
+    // Handle regular hostname or IPv4
+    final lastColon = remainder.lastIndexOf(':');
+    if (lastColon == -1) {
+      // No port specified
+      host = remainder;
+    } else {
+      // Check if this is a port or part of IPv6 (shouldn't happen without brackets)
+      final portStr = remainder.substring(lastColon + 1);
+      final parsedPort = int.tryParse(portStr);
+      if (parsedPort != null) {
+        // This looks like a port
+        host = remainder.substring(0, lastColon);
+        port = parsedPort;
+      } else {
+        // Not a port, treat whole thing as host
+        host = remainder;
+      }
+    }
+  }
+
+  if (host.isEmpty) return null;
+
+  return (host, port, transport, secure);
 }

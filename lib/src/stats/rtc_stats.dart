@@ -105,3 +105,29 @@ String generateStatsId(String type, [List<dynamic>? parts]) {
 double getStatsTimestamp() {
   return DateTime.now().millisecondsSinceEpoch.toDouble();
 }
+
+/// RTCPeerConnectionStats - Statistics for the peer connection itself
+class RTCPeerConnectionStats extends RTCStats {
+  /// Number of data channels opened
+  final int? dataChannelsOpened;
+
+  /// Number of data channels closed
+  final int? dataChannelsClosed;
+
+  const RTCPeerConnectionStats({
+    required super.timestamp,
+    required super.id,
+    this.dataChannelsOpened,
+    this.dataChannelsClosed,
+  }) : super(type: RTCStatsType.peerConnection);
+
+  @override
+  Map<String, dynamic> toJson() {
+    final json = super.toJson();
+    json.addAll({
+      if (dataChannelsOpened != null) 'dataChannelsOpened': dataChannelsOpened,
+      if (dataChannelsClosed != null) 'dataChannelsClosed': dataChannelsClosed,
+    });
+    return json;
+  }
+}

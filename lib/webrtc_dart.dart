@@ -32,6 +32,7 @@ export 'src/codec/codec_parameters.dart';
 export 'src/codec/opus.dart';
 export 'src/codec/vp8.dart';
 export 'src/codec/vp9.dart';
+export 'src/codec/h264.dart';
 
 // Statistics
 export 'src/stats/rtc_stats.dart';
@@ -41,3 +42,8 @@ export 'src/stats/rtp_stats.dart';
 export 'src/rtcp/psfb/pli.dart';
 export 'src/rtcp/psfb/fir.dart';
 export 'src/rtcp/psfb/psfb.dart';
+export 'src/rtcp/nack.dart';
+
+// RTP Extensions
+export 'src/rtp/rtx.dart';
+export 'src/rtp/nack_handler.dart';

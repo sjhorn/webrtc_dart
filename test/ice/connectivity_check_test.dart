@@ -10,6 +10,9 @@ void main() {
 
       await connection.gatherCandidates();
 
+      // Signal end-of-candidates (no remote candidates coming)
+      await connection.addRemoteCandidate(null);
+
       // No remote candidates added, so connect should fail
       await connection.connect();
 

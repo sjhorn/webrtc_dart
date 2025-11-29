@@ -9,6 +9,7 @@ import 'package:webrtc_dart/src/ice/utils.dart';
 import 'package:webrtc_dart/src/stun/const.dart';
 import 'package:webrtc_dart/src/stun/message.dart';
 import 'package:webrtc_dart/src/stun/protocol.dart';
+import 'package:webrtc_dart/src/turn/turn_client.dart';
 
 /// ICE connection state
 /// See RFC 5245
@@ -192,6 +193,9 @@ class IceConnectionImpl implements IceConnection {
   // Map of STUN transaction ID to completer (for connectivity checks)
   final Map<String, Completer<StunMessage>> _pendingStunTransactions = {};
 
+  // TURN client for relay candidates
+  TurnClient? _turnClient;
+
   final IceOptions options;
 
   final _stateController = StreamController<IceState>.broadcast();
@@ -355,7 +359,12 @@ class IceConnectionImpl implements IceConnection {
         await _gatherReflexiveCandidates();
       }
 
-      // TODO: Gather relay candidates via TURN
+      // Gather relay candidates via TURN
+      if (options.turnServer != null &&
+          options.turnUsername != null &&
+          options.turnPassword != null) {
+        await _gatherRelayCandidates();
+      }
 
       _localCandidatesEnd = true;
       // Note: Don't transition to 'checking' here - that happens in connect()
@@ -457,6 +466,76 @@ class IceConnectionImpl implements IceConnection {
         // Failed to get reflexive candidate for this host, continue
         continue;
       }
+    }
+  }
+
+  /// Gather relay candidates via TURN
+  Future<void> _gatherRelayCandidates() async {
+    if (options.turnServer == null ||
+        options.turnUsername == null ||
+        options.turnPassword == null) {
+      return;
+    }
+
+    try {
+      // Create TURN client
+      _turnClient = TurnClient(
+        serverAddress: options.turnServer!,
+        username: options.turnUsername!,
+        password: options.turnPassword!,
+        transport: TurnTransport.udp,
+      );
+
+      // Connect and allocate
+      await _turnClient!.connect();
+
+      final allocation = _turnClient!.allocation;
+      if (allocation == null) return;
+
+      // Get relayed address from allocation
+      final (relayHost, relayPort) = allocation.relayedAddress;
+
+      // Get base candidate (use first host candidate)
+      final baseCandidates = _localCandidates.where((c) => c.type == 'host').toList();
+      if (baseCandidates.isEmpty) return;
+
+      final baseCandidate = baseCandidates.first;
+
+      // Create relay candidate
+      final foundation = candidateFoundation('relay', 'udp', relayHost);
+      final relayCandidate = Candidate(
+        foundation: foundation,
+        component: 1,
+        transport: 'udp',
+        priority: candidatePriority('relay'),
+        host: relayHost,
+        port: relayPort,
+        type: 'relay',
+        relatedAddress: baseCandidate.host,
+        relatedPort: baseCandidate.port,
+      );
+
+      _localCandidates.add(relayCandidate);
+      _candidateController.add(relayCandidate);
+
+      // Create pairs with any already-received remote candidates
+      for (final remote in _remoteCandidates) {
+        if (relayCandidate.canPairWith(remote)) {
+          final pair = CandidatePair(
+            id: '${relayCandidate.foundation}-${remote.foundation}',
+            localCandidate: relayCandidate,
+            remoteCandidate: remote,
+            iceControlling: _iceControlling,
+          );
+          _checkList.add(pair);
+        }
+      }
+      // Sort pairs by priority
+      _checkList.sort((a, b) => b.priority.compareTo(a.priority));
+
+    } catch (e) {
+      // Failed to get relay candidate, continue without it
+      _turnClient = null;
     }
   }
 
@@ -819,6 +898,12 @@ class IceConnectionImpl implements IceConnection {
   @override
   Future<void> close() async {
     _setState(IceState.closed);
+
+    // Close TURN client if present
+    if (_turnClient != null) {
+      await _turnClient!.close();
+      _turnClient = null;
+    }
 
     // Close all sockets
     for (final socket in _sockets.values) {

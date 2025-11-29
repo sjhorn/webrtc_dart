@@ -108,6 +108,9 @@ class IntegratedTransport {
   /// Buffer for SCTP packets that arrive before SCTP association is ready
   final List<Uint8List> _sctpPacketBuffer = [];
 
+  /// Pending data channels created before SCTP is ready
+  final List<PendingDataChannelConfig> _pendingDataChannels = [];
+
   IntegratedTransport({
     required this.iceConnection,
     this.dtlsRole = DtlsRole.auto,
@@ -288,6 +291,9 @@ class IntegratedTransport {
       sctpAssociation!.onStateChange.listen((sctpState) {
         if (sctpState == SctpAssociationState.established) {
           _setState(TransportState.connected);
+
+          // Initialize any pending data channels NOW that SCTP is established
+          _initializePendingDataChannels();
         }
       });
 
@@ -320,8 +326,33 @@ class IntegratedTransport {
     }
   }
 
+  /// Initialize pending data channels after SCTP is established
+  void _initializePendingDataChannels() {
+    if (_pendingDataChannels.isEmpty || dataChannelManager == null) {
+      return;
+    }
+
+    for (final config in _pendingDataChannels) {
+      // Create the real channel now that SCTP is ready
+      final realChannel = dataChannelManager!.createDataChannel(
+        label: config.label,
+        protocol: config.protocol,
+        ordered: config.ordered,
+        maxRetransmits: config.maxRetransmits,
+        maxPacketLifeTime: config.maxPacketLifeTime,
+        priority: config.priority,
+      );
+      // Wire up the proxy to the real channel
+      config.proxy.initializeWithChannel(realChannel);
+    }
+    _pendingDataChannels.clear();
+  }
+
   /// Create a new DataChannel
-  DataChannel createDataChannel({
+  /// If SCTP is not yet ready, returns a ProxyDataChannel that will be
+  /// initialized once the connection is established.
+  /// Returns DataChannel for type compatibility (ProxyDataChannel has same API)
+  dynamic createDataChannel({
     required String label,
     String protocol = '',
     bool ordered = true,
@@ -329,11 +360,22 @@ class IntegratedTransport {
     int? maxPacketLifeTime,
     int priority = 0,
   }) {
-    if (dataChannelManager == null) {
-      throw StateError('SCTP not initialized');
+    // If SCTP is established, create channel immediately
+    if (dataChannelManager != null &&
+        sctpAssociation != null &&
+        sctpAssociation!.state == SctpAssociationState.established) {
+      return dataChannelManager!.createDataChannel(
+        label: label,
+        protocol: protocol,
+        ordered: ordered,
+        maxRetransmits: maxRetransmits,
+        maxPacketLifeTime: maxPacketLifeTime,
+        priority: priority,
+      );
     }
 
-    return dataChannelManager!.createDataChannel(
+    // SCTP not ready yet - create proxy channel that will be wired up later
+    final proxy = ProxyDataChannel(
       label: label,
       protocol: protocol,
       ordered: ordered,
@@ -341,6 +383,19 @@ class IntegratedTransport {
       maxPacketLifeTime: maxPacketLifeTime,
       priority: priority,
     );
+
+    final config = PendingDataChannelConfig(
+      label: label,
+      proxy: proxy,
+      protocol: protocol,
+      ordered: ordered,
+      maxRetransmits: maxRetransmits,
+      maxPacketLifeTime: maxPacketLifeTime,
+      priority: priority,
+    );
+
+    _pendingDataChannels.add(config);
+    return proxy;
   }
 
   /// Send data through the transport stack

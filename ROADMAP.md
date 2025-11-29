@@ -9,7 +9,7 @@
 - DataChannel: Full DCEP implementation with pre-connection support
 - Audio: RTP transport layer complete (Opus payload format)
 - PeerConnection: W3C-compatible API
-- Test Coverage: 714 tests (100% pass rate)
+- Test Coverage: 762 tests (100% pass rate)
 - Interop: Dart ↔ TypeScript signaling infrastructure
 - Stability: 60-second stability test passing with bidirectional messaging
 
@@ -165,7 +165,7 @@ This roadmap outlines the path from current MVP to full feature parity with the 
 ---
 
 #### PLI/FIR (Picture Loss/Full Intra Request) ✅ COMPLETE
-**Status:** Fully implemented (January 2025)
+**Status:** Fully implemented with comprehensive tests (January 2025)
 
 **Implemented Features:**
 - ✅ PLI (Picture Loss Indication, RFC 4585, fmt=1)
@@ -176,10 +176,14 @@ This roadmap outlines the path from current MVP to full feature parity with the 
   - ✅ 8-bit sequence number per entry
   - ✅ Serialization and deserialization
 
-**Files:** `lib/src/rtcp/psfb/pli.dart`, `lib/src/rtcp/psfb/fir.dart`
+**Test Coverage:** 48 tests (100% passing)
+- PictureLossIndication: constants, serialization, deserialization, round-trip, equality, toString
+- FirEntry: basic properties, equality
+- FullIntraRequest: serialization (0/1/multiple entries), deserialization, round-trip, length calculation, equality
+
+**Files:** `lib/src/rtcp/psfb/pli.dart`, `lib/src/rtcp/psfb/fir.dart`, `test/rtcp/pli_fir_test.dart`
 
 **TODO:**
-- Add unit tests for PLI/FIR
 - Rate limiting implementation
 - Integration with video receiver
 
@@ -300,14 +304,13 @@ This roadmap outlines the path from current MVP to full feature parity with the 
 | H.264 Depacketization | ✅ Complete | 22 tests |
 | AV1 Depacketization | ⏳ Pending | - |
 | NACK | ✅ Complete | 41 tests |
-| PLI/FIR | ✅ Complete (needs tests) | - |
+| PLI/FIR | ✅ Complete | 48 tests |
 | RTX | ✅ Complete | 11 tests |
 | TURN | ✅ Core Complete | 34 tests |
 | getStats() | ✅ MVP Complete | 9 tests |
 
 **Remaining Phase 1 Work:**
 - AV1 depacketization (optional - less browser support)
-- PLI/FIR unit tests
 - RTX integration (packet cache, NACK→RTX trigger, SDP)
 - TURN data relay (currently candidates only)
 
@@ -788,19 +791,14 @@ This roadmap outlines the path from current MVP to full feature parity with the 
 2. ~~**VP9 depacketizer**~~ ✅ Complete (25 tests)
 3. ~~**H.264 depacketizer**~~ ✅ Complete (22 tests)
 4. ~~**NACK**~~ ✅ Complete (41 tests)
-5. ~~**PLI/FIR**~~ ✅ Implemented (needs tests)
+5. ~~**PLI/FIR**~~ ✅ Complete (48 tests)
 6. ~~**RTX**~~ ✅ Complete (11 tests)
 7. ~~**TURN Core**~~ ✅ Complete (34 tests)
 8. ~~**getStats() MVP**~~ ✅ Complete (9 tests)
 
 ### 🔜 NEXT PRIORITIES
 
-1. **PLI/FIR Tests** (1-2 days)
-   - Add unit tests for PictureLossIndication
-   - Add unit tests for FullIntraRequest
-   - Test serialization/deserialization round-trips
-
-2. **RTX Integration** (2-3 days)
+1. **RTX Integration** (2-3 days)
    - Implement packet cache in sender
    - Connect NackHandler → RTX retransmission
    - Add SDP negotiation for RTX
@@ -824,4 +822,4 @@ This roadmap outlines the path from current MVP to full feature parity with the 
 
 **Document Version:** 1.2
 **Last Updated:** January 2025
-**Status:** Phase 1 ~95% complete, stability test passing, ready for browser interop testing
+**Status:** Phase 1 ~98% complete, all tests passing (762), ready for browser interop testing

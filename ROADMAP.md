@@ -9,7 +9,7 @@
 - DataChannel: Full DCEP implementation with pre-connection support
 - Audio: RTP transport layer complete (Opus payload format)
 - PeerConnection: W3C-compatible API
-- Test Coverage: 836 tests (100% pass rate)
+- Test Coverage: 852 tests (100% pass rate)
 - Interop: Dart ↔ TypeScript signaling infrastructure
 - Stability: 60-second stability test passing with bidirectional messaging
 
@@ -226,8 +226,8 @@ This roadmap outlines the path from current MVP to full feature parity with the 
 
 ---
 
-### 1.4 TURN Support ⭐ CRITICAL FOR NAT ✅ CORE COMPLETE
-**Effort:** 8-10 days | **Complexity:** Medium-High | **Status:** Core Complete (January 2025)
+### 1.4 TURN Support ⭐ CRITICAL FOR NAT ✅ COMPLETE
+**Effort:** 8-10 days | **Complexity:** Medium-High | **Status:** Complete with Data Relay (January 2025)
 
 **Completed Implementation:**
 - ✅ TURN allocation (RFC 5766)
@@ -256,16 +256,29 @@ This roadmap outlines the path from current MVP to full feature parity with the 
 - ✅ ICE candidate gathering with relay type
 - ✅ TURN client lifecycle management
 - ✅ Relay candidate generation during gatherCandidates()
-- ✅ Proper cleanup on connection close
+- ✅ Proper cleanup on connection close/restart
 
-**Test Coverage (34 tests - all passing):**
+**Data Relay Complete:**
+- ✅ Data send via TURN for relay candidates (Send indication + ChannelData)
+- ✅ Channel binding for efficient relay (4-byte header vs 36+ bytes)
+- ✅ TURN receive stream wired to ICE data delivery
+- ✅ Connectivity checks routed through TURN for relay candidates
+- ✅ Automatic channel binding on first send (lazy optimization)
+
+**Test Coverage (50 tests - all passing):**
 - ✅ ChannelData encoding/decoding (8 tests)
 - ✅ TurnAllocation lifecycle and expiry (15 tests)
 - ✅ TURN URL parsing (11 tests)
+- ✅ TURN Relay integration (16 tests)
+
+**Files:**
+- `lib/src/turn/turn_client.dart` - TURN client implementation
+- `lib/src/turn/channel_data.dart` - ChannelData encoding
+- `lib/src/ice/ice_connection.dart` - ICE/TURN integration
+- `test/turn/`, `test/ice/turn_relay_test.dart`
 
 **Remaining Work:**
 - TCP transport support
-- Data relay through TURN (currently candidates only)
 - Integration testing with real TURN servers
 - Multiple TURN servers (fallback)
 
@@ -312,12 +325,11 @@ This roadmap outlines the path from current MVP to full feature parity with the 
 | NACK | ✅ Complete | 41 tests |
 | PLI/FIR | ✅ Complete | 48 tests |
 | RTX | ✅ Complete | 85 tests |
-| TURN | ✅ Core Complete | 34 tests |
+| TURN | ✅ Complete | 50 tests |
 | getStats() | ✅ MVP Complete | 9 tests |
 
 **Remaining Phase 1 Work:**
 - AV1 depacketization (optional - less browser support)
-- TURN data relay (currently candidates only)
 
 ---
 

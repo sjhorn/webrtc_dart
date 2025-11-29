@@ -6,6 +6,7 @@ import 'package:webrtc_dart/src/common/crypto.dart';
 import 'package:webrtc_dart/src/ice/candidate.dart';
 import 'package:webrtc_dart/src/ice/candidate_pair.dart';
 import 'package:webrtc_dart/src/ice/utils.dart';
+import 'package:webrtc_dart/src/stun/attributes.dart' show Address;
 import 'package:webrtc_dart/src/stun/const.dart';
 import 'package:webrtc_dart/src/stun/message.dart';
 import 'package:webrtc_dart/src/stun/protocol.dart';
@@ -195,6 +196,12 @@ class IceConnectionImpl implements IceConnection {
 
   // TURN client for relay candidates
   TurnClient? _turnClient;
+
+  // TURN channel numbers for efficient data relay (peer address -> channel)
+  final Map<String, int> _turnChannels = {};
+
+  // Subscription for TURN receive stream
+  StreamSubscription<(Address, Uint8List)>? _turnReceiveSubscription;
 
   final IceOptions options;
 
@@ -518,6 +525,12 @@ class IceConnectionImpl implements IceConnection {
       _localCandidates.add(relayCandidate);
       _candidateController.add(relayCandidate);
 
+      // Wire up TURN receive stream to deliver relayed data
+      _turnReceiveSubscription = _turnClient!.onReceive.listen((event) {
+        final (peerAddress, data) = event;
+        _handleTurnData(peerAddress, data);
+      });
+
       // Create pairs with any already-received remote candidates
       for (final remote in _remoteCandidates) {
         if (relayCandidate.canPairWith(remote)) {
@@ -537,6 +550,21 @@ class IceConnectionImpl implements IceConnection {
       // Failed to get relay candidate, continue without it
       _turnClient = null;
     }
+  }
+
+  /// Handle data received through TURN relay
+  void _handleTurnData(Address peerAddress, Uint8List data) {
+    final (host, port) = peerAddress;
+
+    // Check if this is a STUN message
+    if (_isStunMessage(data)) {
+      _handleStunMessage(data, InternetAddress(host), port);
+      return;
+    }
+
+    // Non-STUN data - deliver to application layer
+    print('[ICE] Delivering ${data.length} bytes of TURN-relayed data to application');
+    _dataController.add(data);
   }
 
   @override
@@ -716,14 +744,26 @@ class IceConnectionImpl implements IceConnection {
     try {
       pair.updateState(CandidatePairState.inProgress);
 
-      // Get the socket for the local candidate
-      final socket = _sockets[pair.localCandidate.foundation];
-      if (socket == null) {
+      final localCandidate = pair.localCandidate;
+      final remoteCandidate = pair.remoteCandidate;
+
+      // For relay candidates, we need TURN client
+      final isRelay = localCandidate.type == 'relay';
+      if (isRelay && _turnClient == null) {
         return false;
       }
 
+      // For non-relay candidates, get the socket
+      RawDatagramSocket? socket;
+      if (!isRelay) {
+        socket = _sockets[localCandidate.foundation];
+        if (socket == null) {
+          return false;
+        }
+      }
+
       // Resolve remote address
-      final remoteAddr = InternetAddress(pair.remoteCandidate.host);
+      final remoteAddr = InternetAddress(remoteCandidate.host);
 
       // Create STUN binding request with ICE credentials
       final request = StunMessage(
@@ -740,7 +780,7 @@ class IceConnectionImpl implements IceConnection {
       // Add PRIORITY attribute
       request.setAttribute(
         StunAttributeType.priority,
-        pair.localCandidate.priority,
+        localCandidate.priority,
       );
 
       // Add ICE-CONTROLLING or ICE-CONTROLLED attribute
@@ -761,9 +801,14 @@ class IceConnectionImpl implements IceConnection {
       final completer = Completer<StunMessage>();
       _pendingStunTransactions[tid] = completer;
 
-      // Send request
+      // Send request - via TURN for relay candidates, direct for others
       final requestBytes = request.toBytes();
-      socket.send(requestBytes, remoteAddr, pair.remoteCandidate.port);
+      if (isRelay) {
+        final peerAddress = (remoteCandidate.host, remoteCandidate.port);
+        await _turnClient!.sendData(peerAddress, requestBytes);
+      } else {
+        socket!.send(requestBytes, remoteAddr, remoteCandidate.port);
+      }
 
       // Wait for response with timeout
       try {
@@ -878,32 +923,70 @@ class IceConnectionImpl implements IceConnection {
       throw StateError('No nominated pair available');
     }
 
-    // Get the socket for the local candidate
-    final socket = _sockets[_nominated!.localCandidate.foundation];
-    if (socket == null) {
-      throw StateError('Socket not found for nominated pair');
+    final localCandidate = _nominated!.localCandidate;
+    final remoteCandidate = _nominated!.remoteCandidate;
+
+    // Check if this is a relay candidate - route through TURN
+    if (localCandidate.type == 'relay' && _turnClient != null) {
+      await _sendViaTurn(remoteCandidate, data);
+    } else {
+      // Direct send for host/srflx candidates
+      final socket = _sockets[localCandidate.foundation];
+      if (socket == null) {
+        throw StateError('Socket not found for nominated pair');
+      }
+
+      final remoteAddr = InternetAddress(remoteCandidate.host);
+      socket.send(data, remoteAddr, remoteCandidate.port);
     }
-
-    // Send data to remote candidate
-    final remoteAddr = InternetAddress(_nominated!.remoteCandidate.host);
-    final remotePort = _nominated!.remoteCandidate.port;
-
-    socket.send(data, remoteAddr, remotePort);
 
     // Update statistics
     _nominated!.stats.packetsSent++;
     _nominated!.stats.bytesSent += data.length;
   }
 
+  /// Send data through TURN relay
+  Future<void> _sendViaTurn(Candidate remoteCandidate, Uint8List data) async {
+    if (_turnClient == null) {
+      throw StateError('TURN client not available');
+    }
+
+    final peerAddress = (remoteCandidate.host, remoteCandidate.port);
+    final addrKey = '${remoteCandidate.host}:${remoteCandidate.port}';
+
+    // Try to use channel data (more efficient) if we have a channel bound
+    var channelNumber = _turnChannels[addrKey];
+
+    if (channelNumber == null) {
+      // Bind a channel for this peer (first time)
+      try {
+        channelNumber = await _turnClient!.bindChannel(peerAddress);
+        _turnChannels[addrKey] = channelNumber;
+      } catch (e) {
+        // Fall back to Send indication if channel binding fails
+        await _turnClient!.sendData(peerAddress, data);
+        return;
+      }
+    }
+
+    // Send via channel data (4-byte header vs ~36+ bytes for Send indication)
+    await _turnClient!.sendChannelData(channelNumber, data);
+  }
+
   @override
   Future<void> close() async {
     _setState(IceState.closed);
+
+    // Cancel TURN receive subscription
+    await _turnReceiveSubscription?.cancel();
+    _turnReceiveSubscription = null;
 
     // Close TURN client if present
     if (_turnClient != null) {
       await _turnClient!.close();
       _turnClient = null;
     }
+    _turnChannels.clear();
 
     // Close all sockets
     for (final socket in _sockets.values) {
@@ -923,6 +1006,17 @@ class IceConnectionImpl implements IceConnection {
     _localPassword = randomString(22);
     _remoteUsername = '';
     _remotePassword = '';
+
+    // Cancel TURN receive subscription
+    await _turnReceiveSubscription?.cancel();
+    _turnReceiveSubscription = null;
+
+    // Close TURN client if present
+    if (_turnClient != null) {
+      await _turnClient!.close();
+      _turnClient = null;
+    }
+    _turnChannels.clear();
 
     // Close existing sockets
     for (final socket in _sockets.values) {

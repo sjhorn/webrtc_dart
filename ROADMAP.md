@@ -6,11 +6,12 @@
 
 **Implemented Components:**
 - Core Protocols: STUN, ICE, DTLS, SRTP/SRTCP, SCTP, RTP/RTCP
-- DataChannel: Full DCEP implementation
+- DataChannel: Full DCEP implementation with pre-connection support
 - Audio: RTP transport layer complete (Opus payload format)
 - PeerConnection: W3C-compatible API
-- Test Coverage: 712+ tests (99.7% pass rate)
+- Test Coverage: 714 tests (100% pass rate)
 - Interop: Dart ↔ TypeScript signaling infrastructure
+- Stability: 60-second stability test passing with bidirectional messaging
 
 **Feature Parity with werift-webrtc:**
 - DataChannel: **100%** ✅
@@ -821,6 +822,6 @@ This roadmap outlines the path from current MVP to full feature parity with the 
 
 ---
 
-**Document Version:** 1.1
+**Document Version:** 1.2
 **Last Updated:** January 2025
-**Status:** Phase 1 ~90% complete, ready for integration testing
+**Status:** Phase 1 ~95% complete, stability test passing, ready for browser interop testing

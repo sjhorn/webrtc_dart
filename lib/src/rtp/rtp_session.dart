@@ -173,8 +173,10 @@ class RtpSession {
     }
 
     // Check if this is an RTX packet and unwrap if needed
+    // We can unwrap RTX packets if we have the SSRC mapping, regardless of
+    // whether we're sending RTX ourselves (unwrapRtx is a static method)
     final originalSsrc = _rtxSsrcMap[packet.ssrc];
-    if (originalSsrc != null && _rtxHandler != null) {
+    if (originalSsrc != null) {
       // This is an RTX packet, unwrap it
       final originalPayloadType = _getOriginalPayloadType(packet.payloadType);
       if (originalPayloadType != null) {

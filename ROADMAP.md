@@ -9,7 +9,7 @@
 - DataChannel: Full DCEP implementation with pre-connection support
 - Audio: RTP transport layer complete (Opus payload format)
 - PeerConnection: W3C-compatible API
-- Test Coverage: 762 tests (100% pass rate)
+- Test Coverage: 796 tests (100% pass rate)
 - Interop: Dart ↔ TypeScript signaling infrastructure
 - Stability: 60-second stability test passing with bidirectional messaging
 
@@ -200,23 +200,24 @@ This roadmap outlines the path from current MVP to full feature parity with the 
 - ✅ RTX sequence number tracking with wraparound
 - ✅ CSRC and extension header preservation
 - ✅ uint16 comparison helpers for sequence number handling
+- ✅ RetransmissionBuffer (128-packet circular buffer for sent packets)
+- ✅ NACK-triggered retransmission in RtpSession
+- ✅ RTX unwrapping on receiver side via SSRC mapping
 
-**Test Coverage:** 11 tests (100% passing)
-- RTX wrapping/unwrapping round-trip
-- Sequence number wraparound (0xFFFF → 0)
-- OSN encoding/decoding (large values, boundary cases)
-- CSRC and extension header preservation
-- Empty payload handling
-- Error handling (payload too short)
-- uint16 arithmetic helpers (add, gt, lt with wraparound)
+**Test Coverage:** 45 tests (100% passing)
+- RTX wrapping/unwrapping: 11 tests
+- RetransmissionBuffer: 20 tests (store, retrieve, wraparound, circular behavior)
+- RTX Integration: 14 tests (NACK→retransmission flow, receiver unwrapping, end-to-end)
 
-**Files:** `lib/src/rtp/rtx.dart`, `test/rtp/rtx_test.dart`
+**Files:**
+- `lib/src/rtp/rtx.dart` - RTX wrapping/unwrapping
+- `lib/src/rtp/retransmission_buffer.dart` - Packet cache
+- `lib/src/rtp/rtp_session.dart` - NACK handling and RTX integration
+- `test/rtp/rtx_test.dart`, `test/rtp/retransmission_buffer_test.dart`, `test/rtp/rtx_integration_test.dart`
 
 **TODO for Full Integration:**
-- Sender: Packet cache (recent N packets for retransmission)
-- NACK-triggered retransmission (connect NackHandler to RTX)
 - SDP negotiation: `a=rtpmap:96 rtx/90000` + `a=fmtp:96 apt=95`
-- Receiver: RTX unwrapping and insertion into sequence
+- SSRC-group:FID attribute support
 
 ---
 
@@ -305,13 +306,13 @@ This roadmap outlines the path from current MVP to full feature parity with the 
 | AV1 Depacketization | ⏳ Pending | - |
 | NACK | ✅ Complete | 41 tests |
 | PLI/FIR | ✅ Complete | 48 tests |
-| RTX | ✅ Complete | 11 tests |
+| RTX | ✅ Complete | 45 tests |
 | TURN | ✅ Core Complete | 34 tests |
 | getStats() | ✅ MVP Complete | 9 tests |
 
 **Remaining Phase 1 Work:**
 - AV1 depacketization (optional - less browser support)
-- RTX integration (packet cache, NACK→RTX trigger, SDP)
+- RTX SDP negotiation (rtpmap, fmtp, ssrc-group:FID)
 - TURN data relay (currently candidates only)
 
 ---
@@ -792,22 +793,22 @@ This roadmap outlines the path from current MVP to full feature parity with the 
 3. ~~**H.264 depacketizer**~~ ✅ Complete (22 tests)
 4. ~~**NACK**~~ ✅ Complete (41 tests)
 5. ~~**PLI/FIR**~~ ✅ Complete (48 tests)
-6. ~~**RTX**~~ ✅ Complete (11 tests)
+6. ~~**RTX**~~ ✅ Complete (45 tests)
 7. ~~**TURN Core**~~ ✅ Complete (34 tests)
 8. ~~**getStats() MVP**~~ ✅ Complete (9 tests)
 
 ### 🔜 NEXT PRIORITIES
 
-1. **RTX Integration** (2-3 days)
-   - Implement packet cache in sender
-   - Connect NackHandler → RTX retransmission
-   - Add SDP negotiation for RTX
+1. **RTX SDP Negotiation** (1-2 days)
+   - Parse RTX rtpmap and fmtp from remote SDP
+   - Generate RTX lines in offers/answers
+   - SSRC-group:FID attribute support
 
-3. **TURN Data Relay** (2-3 days)
+2. **TURN Data Relay** (2-3 days)
    - Complete data relay through TURN server
    - Integration testing with real TURN servers
 
-4. **Browser Interop Testing** (ongoing)
+3. **Browser Interop Testing** (ongoing)
    - Chrome ↔ webrtc_dart test harness
    - Firefox ↔ webrtc_dart
    - Safari ↔ webrtc_dart (H.264)
@@ -820,6 +821,6 @@ This roadmap outlines the path from current MVP to full feature parity with the 
 
 ---
 
-**Document Version:** 1.2
+**Document Version:** 1.3
 **Last Updated:** January 2025
-**Status:** Phase 1 ~98% complete, all tests passing (762), ready for browser interop testing
+**Status:** Phase 1 ~99% complete, all tests passing (796), ready for browser interop testing

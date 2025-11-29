@@ -9,7 +9,7 @@
 - DataChannel: Full DCEP implementation with pre-connection support
 - Audio: RTP transport layer complete (Opus payload format)
 - PeerConnection: W3C-compatible API
-- Test Coverage: 796 tests (100% pass rate)
+- Test Coverage: 836 tests (100% pass rate)
 - Interop: Dart ↔ TypeScript signaling infrastructure
 - Stability: 60-second stability test passing with bidirectional messaging
 
@@ -190,7 +190,7 @@ This roadmap outlines the path from current MVP to full feature parity with the 
 ---
 
 ### 1.3 RTX (Retransmission) ✅ COMPLETE
-**Status:** Fully implemented with comprehensive tests (January 2025)
+**Status:** Fully implemented with comprehensive tests including SDP negotiation (January 2025)
 
 **Implemented Features:**
 - ✅ RTX SSRC management (separate from original stream)
@@ -203,21 +203,26 @@ This roadmap outlines the path from current MVP to full feature parity with the 
 - ✅ RetransmissionBuffer (128-packet circular buffer for sent packets)
 - ✅ NACK-triggered retransmission in RtpSession
 - ✅ RTX unwrapping on receiver side via SSRC mapping
+- ✅ SDP negotiation: `a=rtpmap:97 rtx/90000` + `a=fmtp:97 apt=96`
+- ✅ SSRC-group:FID attribute support in offers/answers
+- ✅ RTX codec info parsing from remote SDP
+- ✅ RTX SDP generation in createOffer/createAnswer
 
-**Test Coverage:** 45 tests (100% passing)
+**Test Coverage:** 85 tests (100% passing)
 - RTX wrapping/unwrapping: 11 tests
 - RetransmissionBuffer: 20 tests (store, retrieve, wraparound, circular behavior)
 - RTX Integration: 14 tests (NACK→retransmission flow, receiver unwrapping, end-to-end)
+- RTX SDP: 34 tests (parsing, building, round-trip)
+- PeerConnection RTX SDP: 6 tests (offer/answer generation, codec refs)
 
 **Files:**
 - `lib/src/rtp/rtx.dart` - RTX wrapping/unwrapping
 - `lib/src/rtp/retransmission_buffer.dart` - Packet cache
 - `lib/src/rtp/rtp_session.dart` - NACK handling and RTX integration
+- `lib/src/sdp/rtx_sdp.dart` - RTX SDP parsing and generation
+- `lib/src/peer_connection.dart` - RTX SDP in offer/answer
 - `test/rtp/rtx_test.dart`, `test/rtp/retransmission_buffer_test.dart`, `test/rtp/rtx_integration_test.dart`
-
-**TODO for Full Integration:**
-- SDP negotiation: `a=rtpmap:96 rtx/90000` + `a=fmtp:96 apt=95`
-- SSRC-group:FID attribute support
+- `test/sdp/rtx_sdp_test.dart`, `test/peer_connection_test.dart`
 
 ---
 
@@ -306,13 +311,12 @@ This roadmap outlines the path from current MVP to full feature parity with the 
 | AV1 Depacketization | ⏳ Pending | - |
 | NACK | ✅ Complete | 41 tests |
 | PLI/FIR | ✅ Complete | 48 tests |
-| RTX | ✅ Complete | 45 tests |
+| RTX | ✅ Complete | 85 tests |
 | TURN | ✅ Core Complete | 34 tests |
 | getStats() | ✅ MVP Complete | 9 tests |
 
 **Remaining Phase 1 Work:**
 - AV1 depacketization (optional - less browser support)
-- RTX SDP negotiation (rtpmap, fmtp, ssrc-group:FID)
 - TURN data relay (currently candidates only)
 
 ---
@@ -793,7 +797,7 @@ This roadmap outlines the path from current MVP to full feature parity with the 
 3. ~~**H.264 depacketizer**~~ ✅ Complete (22 tests)
 4. ~~**NACK**~~ ✅ Complete (41 tests)
 5. ~~**PLI/FIR**~~ ✅ Complete (48 tests)
-6. ~~**RTX**~~ ✅ Complete (45 tests)
+6. ~~**RTX**~~ ✅ Complete (85 tests)
 7. ~~**TURN Core**~~ ✅ Complete (34 tests)
 8. ~~**getStats() MVP**~~ ✅ Complete (9 tests)
 

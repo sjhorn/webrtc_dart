@@ -9,6 +9,7 @@ export 'src/webrtc_dart_base.dart';
 // Core API
 export 'src/peer_connection.dart';
 export 'src/sdp/sdp.dart';
+export 'src/sdp/rtx_sdp.dart';
 
 // ICE
 export 'src/ice/ice_connection.dart';

@@ -7,6 +7,7 @@ import 'package:webrtc_dart/src/transport/transport.dart';
 import 'package:webrtc_dart/src/datachannel/data_channel.dart';
 import 'package:webrtc_dart/src/dtls/certificate/certificate_generator.dart';
 import 'package:webrtc_dart/src/sdp/sdp.dart';
+import 'package:webrtc_dart/src/sdp/rtx_sdp.dart';
 import 'package:webrtc_dart/src/media/media_stream_track.dart';
 import 'package:webrtc_dart/src/media/rtp_transceiver.dart';
 import 'package:webrtc_dart/src/rtp/rtp_session.dart';
@@ -156,6 +157,9 @@ class RtcPeerConnection {
 
   /// RTP sessions by MID
   final Map<String, RtpSession> _rtpSessions = {};
+
+  /// RTX SSRC mapping by MID (original SSRC -> RTX SSRC)
+  final Map<String, int> _rtxSsrcByMid = {};
 
   /// Random number generator for SSRC
   final Random _random = Random.secure();
@@ -338,33 +342,70 @@ class RtcPeerConnection {
 
       final codec = transceiver.sender.codec;
       final payloadType = codec.payloadType ?? 96;
+      final ssrc = transceiver.sender.rtpSession.localSsrc;
+      final cname = _iceConnection.localUsername;
+
+      // Build format list (payload types)
+      final formats = <String>['$payloadType'];
+
+      // Build attributes list
+      final attributes = <SdpAttribute>[
+        SdpAttribute(key: 'ice-ufrag', value: iceUfrag),
+        SdpAttribute(key: 'ice-pwd', value: icePwd),
+        SdpAttribute(key: 'fingerprint', value: dtlsFingerprint),
+        SdpAttribute(key: 'setup', value: 'actpass'),
+        SdpAttribute(key: 'mid', value: mid),
+        SdpAttribute(key: 'sendrecv'),
+        SdpAttribute(key: 'rtcp-mux'),
+        SdpAttribute(
+          key: 'rtpmap',
+          value: '$payloadType ${codec.codecName}/${codec.clockRate}' +
+              (codec.channels != null && codec.channels! > 1 ? '/${codec.channels}' : ''),
+        ),
+        if (codec.parameters != null)
+          SdpAttribute(key: 'fmtp', value: '$payloadType ${codec.parameters}'),
+      ];
+
+      // Add RTX for video only
+      if (transceiver.kind == MediaStreamTrackKind.video) {
+        // Generate or retrieve RTX SSRC
+        final rtxSsrc = _rtxSsrcByMid[mid] ?? _generateSsrc();
+        _rtxSsrcByMid[mid] = rtxSsrc;
+
+        // RTX payload type is typically original + 1 (97 for VP8's 96)
+        final rtxPayloadType = payloadType + 1;
+        formats.add('$rtxPayloadType');
+
+        // Add RTX attributes using RtxSdpBuilder
+        attributes.addAll([
+          RtxSdpBuilder.createRtxRtpMap(rtxPayloadType, clockRate: codec.clockRate),
+          RtxSdpBuilder.createRtxFmtp(rtxPayloadType, payloadType),
+          RtxSdpBuilder.createSsrcGroupFid(ssrc, rtxSsrc),
+        ]);
+
+        // Add SSRC attributes for original
+        attributes.add(SdpAttribute(
+          key: 'ssrc',
+          value: '$ssrc cname:$cname',
+        ));
+
+        // Add SSRC attributes for RTX
+        attributes.add(RtxSdpBuilder.createSsrcCname(rtxSsrc, cname));
+      } else {
+        // Audio: just add SSRC cname
+        attributes.add(SdpAttribute(
+          key: 'ssrc',
+          value: '$ssrc cname:$cname',
+        ));
+      }
 
       mediaDescriptions.add(
         SdpMedia(
           type: transceiver.kind == MediaStreamTrackKind.audio ? 'audio' : 'video',
           port: 9,
           protocol: 'UDP/TLS/RTP/SAVPF',
-          formats: ['$payloadType'],
-          attributes: [
-            SdpAttribute(key: 'ice-ufrag', value: iceUfrag),
-            SdpAttribute(key: 'ice-pwd', value: icePwd),
-            SdpAttribute(key: 'fingerprint', value: dtlsFingerprint),
-            SdpAttribute(key: 'setup', value: 'actpass'),
-            SdpAttribute(key: 'mid', value: mid),
-            SdpAttribute(key: 'sendrecv'),
-            SdpAttribute(key: 'rtcp-mux'),
-            SdpAttribute(
-              key: 'rtpmap',
-              value: '$payloadType ${codec.codecName}/${codec.clockRate}' +
-                  (codec.channels != null && codec.channels! > 1 ? '/${codec.channels}' : ''),
-            ),
-            if (codec.parameters != null)
-              SdpAttribute(key: 'fmtp', value: '$payloadType ${codec.parameters}'),
-            SdpAttribute(
-              key: 'ssrc',
-              value: '${transceiver.sender.rtpSession.localSsrc} cname:${_iceConnection.localUsername}',
-            ),
-          ],
+          formats: formats,
+          attributes: attributes,
         ),
       );
     }
@@ -474,12 +515,42 @@ class RtcPeerConnection {
         // Add local SSRC if we have a transceiver for this media
         final transceiver = _transceivers.where((t) => t.mid == mid).firstOrNull;
         if (transceiver != null) {
-          attributes.add(
-            SdpAttribute(
+          final ssrc = transceiver.sender.rtpSession.localSsrc;
+          final cname = _iceConnection.localUsername;
+
+          // Check if remote offer includes RTX for video
+          if (remoteMedia.type == 'video') {
+            final rtxCodecs = remoteMedia.getRtxCodecs();
+            if (rtxCodecs.isNotEmpty) {
+              // Remote supports RTX, generate our RTX SSRC
+              final rtxSsrc = _rtxSsrcByMid[mid] ?? _generateSsrc();
+              _rtxSsrcByMid[mid] = rtxSsrc;
+
+              // Add ssrc-group FID (original, rtx)
+              attributes.add(RtxSdpBuilder.createSsrcGroupFid(ssrc, rtxSsrc));
+
+              // Add SSRC cname for original
+              attributes.add(SdpAttribute(
+                key: 'ssrc',
+                value: '$ssrc cname:$cname',
+              ));
+
+              // Add SSRC cname for RTX
+              attributes.add(RtxSdpBuilder.createSsrcCname(rtxSsrc, cname));
+            } else {
+              // No RTX, just add SSRC cname
+              attributes.add(SdpAttribute(
+                key: 'ssrc',
+                value: '$ssrc cname:$cname',
+              ));
+            }
+          } else {
+            // Audio: just add SSRC cname
+            attributes.add(SdpAttribute(
               key: 'ssrc',
-              value: '${transceiver.sender.rtpSession.localSsrc} cname:${_iceConnection.localUsername}',
-            ),
-          );
+              value: '$ssrc cname:$cname',
+            ));
+          }
         }
       }
 

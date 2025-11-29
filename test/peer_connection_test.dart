@@ -3,6 +3,8 @@ import 'package:webrtc_dart/src/peer_connection.dart';
 import 'package:webrtc_dart/src/ice/candidate.dart';
 import 'package:webrtc_dart/src/datachannel/data_channel.dart';
 import 'package:webrtc_dart/src/sdp/sdp.dart';
+import 'package:webrtc_dart/src/sdp/rtx_sdp.dart';
+import 'package:webrtc_dart/src/media/media_stream_track.dart';
 
 void main() {
   group('RtcPeerConnection', () {
@@ -304,6 +306,177 @@ void main() {
       final answer = await pc.createAnswer();
       await pc.setLocalDescription(answer);
       expect(pc.signalingState, SignalingState.stable);
+    });
+  });
+
+  group('RTX SDP Integration', () {
+    test('video offer includes RTX attributes', () async {
+      final pc = RtcPeerConnection();
+
+      // Add a video track to trigger video SDP generation
+      final videoTrack = VideoStreamTrack(id: 'video1', label: 'Video');
+      pc.addTrack(videoTrack);
+
+      final offer = await pc.createOffer();
+      final sdp = offer.parse();
+
+      // Find video media section
+      final videoMedia = sdp.mediaDescriptions.where((m) => m.type == 'video').firstOrNull;
+      expect(videoMedia, isNotNull, reason: 'Should have video media section');
+
+      // Verify RTX rtpmap is present
+      final rtpMaps = videoMedia!.getRtpMaps();
+      final rtxRtpMap = rtpMaps.where((r) => r.isRtx).firstOrNull;
+      expect(rtxRtpMap, isNotNull, reason: 'Should have RTX rtpmap');
+      expect(rtxRtpMap!.clockRate, 90000);
+
+      // Verify RTX fmtp with apt is present
+      final fmtps = videoMedia.getFmtps();
+      final rtxFmtp = fmtps.where((f) => f.apt != null).firstOrNull;
+      expect(rtxFmtp, isNotNull, reason: 'Should have RTX fmtp with apt');
+
+      // Verify ssrc-group FID is present
+      final ssrcGroups = videoMedia.getSsrcGroups();
+      final fidGroup = ssrcGroups.where((g) => g.semantics == 'FID').firstOrNull;
+      expect(fidGroup, isNotNull, reason: 'Should have ssrc-group FID');
+      expect(fidGroup!.ssrcs.length, 2, reason: 'FID should have 2 SSRCs');
+
+      await pc.close();
+    });
+
+    test('video offer RTX codec references original codec', () async {
+      final pc = RtcPeerConnection();
+
+      final videoTrack = VideoStreamTrack(id: 'video1', label: 'Video');
+      pc.addTrack(videoTrack);
+
+      final offer = await pc.createOffer();
+      final sdp = offer.parse();
+
+      final videoMedia = sdp.mediaDescriptions.where((m) => m.type == 'video').first;
+
+      // Get RTX codec info
+      final rtxCodecs = videoMedia.getRtxCodecs();
+      expect(rtxCodecs, isNotEmpty, reason: 'Should have RTX codec');
+
+      // Verify RTX references the original VP8 payload type (96)
+      expect(rtxCodecs.containsKey(96), isTrue,
+          reason: 'RTX should reference VP8 payload type 96');
+
+      final rtxInfo = rtxCodecs[96]!;
+      expect(rtxInfo.rtxPayloadType, 97, reason: 'RTX payload type should be 97');
+      expect(rtxInfo.associatedPayloadType, 96);
+
+      await pc.close();
+    });
+
+    test('audio offer does not include RTX', () async {
+      final pc = RtcPeerConnection();
+
+      // Add audio track
+      final audioTrack = AudioStreamTrack(id: 'audio1', label: 'Audio');
+      pc.addTrack(audioTrack);
+
+      final offer = await pc.createOffer();
+      final sdp = offer.parse();
+
+      // Find audio media section
+      final audioMedia = sdp.mediaDescriptions.where((m) => m.type == 'audio').firstOrNull;
+      expect(audioMedia, isNotNull);
+
+      // Verify no RTX for audio
+      final rtxCodecs = audioMedia!.getRtxCodecs();
+      expect(rtxCodecs, isEmpty, reason: 'Audio should not have RTX');
+
+      final ssrcGroups = audioMedia.getSsrcGroups();
+      expect(ssrcGroups, isEmpty, reason: 'Audio should not have ssrc-group');
+
+      await pc.close();
+    });
+
+    test('answer includes RTX when offer has RTX', () async {
+      final pc1 = RtcPeerConnection();
+      final pc2 = RtcPeerConnection();
+
+      // PC1 creates offer with video
+      final videoTrack1 = VideoStreamTrack(id: 'video1', label: 'Video');
+      pc1.addTrack(videoTrack1);
+
+      final offer = await pc1.createOffer();
+      await pc1.setLocalDescription(offer);
+
+      // PC2 adds video track and receives offer
+      final videoTrack2 = VideoStreamTrack(id: 'video2', label: 'Video');
+      pc2.addTrack(videoTrack2);
+      await pc2.setRemoteDescription(offer);
+
+      // PC2 creates answer
+      final answer = await pc2.createAnswer();
+      final answerSdp = answer.parse();
+
+      // Find video media section in answer
+      final videoMedia = answerSdp.mediaDescriptions.where((m) => m.type == 'video').firstOrNull;
+      expect(videoMedia, isNotNull);
+
+      // Verify answer has ssrc-group FID for RTX
+      final ssrcGroups = videoMedia!.getSsrcGroups();
+      final fidGroup = ssrcGroups.where((g) => g.semantics == 'FID').firstOrNull;
+      expect(fidGroup, isNotNull, reason: 'Answer should have ssrc-group FID');
+      expect(fidGroup!.ssrcs.length, 2);
+
+      await pc1.close();
+      await pc2.close();
+    });
+
+    test('RTX SSRC is different from original SSRC', () async {
+      final pc = RtcPeerConnection();
+
+      final videoTrack = VideoStreamTrack(id: 'video1', label: 'Video');
+      pc.addTrack(videoTrack);
+
+      final offer = await pc.createOffer();
+      final sdp = offer.parse();
+
+      final videoMedia = sdp.mediaDescriptions.where((m) => m.type == 'video').first;
+
+      // Get SSRC mapping
+      final rtxSsrcMapping = videoMedia.getRtxSsrcMapping();
+      expect(rtxSsrcMapping, isNotEmpty);
+
+      // Verify SSRCs are different
+      for (final entry in rtxSsrcMapping.entries) {
+        expect(entry.key, isNot(equals(entry.value)),
+            reason: 'RTX SSRC should be different from original SSRC');
+      }
+
+      await pc.close();
+    });
+
+    test('RTX attributes are preserved across multiple offers', () async {
+      final pc = RtcPeerConnection();
+
+      final videoTrack = VideoStreamTrack(id: 'video1', label: 'Video');
+      pc.addTrack(videoTrack);
+
+      // Create first offer
+      final offer1 = await pc.createOffer();
+      final sdp1 = offer1.parse();
+      final videoMedia1 = sdp1.mediaDescriptions.where((m) => m.type == 'video').first;
+      final rtxMapping1 = videoMedia1.getRtxSsrcMapping();
+
+      // Create second offer
+      final offer2 = await pc.createOffer();
+      final sdp2 = offer2.parse();
+      final videoMedia2 = sdp2.mediaDescriptions.where((m) => m.type == 'video').first;
+      final rtxMapping2 = videoMedia2.getRtxSsrcMapping();
+
+      // RTX SSRC should be preserved across offers
+      expect(rtxMapping1.keys.first, rtxMapping2.keys.first,
+          reason: 'Original SSRC should be same');
+      expect(rtxMapping1.values.first, rtxMapping2.values.first,
+          reason: 'RTX SSRC should be same across offers');
+
+      await pc.close();
     });
   });
 }

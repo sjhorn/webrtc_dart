@@ -34,6 +34,7 @@ export 'src/codec/opus.dart';
 export 'src/codec/vp8.dart';
 export 'src/codec/vp9.dart';
 export 'src/codec/h264.dart';
+export 'src/codec/av1.dart';
 
 // Statistics
 export 'src/stats/rtc_stats.dart';

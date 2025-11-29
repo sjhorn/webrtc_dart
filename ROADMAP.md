@@ -9,7 +9,7 @@
 - DataChannel: Full DCEP implementation with pre-connection support
 - Audio: RTP transport layer complete (Opus payload format)
 - PeerConnection: W3C-compatible API
-- Test Coverage: 852 tests (100% pass rate)
+- Test Coverage: 884 tests (100% pass rate)
 - Interop: Dart ↔ TypeScript signaling infrastructure
 - Stability: 60-second stability test passing with bidirectional messaging
 
@@ -105,28 +105,28 @@ This roadmap outlines the path from current MVP to full feature parity with the 
 
 ---
 
-#### AV1 Depacketization
-**Effort:** 7-8 days | **Complexity:** High
+#### AV1 Depacketization ✅ COMPLETE
+**Status:** Fully implemented with comprehensive tests (January 2025)
 
-**Implementation:**
-- OBU (Open Bitstream Unit) aggregation
-- Fragment handling (Z/Y continuation bits)
-- LEB128 size decoding
-- OBU type detection (sequence header, frame header, frame, etc.)
-- Dependency descriptor parsing
+**Implemented Features:**
+- ✅ LEB128 encoding/decoding (variable-length integers)
+- ✅ OBU (Open Bitstream Unit) deserialization and serialization
+- ✅ OBU type detection (sequence header, frame header, frame, etc.)
+- ✅ RTP payload aggregation header parsing (Z/Y/W/N bits)
+- ✅ Fragment handling (Z=start with fragment, Y=ends with fragment)
+- ✅ Multiple OBU support (W field for OBU count)
+- ✅ Keyframe detection (N bit for new coded video sequence)
+- ✅ Frame reassembly from fragmented packets
 
-**Reference:** `werift-webrtc/packages/rtp/src/codec/av1.ts`
+**Test Coverage:** 32 tests (100% passing)
+- LEB128: encode/decode single/multi-byte values, round-trip
+- Av1Obu: deserialize all OBU types, serialize with/without size field, round-trip
+- Av1RtpPayload: single/multiple OBU packets, fragment handling, keyframe detection
+- Frame reassembly: single OBU, fragmented OBU, multiple OBUs
 
-**Dependencies:**
-- May need LEB128 library (check pub.dev or port from TypeScript)
+**Files:** `lib/src/codec/av1.dart`, `test/codec/av1_test.dart`
 
-**Tests Required:**
-- OBU aggregation in single packet
-- Fragment continuation across packets
-- Coded video sequence starts
-- Temporal/spatial layer handling
-
-**Note:** Most modern codec, excellent compression but less browser support
+**Note:** Most modern codec, excellent compression but less browser support. Ported directly from werift-webrtc TypeScript implementation
 
 ---
 
@@ -321,15 +321,14 @@ This roadmap outlines the path from current MVP to full feature parity with the 
 | VP8 Depacketization | ✅ Complete | 22 tests |
 | VP9 Depacketization | ✅ Complete | 25 tests |
 | H.264 Depacketization | ✅ Complete | 22 tests |
-| AV1 Depacketization | ⏳ Pending | - |
+| AV1 Depacketization | ✅ Complete | 32 tests |
 | NACK | ✅ Complete | 41 tests |
 | PLI/FIR | ✅ Complete | 48 tests |
 | RTX | ✅ Complete | 85 tests |
 | TURN | ✅ Complete | 50 tests |
 | getStats() | ✅ MVP Complete | 9 tests |
 
-**Remaining Phase 1 Work:**
-- AV1 depacketization (optional - less browser support)
+**Phase 1 Complete!** All video codec depacketizers implemented
 
 ---
 
@@ -803,40 +802,43 @@ This roadmap outlines the path from current MVP to full feature parity with the 
 
 ## Next Steps (Immediate)
 
-### ✅ COMPLETED (Phase 1 Core)
+### ✅ COMPLETED (Phase 1 - ALL COMPLETE)
 1. ~~**VP8 depacketizer**~~ ✅ Complete (22 tests)
 2. ~~**VP9 depacketizer**~~ ✅ Complete (25 tests)
 3. ~~**H.264 depacketizer**~~ ✅ Complete (22 tests)
-4. ~~**NACK**~~ ✅ Complete (41 tests)
-5. ~~**PLI/FIR**~~ ✅ Complete (48 tests)
-6. ~~**RTX**~~ ✅ Complete (85 tests)
-7. ~~**TURN Core**~~ ✅ Complete (34 tests)
-8. ~~**getStats() MVP**~~ ✅ Complete (9 tests)
+4. ~~**AV1 depacketizer**~~ ✅ Complete (32 tests)
+5. ~~**NACK**~~ ✅ Complete (41 tests)
+6. ~~**PLI/FIR**~~ ✅ Complete (48 tests)
+7. ~~**RTX + SDP Negotiation**~~ ✅ Complete (85 tests)
+8. ~~**TURN (Core + Data Relay)**~~ ✅ Complete (50 tests)
+9. ~~**getStats() MVP**~~ ✅ Complete (9 tests)
 
-### 🔜 NEXT PRIORITIES
+**Phase 1 Complete!** Total: 334 tests for Phase 1 features
 
-1. **RTX SDP Negotiation** (1-2 days)
-   - Parse RTX rtpmap and fmtp from remote SDP
-   - Generate RTX lines in offers/answers
-   - SSRC-group:FID attribute support
+### 🔜 NEXT PRIORITIES (Phase 2)
 
-2. **TURN Data Relay** (2-3 days)
-   - Complete data relay through TURN server
-   - Integration testing with real TURN servers
-
-3. **Browser Interop Testing** (ongoing)
+1. **Browser Interop Testing** (immediate)
    - Chrome ↔ webrtc_dart test harness
    - Firefox ↔ webrtc_dart
    - Safari ↔ webrtc_dart (H.264)
 
-### Phase 2 Preview
-- TWCC (bandwidth estimation)
-- Simulcast support
-- Jitter buffer
-- Track management
+2. **TWCC (Transport-Wide Congestion Control)** (10-12 days)
+   - Transport-wide sequence numbers
+   - Bandwidth estimation
+   - Adaptive bitrate
+
+3. **Simulcast Support** (12-15 days)
+   - RID support
+   - Multiple encoding layers
+   - Layer selection/switching
+
+4. **Jitter Buffer** (8-10 days)
+   - Packet reordering
+   - Adaptive buffer sizing
+   - Gap detection
 
 ---
 
-**Document Version:** 1.3
+**Document Version:** 1.4
 **Last Updated:** January 2025
-**Status:** Phase 1 ~99% complete, all tests passing (796), ready for browser interop testing
+**Status:** Phase 1 COMPLETE (884 tests passing), ready for browser interop testing and Phase 2

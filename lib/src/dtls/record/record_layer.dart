@@ -233,6 +233,51 @@ class DtlsRecordLayer {
 
     return processed;
   }
+
+  /// Process received records with future-epoch buffering
+  /// Future-epoch records are added to the buffer instead of being skipped
+  /// This allows them to be reprocessed after ChangeCipherSpec
+  Future<List<ProcessedRecord>> processRecordsWithFutureEpoch(
+    Uint8List data,
+    List<Uint8List> futureEpochBuffer,
+  ) async {
+    final records = DtlsRecord.parseMultiple(data);
+    final processed = <ProcessedRecord>[];
+
+    for (final record in records) {
+      try {
+        // Check epoch
+        if (record.epoch > dtlsContext.readEpoch) {
+          // Future epoch - buffer the raw record for later processing
+          print('[RECORD] Buffering future-epoch record with epoch ${record.epoch} (readEpoch=${dtlsContext.readEpoch}), type=${record.contentType}');
+          futureEpochBuffer.add(record.serialize());
+          continue;
+        }
+
+        if (record.epoch < dtlsContext.readEpoch) {
+          // Old epoch - ignore
+          print('[RECORD] Ignoring old record with epoch ${record.epoch} (readEpoch=${dtlsContext.readEpoch})');
+          continue;
+        }
+
+        // Decrypt if needed
+        final plaintext = await decryptRecord(record);
+
+        processed.add(ProcessedRecord(
+          contentType: record.contentType,
+          data: plaintext,
+          epoch: record.epoch,
+          sequenceNumber: record.sequenceNumber,
+        ));
+      } catch (e) {
+        // Record processing failed - continue with others
+        print('[RECORD] Error processing record: $e');
+        continue;
+      }
+    }
+
+    return processed;
+  }
 }
 
 /// Processed record after decryption

@@ -6,6 +6,7 @@ import 'package:webrtc_dart/src/ice/candidate.dart';
 import 'package:webrtc_dart/src/transport/transport.dart';
 import 'package:webrtc_dart/src/datachannel/data_channel.dart';
 import 'package:webrtc_dart/src/dtls/certificate/certificate_generator.dart';
+import 'package:webrtc_dart/src/dtls/dtls_transport.dart' show DtlsRole;
 import 'package:webrtc_dart/src/sdp/sdp.dart';
 import 'package:webrtc_dart/src/sdp/rtx_sdp.dart';
 import 'package:webrtc_dart/src/media/media_stream_track.dart';
@@ -621,9 +622,14 @@ class RtcPeerConnection {
     }
 
     // If we now have both local and remote descriptions, start connecting
+    // Note: ICE connect runs asynchronously - don't await it here
+    // This allows the signaling to complete while ICE runs in background
     if (_localDescription != null && _remoteDescription != null && !_iceConnectCalled) {
       _iceConnectCalled = true;
-      await _iceConnection.connect();
+      // Start ICE connectivity checks in background
+      _iceConnection.connect().catchError((e) {
+        print('[$_debugLabel] ICE connect error: $e');
+      });
     }
   }
 
@@ -667,28 +673,43 @@ class RtcPeerConnection {
         );
       }
 
-      // Extract DTLS setup role
-      // TODO: Proper DTLS role negotiation based on SDP setup attribute
-      // For now, ICE controlling role is determined by who creates the offer
-      // final setup = media.getAttributeValue('setup');
-      // if (setup != null) {
-      //   // If remote is 'active', we are 'passive'
-      //   // If remote is 'passive', we are 'active'
-      //   // If remote is 'actpass', we choose 'active'
-      //   final isControlling = setup == 'passive' || setup == 'actpass';
-      //   _iceConnection.iceControlling = isControlling;
-      // }
+      // Extract DTLS setup role from remote SDP
+      // Per RFC 5763:
+      // - If remote is 'active', we are the DTLS server (passive)
+      // - If remote is 'passive', we are the DTLS client (active)
+      // - If remote is 'actpass', we choose to be active (client)
+      final setup = media.getAttributeValue('setup');
+      if (setup != null && _transport != null) {
+        print('[$_debugLabel] Remote DTLS setup: $setup');
+        if (setup == 'active') {
+          // Remote is client, we are server
+          _transport!.dtlsRole = DtlsRole.server;
+          print('[$_debugLabel] Setting DTLS role to server (remote is active)');
+        } else if (setup == 'passive') {
+          // Remote is server, we are client
+          _transport!.dtlsRole = DtlsRole.client;
+          print('[$_debugLabel] Setting DTLS role to client (remote is passive)');
+        } else if (setup == 'actpass') {
+          // Remote can be either, we choose to be client
+          _transport!.dtlsRole = DtlsRole.client;
+          print('[$_debugLabel] Setting DTLS role to client (remote is actpass)');
+        }
+      }
     }
 
     // Process remote media descriptions to create transceivers for incoming tracks
     await _processRemoteMediaDescriptions(sdpMessage);
 
     // If we have both local and remote descriptions, start connecting
+    // Note: ICE connect runs asynchronously - don't await it here
+    // This allows the signaling to complete while ICE runs in background
     if (_localDescription != null && _remoteDescription != null && !_iceConnectCalled) {
       _setConnectionState(PeerConnectionState.connecting);
       _iceConnectCalled = true;
-      // Start ICE connectivity checks
-      await _iceConnection.connect();
+      // Start ICE connectivity checks in background
+      _iceConnection.connect().catchError((e) {
+        print('[$_debugLabel] ICE connect error: $e');
+      });
     }
   }
 

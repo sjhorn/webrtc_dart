@@ -163,6 +163,26 @@ int unpackUnsigned64(Uint8List data) {
   return buffer.getUint64(0);
 }
 
+/// Pack unsigned 64-bit BigInt
+Uint8List packUnsigned64BigInt(BigInt value) {
+  final result = Uint8List(8);
+  var v = value;
+  for (var i = 7; i >= 0; i--) {
+    result[i] = (v & BigInt.from(0xFF)).toInt();
+    v = v >> 8;
+  }
+  return result;
+}
+
+/// Unpack unsigned 64-bit BigInt
+BigInt unpackUnsigned64BigInt(Uint8List data) {
+  var result = BigInt.zero;
+  for (var i = 0; i < 8; i++) {
+    result = (result << 8) | BigInt.from(data[i]);
+  }
+  return result;
+}
+
 /// Pack string
 Uint8List packString(String value) {
   return Uint8List.fromList(value.codeUnits);
@@ -306,13 +326,13 @@ final Map<StunAttributeType, AttributeDefinition> attributeDefinitions = {
   ),
   StunAttributeType.iceControlled: AttributeDefinition(
     StunAttributeType.iceControlled,
-    (v) => packUnsigned64(v as int),
-    (d, [tid]) => unpackUnsigned64(d),
+    (v) => packUnsigned64BigInt(v is BigInt ? v : BigInt.from(v as int)),
+    (d, [tid]) => unpackUnsigned64BigInt(d),
   ),
   StunAttributeType.iceControlling: AttributeDefinition(
     StunAttributeType.iceControlling,
-    (v) => packUnsigned64(v as int),
-    (d, [tid]) => unpackUnsigned64(d),
+    (v) => packUnsigned64BigInt(v is BigInt ? v : BigInt.from(v as int)),
+    (d, [tid]) => unpackUnsigned64BigInt(d),
   ),
   StunAttributeType.responseOrigin: AttributeDefinition(
     StunAttributeType.responseOrigin,

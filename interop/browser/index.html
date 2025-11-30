@@ -1,0 +1,167 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>WebRTC Browser Interop Test</title>
+    <style>
+        body { font-family: monospace; padding: 20px; background: #1a1a1a; color: #eee; }
+        #log { background: #0a0a0a; padding: 10px; height: 400px; overflow-y: auto; border: 1px solid #333; }
+        .info { color: #8af; }
+        .success { color: #8f8; }
+        .error { color: #f88; }
+        .send { color: #ff8; }
+        .receive { color: #f8f; }
+        button { padding: 10px 20px; margin: 5px; background: #444; color: #fff; border: none; cursor: pointer; }
+        button:hover { background: #666; }
+        input { padding: 10px; width: 300px; background: #333; color: #fff; border: 1px solid #555; }
+        #controls { margin-bottom: 20px; }
+        h1 { color: #8af; }
+    </style>
+</head>
+<body>
+    <h1>WebRTC Browser Interop Test</h1>
+    <div id="controls">
+        <button onclick="createOffer()">1. Create Offer</button>
+        <button onclick="copyOffer()">2. Copy Offer</button>
+        <button onclick="pasteAnswer()">3. Paste Answer</button>
+        <button onclick="sendMessage()">4. Send Message</button>
+        <input type="text" id="messageInput" placeholder="Message to send..." value="Hello from Chrome!">
+    </div>
+    <div>
+        <h3>SDP Exchange</h3>
+        <textarea id="offerSdp" rows="5" cols="80" placeholder="Offer SDP will appear here..."></textarea>
+        <textarea id="answerSdp" rows="5" cols="80" placeholder="Paste Answer SDP here..."></textarea>
+    </div>
+    <h3>Log</h3>
+    <div id="log"></div>
+
+    <script>
+        let pc = null;
+        let dc = null;
+
+        function log(msg, className = 'info') {
+            const logDiv = document.getElementById('log');
+            const line = document.createElement('div');
+            line.className = className;
+            line.textContent = `[${new Date().toISOString().substr(11, 12)}] ${msg}`;
+            logDiv.appendChild(line);
+            logDiv.scrollTop = logDiv.scrollHeight;
+            console.log(msg);
+        }
+
+        async function createOffer() {
+            try {
+                log('Creating RTCPeerConnection...');
+                pc = new RTCPeerConnection({
+                    iceServers: []  // Use host candidates only for local testing
+                });
+
+                // ICE candidate handling
+                const candidates = [];
+                pc.onicecandidate = (e) => {
+                    if (e.candidate) {
+                        log(`ICE candidate: ${e.candidate.type || 'unknown'} ${e.candidate.address}:${e.candidate.port}`);
+                        candidates.push(e.candidate);
+                    } else {
+                        log('ICE gathering complete', 'success');
+                        // Update offer with all candidates
+                        document.getElementById('offerSdp').value = JSON.stringify({
+                            type: pc.localDescription.type,
+                            sdp: pc.localDescription.sdp
+                        }, null, 2);
+                    }
+                };
+
+                pc.oniceconnectionstatechange = () => {
+                    log(`ICE connection state: ${pc.iceConnectionState}`,
+                        pc.iceConnectionState === 'connected' || pc.iceConnectionState === 'completed' ? 'success' : 'info');
+                };
+
+                pc.onconnectionstatechange = () => {
+                    log(`Connection state: ${pc.connectionState}`,
+                        pc.connectionState === 'connected' ? 'success' : 'info');
+                };
+
+                // Create data channel
+                log('Creating DataChannel "chat"...');
+                dc = pc.createDataChannel('chat', { ordered: true });
+
+                dc.onopen = () => {
+                    log('DataChannel OPEN!', 'success');
+                };
+
+                dc.onclose = () => {
+                    log('DataChannel closed');
+                };
+
+                dc.onmessage = (e) => {
+                    log(`Received: ${e.data}`, 'receive');
+                };
+
+                dc.onerror = (e) => {
+                    log(`DataChannel error: ${e.error}`, 'error');
+                };
+
+                // Create offer
+                log('Creating offer...');
+                const offer = await pc.createOffer();
+                log('Setting local description...');
+                await pc.setLocalDescription(offer);
+
+                // Show initial offer (will be updated when ICE gathering completes)
+                document.getElementById('offerSdp').value = JSON.stringify({
+                    type: offer.type,
+                    sdp: offer.sdp
+                }, null, 2);
+
+                log('Offer created. Waiting for ICE gathering...', 'success');
+
+            } catch (e) {
+                log(`Error: ${e.message}`, 'error');
+            }
+        }
+
+        function copyOffer() {
+            const offerText = document.getElementById('offerSdp').value;
+            navigator.clipboard.writeText(offerText);
+            log('Offer copied to clipboard', 'success');
+        }
+
+        async function pasteAnswer() {
+            try {
+                const answerText = document.getElementById('answerSdp').value;
+                if (!answerText) {
+                    log('Please paste the answer SDP first', 'error');
+                    return;
+                }
+
+                const answer = JSON.parse(answerText);
+                log(`Setting remote description (type: ${answer.type})...`);
+                await pc.setRemoteDescription(new RTCSessionDescription(answer));
+                log('Remote description set!', 'success');
+
+            } catch (e) {
+                log(`Error: ${e.message}`, 'error');
+            }
+        }
+
+        function sendMessage() {
+            const msg = document.getElementById('messageInput').value;
+            if (!dc || dc.readyState !== 'open') {
+                log('DataChannel not open', 'error');
+                return;
+            }
+            dc.send(msg);
+            log(`Sent: ${msg}`, 'send');
+        }
+
+        // Auto-paste from clipboard button
+        document.getElementById('answerSdp').addEventListener('paste', (e) => {
+            setTimeout(() => {
+                log('Answer SDP pasted');
+            }, 100);
+        });
+
+        log('Ready. Click "Create Offer" to start.');
+    </script>
+</body>
+</html>

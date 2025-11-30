@@ -235,7 +235,7 @@ void main() {
           (StunAttributeType.priority, 98765, unpackUnsigned),
           (StunAttributeType.lifetime, 600, unpackUnsigned),
           (StunAttributeType.software, 'MySTUN/1.0', unpackString),
-          (StunAttributeType.iceControlling, 0x123456789ABC, unpackUnsigned64),
+          (StunAttributeType.iceControlling, BigInt.from(0x123456789ABC), unpackUnsigned64BigInt),
         ];
 
         for (final (type, value, unpack) in testCases) {

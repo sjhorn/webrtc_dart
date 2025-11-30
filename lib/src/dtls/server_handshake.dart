@@ -57,26 +57,29 @@ class ServerHandshakeCoordinator {
   }
 
   /// Process handshake message with type
+  /// [body] is the message body (without header)
+  /// [fullMessage] is the complete message with header (for handshake buffer)
   Future<void> processHandshakeWithType(
     HandshakeType messageType,
-    Uint8List body,
-  ) async {
+    Uint8List body, {
+    Uint8List? fullMessage,
+  }) async {
     print('[SERVER] Processing $messageType in state $_state');
     switch (messageType) {
       case HandshakeType.clientHello:
-        await _processClientHello(body);
+        await _processClientHello(body, fullMessage: fullMessage);
         break;
       case HandshakeType.certificate:
-        await _processCertificate(body);
+        await _processCertificate(body, fullMessage: fullMessage);
         break;
       case HandshakeType.clientKeyExchange:
-        await _processClientKeyExchange(body);
+        await _processClientKeyExchange(body, fullMessage: fullMessage);
         break;
       case HandshakeType.certificateVerify:
-        await _processCertificateVerify(body);
+        await _processCertificateVerify(body, fullMessage: fullMessage);
         break;
       case HandshakeType.finished:
-        await _processFinished(body);
+        await _processFinished(body, fullMessage: fullMessage);
         break;
       default:
         // Ignore other message types for now
@@ -85,13 +88,15 @@ class ServerHandshakeCoordinator {
   }
 
   /// Process ClientHello from client
-  Future<void> _processClientHello(Uint8List data) async {
+  Future<void> _processClientHello(Uint8List data, {Uint8List? fullMessage}) async {
     // Parse ClientHello
     final clientHello = ClientHello.parse(data);
     dtlsContext.clientHello = clientHello;
     dtlsContext.remoteRandom = clientHello.random.bytes;
 
-    print('[SERVER] Processing ClientHello (cookie length: ${clientHello.cookie.length})');
+    // Check if client wants extended master secret
+    dtlsContext.useExtendedMasterSecret = clientHello.hasExtendedMasterSecret;
+    print('[SERVER] Processing ClientHello (cookie length: ${clientHello.cookie.length}, ems=${dtlsContext.useExtendedMasterSecret})');
 
     // Check if cookie is present
     if (clientHello.cookie.isEmpty) {
@@ -125,8 +130,8 @@ class ServerHandshakeCoordinator {
 
       print('[SERVER] Cookie verified, generating key pair');
 
-      // Add to handshake messages
-      dtlsContext.addHandshakeMessage(data);
+      // Add to handshake messages (use fullMessage if available, includes header)
+      dtlsContext.addHandshakeMessage(fullMessage ?? data);
 
       // Mark Flight 2 as complete (received response)
       flightManager.moveToNextFlight();
@@ -155,13 +160,13 @@ class ServerHandshakeCoordinator {
   }
 
   /// Process Certificate from client (if client authentication is used)
-  Future<void> _processCertificate(Uint8List data) async {
+  Future<void> _processCertificate(Uint8List data, {Uint8List? fullMessage}) async {
     // TODO: Implement Certificate message parsing and validation
-    dtlsContext.addHandshakeMessage(data);
+    dtlsContext.addHandshakeMessage(fullMessage ?? data);
   }
 
   /// Process ClientKeyExchange from client
-  Future<void> _processClientKeyExchange(Uint8List data) async {
+  Future<void> _processClientKeyExchange(Uint8List data, {Uint8List? fullMessage}) async {
     if (_state != ServerHandshakeState.waitingForClientKeyExchange) {
       throw StateError('Unexpected ClientKeyExchange in state $_state');
     }
@@ -172,8 +177,8 @@ class ServerHandshakeCoordinator {
     // Store client's public key
     cipherContext.remotePublicKey = cke.publicKey;
 
-    // Add to handshake messages
-    dtlsContext.addHandshakeMessage(data);
+    // Add to handshake messages (use fullMessage if available, includes header)
+    dtlsContext.addHandshakeMessage(fullMessage ?? data);
 
     // Mark Flight 4 as complete (client has received it and is responding)
     flightManager.moveToNextFlight();
@@ -189,11 +194,12 @@ class ServerHandshakeCoordinator {
       dtlsContext.preMasterSecret = sharedSecret;
 
       // Derive master secret from pre-master secret
-      // Use extended master secret for better security (RFC 7627)
+      // Only use extended master secret if negotiated with client (RFC 7627)
+      print('[SERVER] Deriving master secret (extended=${dtlsContext.useExtendedMasterSecret})');
       final masterSecret = KeyDerivation.deriveMasterSecret(
         dtlsContext,
         cipherContext,
-        true, // useExtendedMasterSecret
+        dtlsContext.useExtendedMasterSecret,
       );
       dtlsContext.masterSecret = masterSecret;
 
@@ -214,13 +220,13 @@ class ServerHandshakeCoordinator {
   }
 
   /// Process CertificateVerify from client (if client authentication is used)
-  Future<void> _processCertificateVerify(Uint8List data) async {
+  Future<void> _processCertificateVerify(Uint8List data, {Uint8List? fullMessage}) async {
     // TODO: Implement CertificateVerify message parsing and validation
-    dtlsContext.addHandshakeMessage(data);
+    dtlsContext.addHandshakeMessage(fullMessage ?? data);
   }
 
   /// Process Finished from client
-  Future<void> _processFinished(Uint8List data) async {
+  Future<void> _processFinished(Uint8List data, {Uint8List? fullMessage}) async {
     if (_state != ServerHandshakeState.waitingForClientFinished) {
       throw StateError('Unexpected Finished in state $_state');
     }
@@ -240,7 +246,7 @@ class ServerHandshakeCoordinator {
       throw StateError('Finished message verification failed');
     }
 
-    dtlsContext.addHandshakeMessage(data);
+    dtlsContext.addHandshakeMessage(fullMessage ?? data);
 
     // Send Flight 6 (ChangeCipherSpec + Finished)
     final flight6 = ServerFlight6(

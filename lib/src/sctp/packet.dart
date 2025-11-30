@@ -72,9 +72,9 @@ class SctpPacket {
       offset += data.length;
     }
 
-    // Calculate and write checksum
+    // Calculate and write checksum (little-endian per RFC 4960)
     checksum = _calculateChecksum(result);
-    buffer.setUint32(8, checksum);
+    buffer.setUint32(8, checksum, Endian.little);
 
     return result;
   }
@@ -90,7 +90,7 @@ class SctpPacket {
     final sourcePort = buffer.getUint16(0);
     final destinationPort = buffer.getUint16(2);
     final verificationTag = buffer.getUint32(4);
-    final checksum = buffer.getUint32(8);
+    final checksum = buffer.getUint32(8, Endian.little); // Little-endian per RFC 4960
 
     // Verify checksum
     final calculatedChecksum = _calculateChecksum(data);
@@ -144,10 +144,11 @@ class SctpPacket {
     return _crc32c(copy);
   }
 
-  /// CRC32c calculation (Castagnoli polynomial)
+  /// CRC32c calculation (Castagnoli polynomial, reflected)
   /// RFC 4960 Appendix B
   static int _crc32c(Uint8List data) {
-    const polynomial = 0x1EDC6F41;
+    // Reflected Castagnoli polynomial
+    const polynomial = 0x82F63B78;
     var crc = 0xFFFFFFFF;
 
     for (final byte in data) {
@@ -161,7 +162,7 @@ class SctpPacket {
       }
     }
 
-    return ~crc & 0xFFFFFFFF;
+    return crc ^ 0xFFFFFFFF;
   }
 
   /// Get chunks of a specific type

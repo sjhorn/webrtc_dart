@@ -15,6 +15,9 @@ class DtlsContext {
   /// Sequence number for sending records
   int sequenceNumber;
 
+  /// Message sequence number for handshake messages (increments per message)
+  int handshakeMessageSeq;
+
   /// Remote endpoint address and port (for identification)
   String? remoteAddress;
   int? remotePort;
@@ -66,6 +69,7 @@ class DtlsContext {
     this.version = ProtocolVersion.dtls12,
     this.epoch = 0,
     this.sequenceNumber = 0,
+    this.handshakeMessageSeq = 0,
     this.remoteAddress,
     this.remotePort,
     this.sessionId,
@@ -90,7 +94,12 @@ class DtlsContext {
     handshakeMessages.add(Uint8List.fromList(message));
   }
 
-  /// Get all handshake messages concatenated
+  /// Get the next handshake message sequence number and increment it
+  int getNextHandshakeMessageSeq() {
+    return handshakeMessageSeq++;
+  }
+
+  /// Get all handshake messages concatenated for hash computation
   /// Used for PRF verify_data computation
   Uint8List getAllHandshakeMessages() {
     final totalLength = handshakeMessages.fold<int>(0, (sum, msg) => sum + msg.length);

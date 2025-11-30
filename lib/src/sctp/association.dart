@@ -112,10 +112,12 @@ class SctpAssociation {
 
   /// Start association as client (send INIT)
   Future<void> connect() async {
+    print('[SCTP] connect: state=$_state, localTag=0x${_localVerificationTag.toRadixString(16)}, localTsn=$_localInitialTsn');
     if (_state != SctpAssociationState.closed) {
       throw StateError('Association already started');
     }
 
+    print('[SCTP] connect: sending INIT');
     await _sendInit();
     _setState(SctpAssociationState.cookieWait);
     _startT1Timer();
@@ -123,16 +125,22 @@ class SctpAssociation {
 
   /// Handle incoming SCTP packet
   Future<void> handlePacket(Uint8List data) async {
+    print('[SCTP] handlePacket: ${data.length} bytes, state=$_state');
+    print('[SCTP]   first 16 bytes: ${data.take(16).map((b) => b.toRadixString(16).padLeft(2, '0')).join(' ')}');
+
     final packet = SctpPacket.parse(data);
+    print('[SCTP]   parsed: srcPort=${packet.sourcePort}, dstPort=${packet.destinationPort}, verTag=0x${packet.verificationTag.toRadixString(16)}, chunks=${packet.chunks.length}');
 
     // Verify verification tag (except for INIT and SHUTDOWN-COMPLETE)
     if (!_verifyVerificationTag(packet)) {
       // Silently discard
+      print('[SCTP]   verification tag mismatch - discarding (expected 0x${_localVerificationTag.toRadixString(16)}, got 0x${packet.verificationTag.toRadixString(16)})');
       return;
     }
 
     // Process each chunk
     for (final chunk in packet.chunks) {
+      print('[SCTP]   processing chunk type=${chunk.type}');
       await _handleChunk(chunk);
     }
   }
@@ -213,13 +221,26 @@ class SctpAssociation {
     // Generate state cookie
     _stateCookie = _generateStateCookie();
 
+    // Encode state cookie as TLV parameter
+    // Type: 7 (State Cookie), Length: 4 + cookie_length
+    final cookieParamLength = 4 + _stateCookie!.length;
+    // Pad to 4-byte boundary
+    final paddedParamLength = (cookieParamLength + 3) & ~3;
+    final parameters = Uint8List(paddedParamLength);
+    final paramBuffer = ByteData.sublistView(parameters);
+    paramBuffer.setUint16(0, 7); // State Cookie type
+    paramBuffer.setUint16(2, cookieParamLength); // Length including header
+    parameters.setRange(4, 4 + _stateCookie!.length, _stateCookie!);
+
+    print('[SCTP] _sendInitAck: cookie=${_stateCookie!.length} bytes, param=${parameters.length} bytes');
+
     final initAckChunk = SctpInitAckChunk(
       initiateTag: _localVerificationTag,
       advertisedRwnd: advertisedRwnd,
       outboundStreams: outboundStreams,
       inboundStreams: inboundStreams,
       initialTsn: _localInitialTsn,
-      parameters: _stateCookie,
+      parameters: parameters,
     );
 
     final packet = SctpPacket(
@@ -229,6 +250,7 @@ class SctpAssociation {
       chunks: [initAckChunk],
     );
 
+    print('[SCTP] _sendInitAck: sending packet with verTag=0x${_remoteVerificationTag!.toRadixString(16)}');
     await onSendPacket(packet.serialize());
   }
 
@@ -393,21 +415,29 @@ class SctpAssociation {
 
   /// Handle INIT chunk
   Future<void> _handleInit(SctpInitChunk chunk) async {
+    print('[SCTP] _handleInit: state=$_state, remoteTag=0x${chunk.initiateTag.toRadixString(16)}, remoteTsn=${chunk.initialTsn}');
+
     if (_state != SctpAssociationState.closed) {
       // TODO: Handle collision scenarios
+      print('[SCTP] _handleInit: ignoring INIT in state $_state');
       return;
     }
 
     _remoteVerificationTag = chunk.initiateTag;
     _remoteCumulativeTsn = chunk.initialTsn - 1;
 
+    print('[SCTP] _handleInit: sending INIT-ACK with localTag=0x${_localVerificationTag.toRadixString(16)}');
     await _sendInitAck();
-    _setState(SctpAssociationState.cookieWait);
+    // Note: Server stays in closed state waiting for COOKIE-ECHO, not cookieWait
+    // cookieWait is only for client waiting for INIT-ACK
   }
 
   /// Handle INIT-ACK chunk
   Future<void> _handleInitAck(SctpInitAckChunk chunk) async {
+    print('[SCTP] _handleInitAck: state=$_state, remoteTag=0x${chunk.initiateTag.toRadixString(16)}');
+
     if (_state != SctpAssociationState.cookieWait) {
+      print('[SCTP] _handleInitAck: ignoring INIT-ACK in state $_state');
       return;
     }
 
@@ -417,8 +447,11 @@ class SctpAssociation {
     _remoteCumulativeTsn = chunk.initialTsn - 1;
 
     // Extract state cookie from parameters
-    if (chunk.parameters != null) {
-      await _sendCookieEcho(chunk.parameters!);
+    final stateCookie = chunk.getStateCookie();
+    print('[SCTP] _handleInitAck: stateCookie=${stateCookie != null ? '${stateCookie.length} bytes' : 'null'}');
+    if (stateCookie != null) {
+      print('[SCTP] _handleInitAck: sending COOKIE-ECHO');
+      await _sendCookieEcho(stateCookie);
       _setState(SctpAssociationState.cookieEchoed);
       _startT1Timer();
     }
@@ -426,19 +459,24 @@ class SctpAssociation {
 
   /// Handle COOKIE-ECHO chunk
   Future<void> _handleCookieEcho(SctpCookieEchoChunk chunk) async {
+    print('[SCTP] _handleCookieEcho: state=$_state, cookie=${chunk.cookie.length} bytes');
     // TODO: Verify state cookie
 
+    print('[SCTP] _handleCookieEcho: sending COOKIE-ACK, establishing association');
     await _sendCookieAck();
     _setState(SctpAssociationState.established);
   }
 
   /// Handle COOKIE-ACK chunk
   Future<void> _handleCookieAck() async {
+    print('[SCTP] _handleCookieAck: state=$_state');
     if (_state != SctpAssociationState.cookieEchoed) {
+      print('[SCTP] _handleCookieAck: ignoring in state $_state');
       return;
     }
 
     _stopT1Timer();
+    print('[SCTP] _handleCookieAck: association established!');
     _setState(SctpAssociationState.established);
   }
 

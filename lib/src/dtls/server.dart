@@ -180,15 +180,21 @@ class DtlsServer extends DtlsSocket {
   }
 
   /// Process handshake record
+  /// Note: A single record may contain multiple handshake messages
   Future<void> _processHandshakeRecord(Uint8List data) async {
-    // Parse handshake message
-    final handshakeMsg = HandshakeMessage.parse(data);
+    // Parse all handshake messages from the record
+    final messages = HandshakeMessage.parseMultiple(data);
 
-    // Process via coordinator
-    await _handshakeCoordinator.processHandshakeWithType(
-      handshakeMsg.header.messageType,
-      handshakeMsg.body,
-    );
+    // Process each message via coordinator
+    for (final handshakeMsg in messages) {
+      // Pass the full message (header + body) for handshake buffer
+      // Use rawBytes if available to preserve original bytes for handshake hash
+      await _handshakeCoordinator.processHandshakeWithType(
+        handshakeMsg.header.messageType,
+        handshakeMsg.body,
+        fullMessage: handshakeMsg.rawBytes ?? handshakeMsg.serialize(),
+      );
+    }
 
     // Send any pending flights
     await _sendPendingFlights();

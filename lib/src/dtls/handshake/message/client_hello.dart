@@ -221,6 +221,11 @@ class ClientHello {
     );
   }
 
+  /// Check if extended master secret extension is present
+  bool get hasExtendedMasterSecret {
+    return extensions.any((ext) => ext.type == ExtensionType.extendedMasterSecret);
+  }
+
   @override
   String toString() {
     return 'ClientHello(version=$clientVersion, suites=${cipherSuites.length}, extensions=${extensions.length})';

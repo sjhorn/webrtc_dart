@@ -1,5 +1,6 @@
 import 'dart:typed_data';
 import 'package:cryptography/cryptography.dart';
+import 'package:pointycastle/export.dart' as pc;
 import 'package:webrtc_dart/src/dtls/cipher/const.dart';
 import 'package:webrtc_dart/src/dtls/cipher/prf.dart';
 import 'package:webrtc_dart/src/dtls/cipher/suites/aead.dart';
@@ -32,6 +33,9 @@ class CipherContext {
   /// Remote certificate (X.509 DER encoded)
   Uint8List? remoteCertificate;
 
+  /// Local signing private key (for CertificateVerify)
+  pc.ECPrivateKey? localSigningKey;
+
   /// Local certificate fingerprint (for SDP)
   String? localFingerprint;
 
@@ -59,6 +63,7 @@ class CipherContext {
     this.signatureScheme,
     this.localCertificate,
     this.remoteCertificate,
+    this.localSigningKey,
     this.localFingerprint,
     this.remoteFingerprint,
     this.encryptionKeys,
@@ -117,6 +122,7 @@ class CipherContext {
     signatureScheme = null;
     localCertificate = null;
     remoteCertificate = null;
+    localSigningKey = null;
     localFingerprint = null;
     remoteFingerprint = null;
     encryptionKeys = null;

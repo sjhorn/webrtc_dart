@@ -139,9 +139,14 @@ class HandshakeMessage {
   final HandshakeHeader header;
   final Uint8List body;
 
+  /// Raw bytes (header + body) as originally received
+  /// Used to preserve exact bytes for handshake hash computation
+  final Uint8List? rawBytes;
+
   HandshakeMessage({
     required this.header,
     required this.body,
+    this.rawBytes,
   });
 
   /// Parse from complete handshake message (header + body)
@@ -164,7 +169,12 @@ class HandshakeMessage {
       data.sublist(12, 12 + header.fragmentLength),
     );
 
-    return HandshakeMessage(header: header, body: body);
+    // Preserve original bytes for handshake hash computation
+    final rawBytes = Uint8List.fromList(
+      data.sublist(0, 12 + header.fragmentLength),
+    );
+
+    return HandshakeMessage(header: header, body: body, rawBytes: rawBytes);
   }
 
   /// Get the complete message (header + body)
@@ -174,5 +184,41 @@ class HandshakeMessage {
       body,
       messageSeq: header.messageSeq,
     );
+  }
+
+  /// Parse multiple handshake messages from a single buffer
+  /// DTLS allows multiple handshake messages in a single record
+  static List<HandshakeMessage> parseMultiple(Uint8List data) {
+    final messages = <HandshakeMessage>[];
+    var offset = 0;
+
+    while (offset < data.length) {
+      // Need at least 12 bytes for header
+      if (data.length - offset < 12) {
+        break;
+      }
+
+      final header = HandshakeHeader.parse(data.sublist(offset));
+      final messageLength = 12 + header.fragmentLength;
+
+      // Check we have enough data for the body
+      if (data.length - offset < messageLength) {
+        break;
+      }
+
+      final body = Uint8List.fromList(
+        data.sublist(offset + 12, offset + messageLength),
+      );
+
+      // Preserve original bytes for handshake hash computation
+      final rawBytes = Uint8List.fromList(
+        data.sublist(offset, offset + messageLength),
+      );
+
+      messages.add(HandshakeMessage(header: header, body: body, rawBytes: rawBytes));
+      offset += messageLength;
+    }
+
+    return messages;
   }
 }

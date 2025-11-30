@@ -49,6 +49,12 @@ class AEADCipherSuite {
     // Construct additional authenticated data (AAD) - always uses plaintext length
     final aad = _constructAAD(header, plaintext.length);
 
+    print('[AEAD] encrypt: epoch=${header.epoch} seq=${header.sequenceNumber}');
+    print('[AEAD] plaintext (${plaintext.length} bytes): ${plaintext.map((b) => b.toRadixString(16).padLeft(2, '0')).join(' ')}');
+    print('[AEAD] writeKey: ${writeKey.map((b) => b.toRadixString(16).padLeft(2, '0')).join(' ')}');
+    print('[AEAD] nonce: ${nonce.map((b) => b.toRadixString(16).padLeft(2, '0')).join(' ')}');
+    print('[AEAD] aad: ${aad.map((b) => b.toRadixString(16).padLeft(2, '0')).join(' ')}');
+
     // Encrypt with AES-GCM
     final ciphertext = await aesGcmEncrypt(
       key: writeKey,
@@ -63,6 +69,8 @@ class AEADCipherSuite {
     final result = Uint8List(explicitNonce.length + ciphertext.length);
     result.setRange(0, explicitNonce.length, explicitNonce);
     result.setRange(explicitNonce.length, result.length, ciphertext);
+
+    print('[AEAD] result (${result.length} bytes): ${result.map((b) => b.toRadixString(16).padLeft(2, '0')).join(' ')}');
 
     return result;
   }

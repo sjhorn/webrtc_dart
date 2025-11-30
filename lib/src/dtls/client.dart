@@ -35,6 +35,9 @@ class DtlsClient extends DtlsSocket {
   /// Processing lock to ensure sequential message processing
   Future<void>? _processingLock;
 
+  /// Buffer for future-epoch records that arrive before CCS
+  final List<Uint8List> _futureEpochBuffer = [];
+
   DtlsClient({
     required DtlsTransport transport,
     DtlsContext? dtlsContext,
@@ -122,9 +125,11 @@ class DtlsClient extends DtlsSocket {
     // Ensure sequential processing by chaining with previous processing
     _processingLock = (_processingLock ?? Future.value()).then((_) async {
       try {
-        // Parse DTLS records
-        final records = await _recordLayer.processRecords(data);
+        // Parse DTLS records - this returns records that match current readEpoch
+        // Future-epoch records are returned with a special marker
+        final records = await _recordLayer.processRecordsWithFutureEpoch(data, _futureEpochBuffer);
 
+        bool ccsReceived = false;
         for (final processed in records) {
           switch (processed.contentType) {
             case ContentType.handshake:
@@ -133,7 +138,9 @@ class DtlsClient extends DtlsSocket {
 
             case ContentType.changeCipherSpec:
               // CCS received - increment read epoch for decryption
+              print('[CLIENT] Received ChangeCipherSpec, incrementing readEpoch from ${dtlsContext.readEpoch} to ${dtlsContext.readEpoch + 1}');
               dtlsContext.readEpoch++;
+              ccsReceived = true;
               break;
 
             case ContentType.applicationData:
@@ -150,6 +157,16 @@ class DtlsClient extends DtlsSocket {
           }
         }
 
+        // If we received CCS, reprocess any buffered future-epoch records
+        if (ccsReceived && _futureEpochBuffer.isNotEmpty) {
+          print('[CLIENT] Reprocessing ${_futureEpochBuffer.length} buffered future-epoch records');
+          final bufferedData = List<Uint8List>.from(_futureEpochBuffer);
+          _futureEpochBuffer.clear();
+          for (final buffered in bufferedData) {
+            await _processBufferedRecord(buffered);
+          }
+        }
+
         // Check if handshake is complete
         if (_handshakeCoordinator.isComplete && !isConnected) {
           _onHandshakeComplete();
@@ -161,16 +178,51 @@ class DtlsClient extends DtlsSocket {
     });
   }
 
-  /// Process handshake record
-  Future<void> _processHandshakeRecord(Uint8List data) async {
-    // Parse handshake message
-    final handshakeMsg = HandshakeMessage.parse(data);
+  /// Process a buffered record that was received before CCS
+  Future<void> _processBufferedRecord(Uint8List data) async {
+    try {
+      final records = await _recordLayer.processRecords(data);
+      for (final processed in records) {
+        switch (processed.contentType) {
+          case ContentType.handshake:
+            await _processHandshakeRecord(processed.data);
+            break;
+          case ContentType.applicationData:
+            if (isConnected) {
+              dataController.add(processed.data);
+            }
+            break;
+          case ContentType.alert:
+            await _processAlert(processed.data);
+            break;
+          default:
+            break;
+        }
+      }
+    } catch (e) {
+      print('[CLIENT] Error processing buffered record: $e');
+    }
+  }
 
-    // Process via coordinator
-    await _handshakeCoordinator.processHandshakeWithType(
-      handshakeMsg.header.messageType,
-      handshakeMsg.body,
-    );
+  /// Process handshake record
+  /// Note: A single record may contain multiple handshake messages
+  Future<void> _processHandshakeRecord(Uint8List data) async {
+    // Parse all handshake messages from the record
+    final messages = HandshakeMessage.parseMultiple(data);
+
+    // Process each message via coordinator
+    for (final handshakeMsg in messages) {
+      // Pass the full message (header + body) for handshake buffer
+      // The coordinator will add the full message to the handshake buffer
+      // Use rawBytes if available to preserve original bytes for handshake hash
+      final fullMessage = handshakeMsg.rawBytes ?? handshakeMsg.serialize();
+      print('[CLIENT] Processing ${handshakeMsg.header.messageType}, rawBytes available: ${handshakeMsg.rawBytes != null}, fullMessage len: ${fullMessage.length}');
+      await _handshakeCoordinator.processHandshakeWithType(
+        handshakeMsg.header.messageType,
+        handshakeMsg.body,
+        fullMessage: fullMessage,
+      );
+    }
 
     // Send any pending flights
     await _sendPendingFlights();

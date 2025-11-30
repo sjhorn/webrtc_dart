@@ -174,6 +174,11 @@ class ServerHello {
     );
   }
 
+  /// Check if extended master secret extension is present
+  bool get hasExtendedMasterSecret {
+    return extensions.any((ext) => ext.type == ExtensionType.extendedMasterSecret);
+  }
+
   @override
   String toString() {
     return 'ServerHello(version=$serverVersion, suite=$cipherSuite, extensions=${extensions.length})';

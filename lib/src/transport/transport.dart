@@ -8,6 +8,7 @@ import 'package:webrtc_dart/src/dtls/socket.dart';
 import 'package:webrtc_dart/src/dtls/context/transport.dart' as dtls_ctx;
 import 'package:webrtc_dart/src/dtls/cipher/const.dart';
 import 'package:webrtc_dart/src/dtls/certificate/certificate_generator.dart';
+import 'package:webrtc_dart/src/dtls/context/cipher_context.dart';
 import 'package:webrtc_dart/src/sctp/association.dart';
 import 'package:webrtc_dart/src/datachannel/data_channel.dart';
 import 'package:webrtc_dart/src/datachannel/data_channel_manager.dart' as dcm;
@@ -34,6 +35,7 @@ class IceToDtlsAdapter implements dtls_ctx.DtlsTransport {
     // Forward non-STUN data from ICE to DTLS
     _iceDataSubscription = iceConnection.onData.listen((data) {
       if (_isOpen) {
+        print('[ICE->DTLS] Received ${data.length} bytes from ICE, first byte: 0x${data[0].toRadixString(16)}');
         _receiveController.add(data);
       }
     });
@@ -73,7 +75,8 @@ class IntegratedTransport {
   DtlsSocket? dtlsSocket;
 
   /// DTLS role (client or server)
-  final DtlsRole dtlsRole;
+  /// Can be set by peer connection based on SDP negotiation
+  DtlsRole dtlsRole;
 
   /// Server certificate (required if acting as DTLS server)
   final CertificateKeyPair? serverCertificate;
@@ -173,6 +176,7 @@ class IntegratedTransport {
   /// Start DTLS handshake after ICE connection is established
   Future<void> _startDtlsHandshake() async {
     if (dtlsSocket != null) {
+      print('[TRANSPORT] DTLS already started, skipping');
       return; // Already started
     }
 
@@ -182,12 +186,26 @@ class IntegratedTransport {
       if (dtlsRole == DtlsRole.auto) {
         // Convention: ICE controlling agent acts as DTLS client
         effectiveRole = iceConnection.iceControlling ? DtlsRole.client : DtlsRole.server;
+        print('[TRANSPORT] DTLS role auto-detected: ${effectiveRole == DtlsRole.client ? "client" : "server"} (iceControlling=${iceConnection.iceControlling})');
+      } else {
+        print('[TRANSPORT] DTLS role preset: ${effectiveRole == DtlsRole.client ? "client" : "server"}');
       }
 
       // Create DTLS socket based on role
       if (effectiveRole == DtlsRole.client) {
+        // For WebRTC, client also needs certificate for mutual authentication
+        CipherContext? clientCipherContext;
+        if (serverCertificate != null) {
+          clientCipherContext = CipherContext(isClient: true);
+          clientCipherContext.localCertificate = serverCertificate!.certificate;
+          clientCipherContext.localSigningKey = serverCertificate!.privateKey;
+          clientCipherContext.localFingerprint =
+              computeCertificateFingerprint(serverCertificate!.certificate);
+          print('[TRANSPORT] DTLS client configured with certificate (fingerprint: ${clientCipherContext.localFingerprint})');
+        }
         dtlsSocket = DtlsClient(
           transport: _dtlsAdapter!,
+          cipherContext: clientCipherContext,
           cipherSuites: [CipherSuite.tlsEcdheEcdsaWithAes128GcmSha256],
           supportedCurves: [NamedCurve.x25519, NamedCurve.secp256r1],
         );

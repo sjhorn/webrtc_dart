@@ -1,5 +1,7 @@
 import 'dart:typed_data';
 import 'package:webrtc_dart/src/dtls/handshake/const.dart';
+import 'package:webrtc_dart/src/dtls/handshake/extensions/extended_master_secret.dart';
+import 'package:webrtc_dart/src/dtls/handshake/extensions/use_srtp.dart';
 
 /// Base class for TLS extensions
 abstract class Extension {
@@ -70,17 +72,15 @@ class ExtensionParser {
   static Extension? _parseExtension(ExtensionType type, Uint8List data) {
     switch (type) {
       case ExtensionType.ellipticCurves:
-        // Will be imported when needed
+        // TODO: implement if needed
         return null;
       case ExtensionType.signatureAlgorithms:
-        // Will be imported when needed
+        // TODO: implement if needed
         return null;
       case ExtensionType.useSrtp:
-        // Will be imported when needed
-        return null;
+        return UseSrtpExtension.parse(data);
       case ExtensionType.extendedMasterSecret:
-        // Will be imported when needed
-        return null;
+        return ExtendedMasterSecretExtension.parse(data);
       default:
         return null;
     }

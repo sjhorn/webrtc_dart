@@ -1,6 +1,6 @@
 # webrtc_dart Roadmap - Path to Full Feature Parity
 
-## Current Status (January 2025)
+## Current Status (November 2025)
 
 ### ✅ MVP COMPLETE - DataChannel + Audio Infrastructure
 
@@ -9,9 +9,50 @@
 - DataChannel: Full DCEP implementation with pre-connection support
 - Audio: RTP transport layer complete (Opus payload format)
 - PeerConnection: W3C-compatible API
-- Test Coverage: 884 tests (100% pass rate)
-- Interop: Dart ↔ TypeScript signaling infrastructure
+- Test Coverage: 891 tests (100% pass rate)
+- Interop: Dart ↔ Chrome Browser **WORKING** (November 2025)
+- Interop: Dart ↔ TypeScript (werift) **WORKING** (November 2025)
 - Stability: 60-second stability test passing with bidirectional messaging
+
+### ✅ Interop Bugs Fixed (November 2025)
+
+The following bugs were discovered and fixed during Dart ↔ TypeScript interop debugging:
+
+1. **ICE-CONTROLLING/ICE-CONTROLLED BigInt type** (`lib/src/stun/attributes.dart`)
+   - Bug: ICE tie-breaker was `BigInt` but encoder used `int`
+   - Fix: Added `packUnsigned64BigInt` / `unpackUnsigned64BigInt` functions
+   - Root cause: Type mismatch when encoding 64-bit STUN attributes
+
+2. **SCTP CRC32c polynomial** (`lib/src/sctp/packet.dart`)
+   - Bug: Used unreflected polynomial `0x1EDC6F41`
+   - Fix: Use **reflected** Castagnoli polynomial `0x82F63B78`
+   - Test: `CRC32c("123456789") == 0xE3069283`
+
+3. **SCTP checksum endianness** (`lib/src/sctp/packet.dart`)
+   - Bug: Wrote checksum as big-endian
+   - Fix: Use little-endian per RFC 4960
+
+4. **SCTP State Cookie extraction** (`lib/src/sctp/chunk.dart`, `lib/src/sctp/association.dart`)
+   - Bug: Passed raw INIT-ACK parameters to COOKIE-ECHO
+   - Fix: Parse TLV parameters to extract State Cookie (type=7)
+   - Added: `SctpInitAckChunk.getStateCookie()` method
+
+5. **DTLS Certificate and CertificateVerify support** (`lib/src/dtls/`)
+   - Bug: Chrome requires mutual authentication with client certificate
+   - Fix: Added Certificate and CertificateVerify message support for DTLS client
+   - Added: `certificate_verify.dart`, client handshake certificate signing
+
+6. **DTLS future-epoch record buffering** (`lib/src/dtls/record/record_layer.dart`, `lib/src/dtls/client.dart`)
+   - Bug: Encrypted Finished message arrived before ChangeCipherSpec was processed
+   - Fix: Buffer future-epoch records and reprocess after CCS
+
+7. **DTLS retransmission handling** (`lib/src/dtls/client_handshake.dart`)
+   - Bug: Chrome retransmits ServerHello flight, causing spurious connection failures
+   - Fix: Silently ignore retransmitted handshake messages instead of throwing errors
+
+8. **STUN ICE-CONTROLLING/ICE-CONTROLLED attribute accepts int** (`lib/src/stun/attributes.dart`)
+   - Bug: Attribute packer only accepted `BigInt`, but callers often passed `int`
+   - Fix: Accept both `int` and `BigInt` with automatic conversion
 
 **Feature Parity with werift-webrtc:**
 - DataChannel: **100%** ✅
@@ -839,6 +880,31 @@ This roadmap outlines the path from current MVP to full feature parity with the 
 
 ---
 
-**Document Version:** 1.4
-**Last Updated:** January 2025
-**Status:** Phase 1 COMPLETE (884 tests passing), ready for browser interop testing and Phase 2
+## ✅ Chrome Browser Interop WORKING (November 2025)
+
+### Completed Interop Testing
+
+**Dart ↔ Chrome Browser DataChannel:**
+- ✅ Full DTLS 1.2 handshake with mutual certificate authentication
+- ✅ SCTP association establishment
+- ✅ Bidirectional DataChannel messaging
+- ✅ Connection state properly transitions to `connected`
+- ✅ No spurious error states during operation
+
+**Test Setup:**
+```bash
+dart run interop/browser/server.dart
+# Open http://localhost:8080 in Chrome
+# Click "Connect to Dart Peer" button
+```
+
+**Verified Working:**
+- Chrome → Dart: Text messages delivered correctly
+- Dart → Chrome: Echo messages delivered correctly
+- Connection lifecycle: new → connecting → connected → closed
+
+---
+
+**Document Version:** 1.6
+**Last Updated:** November 2025
+**Status:** Phase 1 COMPLETE (891 tests passing), Chrome browser interop WORKING

@@ -367,6 +367,34 @@ class SctpInitAckChunk extends SctpChunk {
     );
   }
 
+  /// Extract state cookie from parameters (TLV encoded)
+  /// State Cookie parameter type = 7
+  Uint8List? getStateCookie() {
+    if (parameters == null || parameters!.isEmpty) return null;
+
+    var offset = 0;
+    while (offset + 4 <= parameters!.length) {
+      final buffer = ByteData.sublistView(parameters!, offset);
+      final paramType = buffer.getUint16(0);
+      final paramLength = buffer.getUint16(2);
+
+      // State Cookie parameter type is 7
+      if (paramType == 7) {
+        // Return the value (skip 4-byte TLV header)
+        final valueLength = paramLength - 4;
+        if (offset + 4 + valueLength <= parameters!.length) {
+          return parameters!.sublist(offset + 4, offset + 4 + valueLength);
+        }
+      }
+
+      // Move to next parameter (with padding to 4-byte boundary)
+      final paddedLength = (paramLength + 3) & ~3;
+      offset += paddedLength;
+    }
+
+    return null;
+  }
+
   @override
   String toString() {
     return 'INIT-ACK(tag=0x${initiateTag.toRadixString(16)}, rwnd=$advertisedRwnd, out=$outboundStreams, in=$inboundStreams, tsn=$initialTsn)';

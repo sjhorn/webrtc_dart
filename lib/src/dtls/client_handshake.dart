@@ -44,6 +44,7 @@ class ClientHandshakeCoordinator {
 
   ClientHandshakeState _state = ClientHandshakeState.initial;
   Certificate? _serverCertificate;
+  bool _certificateRequested = false;
 
   ClientHandshakeCoordinator({
     required this.dtlsContext,
@@ -91,29 +92,35 @@ class ClientHandshakeCoordinator {
   }
 
   /// Process handshake message with type
+  /// [body] is the message body (without header)
+  /// [fullMessage] is the complete message with header (for handshake buffer)
   Future<void> processHandshakeWithType(
     HandshakeType messageType,
-    Uint8List body,
-  ) async {
+    Uint8List body, {
+    Uint8List? fullMessage,
+  }) async {
     print('[CLIENT] Processing ${messageType} in state $_state');
     switch (messageType) {
       case HandshakeType.helloVerifyRequest:
         await _processHelloVerifyRequest(body);
         break;
       case HandshakeType.serverHello:
-        await _processServerHello(body);
+        await _processServerHello(body, fullMessage: fullMessage);
         break;
       case HandshakeType.certificate:
-        await _processCertificate(body);
+        await _processCertificate(body, fullMessage: fullMessage);
         break;
       case HandshakeType.serverKeyExchange:
-        await _processServerKeyExchange(body);
+        await _processServerKeyExchange(body, fullMessage: fullMessage);
         break;
       case HandshakeType.serverHelloDone:
-        await _processServerHelloDone(body);
+        await _processServerHelloDone(body, fullMessage: fullMessage);
         break;
       case HandshakeType.finished:
-        await _processFinished(body);
+        await _processFinished(body, fullMessage: fullMessage);
+        break;
+      case HandshakeType.certificateRequest:
+        await _processCertificateRequest(body, fullMessage: fullMessage);
         break;
       default:
         // Ignore other message types for now
@@ -134,6 +141,8 @@ class ClientHandshakeCoordinator {
     // Clear handshake messages - handshake is restarted with cookie
     // Per RFC 6347: "the handshake is restarted and the first ClientHello is not included"
     dtlsContext.clearHandshakeMessages();
+    // Also reset message sequence number since handshake is restarted
+    dtlsContext.handshakeMessageSeq = 0;
 
     // Mark Flight 1 as complete
     flightManager.moveToNextFlight();
@@ -153,9 +162,24 @@ class ClientHandshakeCoordinator {
   }
 
   /// Process ServerHello from server
-  Future<void> _processServerHello(Uint8List data) async {
+  Future<void> _processServerHello(Uint8List data, {Uint8List? fullMessage}) async {
+    // RFC 6347 Section 4.2.1: HelloVerifyRequest is optional
+    // Server may skip it and send ServerHello directly
+    if (_state == ClientHandshakeState.waitingForHelloVerifyRequest) {
+      print('[CLIENT] Server skipped HelloVerifyRequest, proceeding directly');
+      // Mark Flight 1 as complete
+      flightManager.moveToNextFlight();
+      _state = ClientHandshakeState.waitingForServerHello;
+
+      // Important: The ClientHello is already in the handshake buffer from Flight 1
+      // Server will include it in its verify_data calculation
+      print('[CLIENT] Handshake buffer has ${dtlsContext.handshakeMessages.length} messages after ClientHello');
+    }
+
     if (_state != ClientHandshakeState.waitingForServerHello) {
-      throw StateError('Unexpected ServerHello in state $_state');
+      // DTLS retransmission - silently ignore duplicate messages from previous flights
+      print('[CLIENT] Ignoring retransmitted ServerHello in state $_state');
+      return;
     }
 
     // Parse ServerHello
@@ -165,15 +189,21 @@ class ClientHandshakeCoordinator {
 
     // Store selected cipher suite
     cipherContext.cipherSuite = serverHello.cipherSuite;
+    print('[CLIENT] Selected cipher suite: ${serverHello.cipherSuite}');
 
-    // Add to handshake messages
-    dtlsContext.addHandshakeMessage(data);
+    // Check if server echoed extended master secret extension
+    dtlsContext.useExtendedMasterSecret = serverHello.hasExtendedMasterSecret;
+    print('[CLIENT] Extended master secret: ${dtlsContext.useExtendedMasterSecret}');
+
+    // Add to handshake messages (use fullMessage if available, includes header)
+    dtlsContext.addHandshakeMessage(fullMessage ?? data);
+    print('[CLIENT] Added ServerHello to buffer, now ${dtlsContext.handshakeMessages.length} messages');
 
     _state = ClientHandshakeState.waitingForCertificate;
   }
 
   /// Process Certificate from server
-  Future<void> _processCertificate(Uint8List data) async {
+  Future<void> _processCertificate(Uint8List data, {Uint8List? fullMessage}) async {
     if (_state != ClientHandshakeState.waitingForCertificate) {
       // Certificate is optional, might go straight to ServerKeyExchange
       if (_state == ClientHandshakeState.waitingForServerHello) {
@@ -188,18 +218,20 @@ class ClientHandshakeCoordinator {
     // TODO: Perform certificate validation (check validity dates, chain, etc.)
     // For now, we just parse and store it
 
-    dtlsContext.addHandshakeMessage(data);
+    dtlsContext.addHandshakeMessage(fullMessage ?? data);
 
     _state = ClientHandshakeState.waitingForServerKeyExchange;
   }
 
   /// Process ServerKeyExchange from server
-  Future<void> _processServerKeyExchange(Uint8List data) async {
+  Future<void> _processServerKeyExchange(Uint8List data, {Uint8List? fullMessage}) async {
     // Can arrive after Certificate or directly after ServerHello (if no certificate)
     if (_state != ClientHandshakeState.waitingForServerKeyExchange &&
         _state != ClientHandshakeState.waitingForCertificate &&
         _state != ClientHandshakeState.waitingForServerHello) {
-      throw StateError('Unexpected ServerKeyExchange in state $_state');
+      // DTLS retransmission - silently ignore duplicate messages from previous flights
+      print('[CLIENT] Ignoring retransmitted ServerKeyExchange in state $_state');
+      return;
     }
 
     // Parse ServerKeyExchange
@@ -209,6 +241,8 @@ class ClientHandshakeCoordinator {
     cipherContext.remotePublicKey = ske.publicKey;
     cipherContext.namedCurve = ske.curve;
     cipherContext.signatureScheme = ske.signatureScheme;
+    print('[CLIENT] Selected curve: ${ske.curve}');
+    print('[CLIENT] Server public key: ${ske.publicKey.length} bytes');
 
     // Verify signature if we have a certificate
     if (_serverCertificate != null &&
@@ -230,23 +264,41 @@ class ClientHandshakeCoordinator {
     }
 
     // Add to handshake messages
-    dtlsContext.addHandshakeMessage(data);
+    dtlsContext.addHandshakeMessage(fullMessage ?? data);
 
     _state = ClientHandshakeState.waitingForServerHelloDone;
   }
 
+  /// Process CertificateRequest from server
+  Future<void> _processCertificateRequest(Uint8List data, {Uint8List? fullMessage}) async {
+    // CertificateRequest can arrive after ServerKeyExchange
+    if (_state != ClientHandshakeState.waitingForServerHelloDone) {
+      print('[CLIENT] CertificateRequest received unexpectedly in state $_state');
+    }
+
+    print('[CLIENT] Server requested client certificate');
+    _certificateRequested = true;
+
+    // Add to handshake messages
+    dtlsContext.addHandshakeMessage(fullMessage ?? data);
+
+    // State remains waitingForServerHelloDone
+  }
+
   /// Process ServerHelloDone from server
-  Future<void> _processServerHelloDone(Uint8List data) async {
+  Future<void> _processServerHelloDone(Uint8List data, {Uint8List? fullMessage}) async {
     // Can arrive after ServerKeyExchange, or after ServerHello if no cert/key exchange
     if (_state != ClientHandshakeState.waitingForServerHelloDone &&
         _state != ClientHandshakeState.waitingForServerKeyExchange &&
         _state != ClientHandshakeState.waitingForCertificate) {
-      throw StateError('Unexpected ServerHelloDone in state $_state');
+      // DTLS retransmission - silently ignore duplicate messages from previous flights
+      print('[CLIENT] Ignoring retransmitted ServerHelloDone in state $_state');
+      return;
     }
 
     // Parse ServerHelloDone
     ServerHelloDone.parse(data);
-    dtlsContext.addHandshakeMessage(data);
+    dtlsContext.addHandshakeMessage(fullMessage ?? data);
 
     // Generate our ECDH key pair (but NOT master secret yet - that happens after ClientKeyExchange is added to buffer)
     await _generateKeyPairOnly();
@@ -254,19 +306,11 @@ class ClientHandshakeCoordinator {
     // Mark Flight 3 as complete (we're done waiting for ServerHello flight)
     flightManager.moveToNextFlight();
 
-    // Add ClientKeyExchange to handshake buffer BEFORE deriving master secret
-    if (cipherContext.localPublicKey != null) {
-      final clientKeyExchange = ClientKeyExchange.fromPublicKey(
-        cipherContext.localPublicKey!,
-      );
-      final ckeBody = clientKeyExchange.serialize();
-      dtlsContext.addHandshakeMessage(ckeBody);
-    }
+    // NOTE: Master secret derivation is deferred to ClientFlight3.generateMessages()
+    // because extended master secret (RFC 7627) requires ClientKeyExchange to be in the buffer
+    // The buffer needs: ClientHello + Server messages + Certificate (client) + ClientKeyExchange
 
-    // NOW derive the master secret (after ClientKeyExchange is in the buffer)
-    _deriveMasterSecret();
-
-    // Send Flight 5 (ClientKeyExchange + ChangeCipherSpec + Finished)
+    // Send Flight 5 (Certificate + ClientKeyExchange + ChangeCipherSpec + Finished)
     // This uses ClientFlight3 but without ClientHello since we already sent that
     final flight5 = ClientFlight3(
       dtlsContext: dtlsContext,
@@ -274,6 +318,7 @@ class ClientHandshakeCoordinator {
       recordLayer: recordLayer,
       cipherSuites: cipherSuites,
       includeClientHello: false,
+      sendEmptyCertificate: _certificateRequested,
     );
 
     final messages = await flight5.generateMessages();
@@ -283,9 +328,12 @@ class ClientHandshakeCoordinator {
   }
 
   /// Process Finished from server
-  Future<void> _processFinished(Uint8List data) async {
+  Future<void> _processFinished(Uint8List data, {Uint8List? fullMessage}) async {
     if (_state != ClientHandshakeState.waitingForServerFinished) {
-      throw StateError('Unexpected Finished in state $_state');
+      // DTLS retransmission - silently ignore duplicate Finished messages
+      // This can happen if our final ACK was lost and server retransmits
+      print('[CLIENT] Ignoring retransmitted Finished in state $_state');
+      return;
     }
 
     // Parse Finished message
@@ -303,7 +351,7 @@ class ClientHandshakeCoordinator {
       throw StateError('Finished message verification failed');
     }
 
-    dtlsContext.addHandshakeMessage(data);
+    dtlsContext.addHandshakeMessage(fullMessage ?? data);
 
     // Mark Flight 5 as complete
     flightManager.moveToNextFlight();
@@ -339,11 +387,12 @@ class ClientHandshakeCoordinator {
   /// Derive master secret and encryption keys (called after ClientKeyExchange is in buffer)
   void _deriveMasterSecret() {
     // Derive master secret from pre-master secret
-    // Use extended master secret for better security (RFC 7627)
+    // Only use extended master secret if negotiated with server (RFC 7627)
+    print('[CLIENT] Deriving master secret (extended=${dtlsContext.useExtendedMasterSecret})');
     final masterSecret = KeyDerivation.deriveMasterSecret(
       dtlsContext,
       cipherContext,
-      true, // useExtendedMasterSecret
+      dtlsContext.useExtendedMasterSecret,
     );
     dtlsContext.masterSecret = masterSecret;
 
@@ -365,6 +414,9 @@ class ClientHandshakeCoordinator {
 
   /// Check if handshake failed
   bool get isFailed => _state == ClientHandshakeState.failed;
+
+  /// Check if server requested client certificate
+  bool get certificateRequested => _certificateRequested;
 
   /// Verify ServerKeyExchange signature
   bool _verifyServerKeyExchangeSignature({

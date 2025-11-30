@@ -8,6 +8,8 @@ import 'package:pointycastle/export.dart';
 import 'package:webrtc_dart/src/dtls/context/dtls_context.dart';
 import 'package:webrtc_dart/src/dtls/flight/flight.dart';
 import 'package:webrtc_dart/src/dtls/handshake/const.dart';
+import 'package:webrtc_dart/src/dtls/handshake/extensions/extended_master_secret.dart';
+import 'package:webrtc_dart/src/dtls/handshake/extensions/extension.dart';
 import 'package:webrtc_dart/src/dtls/handshake/handshake_header.dart';
 import 'package:webrtc_dart/src/dtls/handshake/message/change_cipher_spec.dart';
 import 'package:webrtc_dart/src/dtls/handshake/message/finished.dart';
@@ -95,22 +97,30 @@ class ServerFlight4 extends Flight {
     final messages = <Uint8List>[];
 
     // 1. ServerHello
+    // Echo extended_master_secret if client offered it
+    final extensions = <Extension>[];
+    if (dtlsContext.useExtendedMasterSecret) {
+      extensions.add(ExtendedMasterSecretExtension());
+    }
+
     final selectedCipher = _selectCipherSuite();
     final serverHello = ServerHello.create(
       sessionId: dtlsContext.sessionId ?? Uint8List(32),
       cipherSuite: selectedCipher,
+      extensions: extensions,
     );
     dtlsContext.serverHello = serverHello;
     dtlsContext.localRandom = serverHello.random.bytes;
     cipherContext.cipherSuite = selectedCipher;
 
     final serverHelloBody = serverHello.serialize();
-    dtlsContext.addHandshakeMessage(serverHelloBody);
     final serverHelloMsg = wrapHandshakeMessage(
       HandshakeType.serverHello,
       serverHelloBody,
       messageSeq: 0,
     );
+    // Add full message with header to handshake buffer
+    dtlsContext.addHandshakeMessage(serverHelloMsg);
     messages.add(recordLayer.wrapHandshake(serverHelloMsg).serialize());
 
     // 2. Certificate
@@ -118,12 +128,13 @@ class ServerFlight4 extends Flight {
     if (certData != null) {
       final cert = Certificate.single(certData);
       final certBody = cert.serialize();
-      dtlsContext.addHandshakeMessage(certBody);
       final certMsg = wrapHandshakeMessage(
         HandshakeType.certificate,
         certBody,
         messageSeq: 0,
       );
+      // Add full message with header to handshake buffer
+      dtlsContext.addHandshakeMessage(certMsg);
       messages.add(recordLayer.wrapHandshake(certMsg).serialize());
     }
 
@@ -149,12 +160,13 @@ class ServerFlight4 extends Flight {
         signature: signature,
       );
       final skeBody = serverKeyExchange.serialize();
-      dtlsContext.addHandshakeMessage(skeBody);
       final skeMsg = wrapHandshakeMessage(
         HandshakeType.serverKeyExchange,
         skeBody,
         messageSeq: 0,
       );
+      // Add full message with header to handshake buffer
+      dtlsContext.addHandshakeMessage(skeMsg);
       messages.add(recordLayer.wrapHandshake(skeMsg).serialize());
     }
 
@@ -166,12 +178,13 @@ class ServerFlight4 extends Flight {
     // 5. ServerHelloDone
     const serverHelloDone = ServerHelloDone();
     final shdBody = serverHelloDone.serialize();
-    dtlsContext.addHandshakeMessage(shdBody);
     final shdMsg = wrapHandshakeMessage(
       HandshakeType.serverHelloDone,
       shdBody,
       messageSeq: 0,
     );
+    // Add full message with header to handshake buffer
+    dtlsContext.addHandshakeMessage(shdMsg);
     messages.add(recordLayer.wrapHandshake(shdMsg).serialize());
 
     return messages;
@@ -239,12 +252,13 @@ class ServerFlight6 extends Flight {
     final verifyData = KeyDerivation.computeVerifyData(dtlsContext, false);
     final finished = Finished.create(verifyData);
     final finishedBody = finished.serialize();
-    dtlsContext.addHandshakeMessage(finishedBody);
     final finishedMsg = wrapHandshakeMessage(
       HandshakeType.finished,
       finishedBody,
       messageSeq: 0,
     );
+    // Add full message with header to handshake buffer (AFTER computing verify_data)
+    dtlsContext.addHandshakeMessage(finishedMsg);
 
     // Finished should be encrypted
     final finishedRecord = recordLayer.wrapHandshake(finishedMsg);

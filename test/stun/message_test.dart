@@ -280,7 +280,8 @@ void main() {
         messageClass: StunClass.request,
       );
 
-      msg.setAttribute(StunAttributeType.iceControlling, 0x123456789ABCDEF0);
+      final tieBreaker = BigInt.parse('123456789ABCDEF0', radix: 16);
+      msg.setAttribute(StunAttributeType.iceControlling, tieBreaker);
 
       final bytes = msg.toBytes();
       final parsed = parseStunMessage(bytes);
@@ -288,7 +289,7 @@ void main() {
       expect(parsed, isNotNull);
       expect(
         parsed!.getAttribute(StunAttributeType.iceControlling),
-        equals(0x123456789ABCDEF0),
+        equals(tieBreaker),
       );
     });
 

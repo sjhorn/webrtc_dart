@@ -1,19 +1,53 @@
 # AGENTS.md
 
 ## Project Overview
-This is a pure dart port of the [werift-webrtc](https://github.com/shinyoshiaki/werift-webrtc) Typescript code base. The repository is cloned locally into ./webrift-webrtc 
+This is a pure dart port of the [werift-webrtc](https://github.com/shinyoshiaki/werift-webrtc) Typescript code base. The repository is cloned locally into ./webrift-webrtc
 
-It is design to mimic the directory structure, filenames and classnames where possible while using dart style. 
+It is design to mimic the directory structure, filenames and classnames where possible while using dart style.
 
-All methods should aim to match the inputs and output of the Typescript code base and small scripts will be create to source the outputs for given inputs and added to the unit test of dart to run without relying on the typescript. 
+All methods should aim to match the inputs and output of the Typescript code base and small scripts will be create to source the outputs for given inputs and added to the unit test of dart to run without relying on the typescript.
 
 For crypto we will aim to mimic the Typescript approach where directly implemented and where it relies on the crypto library we will prefer to use the dart package:cryptography.
 
-For binary and byte level operations we will use Uint8List and ByteData.view and aim to implement helpers similar to Node Buffer / DataView wrappers for ergonomic parsing. These will be compared to Typescript and unit tests with the common cases. 
+For binary and byte level operations we will use Uint8List and ByteData.view and aim to implement helpers similar to Node Buffer / DataView wrappers for ergonomic parsing. These will be compared to Typescript and unit tests with the common cases.
 
-We will port all the existing README.md and other .md files from the werift-webrtc code base. 
+We will port all the existing README.md and other .md files from the werift-webrtc code base.
 
-We will maintain a TODO.md with the structure shown in the next section titled TODO. 
+We will maintain a TODO.md with the structure shown in the next section titled TODO.
+
+---
+
+## Current Progress (November 2025)
+
+### Status: Phase 1 COMPLETE + Browser Interop WORKING
+
+| Component | Status | Tests |
+|-----------|--------|-------|
+| Core Protocols (STUN/ICE/DTLS/SRTP/SCTP/RTP) | ✅ Complete | 500+ |
+| DataChannel | ✅ Complete | Full DCEP |
+| VP8 Depacketization | ✅ Complete | 22 |
+| VP9 Depacketization | ✅ Complete | 25 |
+| H.264 Depacketization | ✅ Complete | 22 |
+| AV1 Depacketization | ✅ Complete | 32 |
+| NACK | ✅ Complete | 41 |
+| PLI/FIR | ✅ Complete | 48 |
+| RTX + SDP Negotiation | ✅ Complete | 85 |
+| TURN (Core + Data Relay) | ✅ Complete | 50 |
+| getStats() MVP | ✅ Complete | 9 |
+| **Total** | **Phase 1 Complete** | **891 tests** |
+
+### Interop Status
+- ✅ **Dart ↔ Chrome Browser**: DataChannel working (DTLS + SCTP)
+- ✅ **Dart ↔ TypeScript (werift)**: DataChannel working
+- 🔜 **Firefox/Safari**: Not yet tested
+
+### Next Priorities (Phase 2)
+1. TWCC (Transport-Wide Congestion Control)
+2. Simulcast Support
+3. Jitter Buffer
+4. Browser Interop Testing (Firefox, Safari)
+
+See **ROADMAP.md** for detailed implementation status and roadmap. 
 
 ---
 ## TODO

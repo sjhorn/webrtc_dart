@@ -109,7 +109,9 @@ abstract class DtlsSocket {
       // Parse DTLS records and process
       processReceivedData(data);
     } catch (e) {
-      _errorController.add(e);
+      if (!isClosed) {
+        _errorController.add(e);
+      }
     }
   }
 
@@ -146,7 +148,11 @@ abstract class DtlsSocket {
   void initializeTransport() {
     _transportSubscription = transport.onData.listen(
       _handleTransportData,
-      onError: (error) => _errorController.add(error),
+      onError: (error) {
+        if (!isClosed) {
+          _errorController.add(error);
+        }
+      },
     );
   }
 

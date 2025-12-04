@@ -2,6 +2,7 @@
 ///
 /// Tests for the circular buffer used to cache sent RTP packets
 /// for retransmission upon NACK feedback.
+library;
 
 import 'dart:typed_data';
 import 'package:test/test.dart';

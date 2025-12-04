@@ -8,14 +8,11 @@ import 'package:webrtc_dart/src/dtls/flight/client_flights.dart';
 import 'package:webrtc_dart/src/dtls/flight/flight.dart';
 import 'package:webrtc_dart/src/dtls/handshake/const.dart';
 import 'package:webrtc_dart/src/dtls/handshake/message/certificate.dart';
-import 'package:webrtc_dart/src/dtls/handshake/message/client_key_exchange.dart';
 import 'package:webrtc_dart/src/dtls/handshake/message/hello_verify_request.dart';
 import 'package:webrtc_dart/src/dtls/handshake/message/server_hello.dart';
 import 'package:webrtc_dart/src/dtls/handshake/message/server_hello_done.dart';
 import 'package:webrtc_dart/src/dtls/handshake/message/server_key_exchange.dart';
 import 'package:webrtc_dart/src/dtls/handshake/message/finished.dart';
-import 'package:webrtc_dart/src/dtls/record/const.dart';
-import 'package:webrtc_dart/src/dtls/record/record.dart';
 import 'package:webrtc_dart/src/dtls/record/record_layer.dart';
 import 'package:pointycastle/export.dart';
 
@@ -99,7 +96,7 @@ class ClientHandshakeCoordinator {
     Uint8List body, {
     Uint8List? fullMessage,
   }) async {
-    print('[CLIENT] Processing ${messageType} in state $_state');
+    print('[CLIENT] Processing $messageType in state $_state');
     switch (messageType) {
       case HandshakeType.helloVerifyRequest:
         await _processHelloVerifyRequest(body);
@@ -204,6 +201,13 @@ class ClientHandshakeCoordinator {
 
   /// Process Certificate from server
   Future<void> _processCertificate(Uint8List data, {Uint8List? fullMessage}) async {
+    // Ignore retransmissions from previous flights
+    if (_state == ClientHandshakeState.waitingForServerFinished ||
+        _state == ClientHandshakeState.completed) {
+      print('[CLIENT] Ignoring retransmitted Certificate in state $_state');
+      return;
+    }
+
     if (_state != ClientHandshakeState.waitingForCertificate) {
       // Certificate is optional, might go straight to ServerKeyExchange
       if (_state == ClientHandshakeState.waitingForServerHello) {
@@ -225,6 +229,13 @@ class ClientHandshakeCoordinator {
 
   /// Process ServerKeyExchange from server
   Future<void> _processServerKeyExchange(Uint8List data, {Uint8List? fullMessage}) async {
+    // Ignore retransmissions from previous flights
+    if (_state == ClientHandshakeState.waitingForServerFinished ||
+        _state == ClientHandshakeState.completed) {
+      print('[CLIENT] Ignoring retransmitted ServerKeyExchange in state $_state');
+      return;
+    }
+
     // Can arrive after Certificate or directly after ServerHello (if no certificate)
     if (_state != ClientHandshakeState.waitingForServerKeyExchange &&
         _state != ClientHandshakeState.waitingForCertificate &&
@@ -271,6 +282,13 @@ class ClientHandshakeCoordinator {
 
   /// Process CertificateRequest from server
   Future<void> _processCertificateRequest(Uint8List data, {Uint8List? fullMessage}) async {
+    // Ignore retransmissions from previous flights
+    if (_state == ClientHandshakeState.waitingForServerFinished ||
+        _state == ClientHandshakeState.completed) {
+      print('[CLIENT] Ignoring retransmitted CertificateRequest in state $_state');
+      return;
+    }
+
     // CertificateRequest can arrive after ServerKeyExchange
     if (_state != ClientHandshakeState.waitingForServerHelloDone) {
       print('[CLIENT] CertificateRequest received unexpectedly in state $_state');
@@ -287,6 +305,13 @@ class ClientHandshakeCoordinator {
 
   /// Process ServerHelloDone from server
   Future<void> _processServerHelloDone(Uint8List data, {Uint8List? fullMessage}) async {
+    // Ignore retransmissions from previous flights
+    if (_state == ClientHandshakeState.waitingForServerFinished ||
+        _state == ClientHandshakeState.completed) {
+      print('[CLIENT] Ignoring retransmitted ServerHelloDone in state $_state');
+      return;
+    }
+
     // Can arrive after ServerKeyExchange, or after ServerHello if no cert/key exchange
     if (_state != ClientHandshakeState.waitingForServerHelloDone &&
         _state != ClientHandshakeState.waitingForServerKeyExchange &&
@@ -381,31 +406,6 @@ class ClientHandshakeCoordinator {
         curve,
       );
       dtlsContext.preMasterSecret = sharedSecret;
-    }
-  }
-
-  /// Derive master secret and encryption keys (called after ClientKeyExchange is in buffer)
-  void _deriveMasterSecret() {
-    // Derive master secret from pre-master secret
-    // Only use extended master secret if negotiated with server (RFC 7627)
-    print('[CLIENT] Deriving master secret (extended=${dtlsContext.useExtendedMasterSecret})');
-    final masterSecret = KeyDerivation.deriveMasterSecret(
-      dtlsContext,
-      cipherContext,
-      dtlsContext.useExtendedMasterSecret,
-    );
-    dtlsContext.masterSecret = masterSecret;
-
-    // Derive encryption keys from master secret
-    final encryptionKeys = KeyDerivation.deriveEncryptionKeys(
-      dtlsContext,
-      cipherContext,
-    );
-    cipherContext.encryptionKeys = encryptionKeys;
-
-    // Initialize ciphers for encryption/decryption
-    if (cipherContext.cipherSuite != null) {
-      cipherContext.initializeCiphers(encryptionKeys, cipherContext.cipherSuite!);
     }
   }
 

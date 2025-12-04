@@ -1,6 +1,7 @@
 /// Dart Offerer (webrtc_dart)
 /// Creates offer, writes offer.json, waits for answer.json
 /// Sends datachannel messages to TypeScript peer
+library;
 
 import 'dart:async';
 import 'dart:convert';
@@ -62,54 +63,57 @@ void main() async {
     );
   });
 
-  // Note: In this implementation, datachannel is created implicitly
-  // via the SDP negotiation, not explicitly via createDataChannel()
+  // Create datachannel before offer (offerer must create it)
+  print('[Dart Offerer] Creating DataChannel...');
+  final channel = pc.createDataChannel('chat');
+  print('[Dart Offerer] DataChannel created: ${channel.label}');
 
-  // Handle incoming datachannel
-  pc.onDataChannel.listen((channel) {
-    print('[Dart Offerer] DataChannel received: ${channel.label}, state=${channel.state}');
-
-    channel.onStateChange.listen((state) {
-      print('[Dart Offerer] DataChannel state: $state');
-      if (state == DataChannelState.open) {
-        print('[Dart Offerer] DataChannel opened!');
-        print('[Dart Offerer] Sending initial message');
-        channel.sendString('Hello from Dart!');
-
-        // Send periodic messages
-        var count = 0;
-        Timer.periodic(Duration(seconds: 2), (timer) {
-          if (channel.state != DataChannelState.open) {
-            timer.cancel();
-            return;
-          }
-
-          count++;
-          final message = 'Message #$count from Dart';
-          print('[Dart Offerer] Sending: $message');
-          channel.sendString(message);
-
-          if (count >= 5) {
-            timer.cancel();
-            print('[Dart Offerer] Sent 5 messages, stopping');
-          }
-        });
-      }
-    });
-
-    // Handle incoming messages
-    channel.onMessage.listen((message) {
-      messagesReceived++;
-      final text = message is String ? message : 'binary';
-      print('[Dart Offerer] Received message #$messagesReceived: $text');
-      receivedMessages.add(text);
-    });
-
-    // If channel is already open, send message immediately
-    if (channel.state == DataChannelState.open) {
-      print('[Dart Offerer] Channel already open, sending initial message');
+  // Setup channel handlers
+  channel.onStateChange.listen((state) {
+    print('[Dart Offerer] DataChannel state: $state');
+    if (state == DataChannelState.open) {
+      print('[Dart Offerer] DataChannel opened!');
+      print('[Dart Offerer] Sending initial message');
       channel.sendString('Hello from Dart!');
+
+      // Send periodic messages
+      var count = 0;
+      Timer.periodic(Duration(seconds: 2), (timer) {
+        if (channel.state != DataChannelState.open) {
+          timer.cancel();
+          return;
+        }
+
+        count++;
+        final message = 'Message #$count from Dart';
+        print('[Dart Offerer] Sending: $message');
+        channel.sendString(message);
+
+        if (count >= 5) {
+          timer.cancel();
+          print('[Dart Offerer] Sent 5 messages, stopping');
+        }
+      });
     }
+  });
+
+  // Handle incoming messages
+  channel.onMessage.listen((message) {
+    messagesReceived++;
+    final text = message is String ? message : 'binary';
+    print('[Dart Offerer] Received message #$messagesReceived: $text');
+    receivedMessages.add(text);
+  });
+
+  // If channel is already open, send message immediately
+  if (channel.state == DataChannelState.open) {
+    print('[Dart Offerer] Channel already open, sending initial message');
+    channel.sendString('Hello from Dart!');
+  }
+
+  // Also handle any incoming datachannels from JS side
+  pc.onDataChannel.listen((incomingChannel) {
+    print('[Dart Offerer] Incoming DataChannel: ${incomingChannel.label}');
   });
 
   // Create and write offer

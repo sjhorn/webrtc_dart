@@ -14,6 +14,8 @@ export 'src/sdp/rtx_sdp.dart';
 // ICE
 export 'src/ice/ice_connection.dart';
 export 'src/ice/candidate.dart';
+export 'src/ice/tcp_transport.dart';
+export 'src/ice/mdns.dart';
 
 // TURN
 export 'src/turn/turn_client.dart';
@@ -27,6 +29,7 @@ export 'src/datachannel/dcep.dart';
 export 'src/media/media_stream_track.dart';
 export 'src/media/media_stream.dart';
 export 'src/media/rtp_transceiver.dart';
+export 'src/media/svc_manager.dart';
 
 // Codecs
 export 'src/codec/codec_parameters.dart';
@@ -35,6 +38,10 @@ export 'src/codec/vp8.dart';
 export 'src/codec/vp9.dart';
 export 'src/codec/h264.dart';
 export 'src/codec/av1.dart';
+
+// Audio Processing
+export 'src/audio/dtx.dart';
+export 'src/audio/lipsync.dart';
 
 // Statistics
 export 'src/stats/rtc_stats.dart';

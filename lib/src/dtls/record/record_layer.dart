@@ -1,7 +1,6 @@
 import 'dart:typed_data';
 import 'package:webrtc_dart/src/dtls/context/cipher_context.dart';
 import 'package:webrtc_dart/src/dtls/context/dtls_context.dart';
-import 'package:webrtc_dart/src/dtls/handshake/const.dart';
 import 'package:webrtc_dart/src/dtls/handshake/message/alert.dart';
 import 'package:webrtc_dart/src/dtls/record/const.dart';
 import 'package:webrtc_dart/src/dtls/record/header.dart';
@@ -134,68 +133,6 @@ class DtlsRecordLayer {
     }
   }
 
-  /// Construct Additional Authenticated Data for AEAD
-  Uint8List _constructAAD({
-    required int epoch,
-    required int sequenceNumber,
-    required ContentType contentType,
-    required ProtocolVersion version,
-    required int length,
-  }) {
-    // AAD = seq_num + type + version + length
-    // RFC 5246 Section 6.2.3.3
-    final buffer = ByteData(13);
-
-    // Epoch (2 bytes)
-    buffer.setUint16(0, epoch);
-
-    // Sequence number (6 bytes)
-    buffer.setUint16(2, (sequenceNumber >> 32) & 0xFFFF);
-    buffer.setUint32(4, sequenceNumber & 0xFFFFFFFF);
-
-    // Content type (1 byte)
-    buffer.setUint8(8, contentType.value);
-
-    // Version (2 bytes)
-    buffer.setUint8(9, version.major);
-    buffer.setUint8(10, version.minor);
-
-    // Length (2 bytes) - plaintext length
-    buffer.setUint16(11, length);
-
-    return buffer.buffer.asUint8List();
-  }
-
-  /// Construct nonce for AEAD cipher
-  Uint8List _constructNonce(int epoch, int sequenceNumber, bool isClient) {
-    // Nonce = implicit_nonce (4 bytes) XOR (epoch + seq_num)
-    // Get implicit nonce (fixed part)
-    final implicitNonce = isClient
-        ? cipherContext.clientWriteIV
-        : cipherContext.serverWriteIV;
-
-    if (implicitNonce == null || implicitNonce.length != 4) {
-      throw StateError('Invalid implicit nonce');
-    }
-
-    // Construct explicit nonce (epoch + seq_num as 8 bytes)
-    final explicitNonce = ByteData(8);
-    explicitNonce.setUint16(0, epoch);
-    explicitNonce.setUint16(2, (sequenceNumber >> 32) & 0xFFFF);
-    explicitNonce.setUint32(4, sequenceNumber & 0xFFFFFFFF);
-
-    // XOR the last 8 bytes
-    final nonce = Uint8List(12);
-
-    // First 4 bytes are the implicit nonce
-    nonce.setRange(0, 4, implicitNonce);
-
-    // Last 8 bytes are explicit nonce (for now, just copy - XOR happens in cipher)
-    nonce.setRange(4, 12, explicitNonce.buffer.asUint8List());
-
-    return nonce;
-  }
-
   /// Process received records
   Future<List<ProcessedRecord>> processRecords(Uint8List data) async {
     final records = DtlsRecord.parseMultiple(data);
@@ -206,13 +143,15 @@ class DtlsRecordLayer {
         // Check epoch
         if (record.epoch > dtlsContext.readEpoch) {
           // Future epoch - might be retransmission, buffer it
-          print('[RECORD] Skipping record with epoch ${record.epoch} (readEpoch=${dtlsContext.readEpoch})');
+          print(
+              '[RECORD] Skipping record with epoch ${record.epoch} (readEpoch=${dtlsContext.readEpoch})');
           continue;
         }
 
         if (record.epoch < dtlsContext.readEpoch) {
           // Old epoch - ignore
-          print('[RECORD] Ignoring old record with epoch ${record.epoch} (readEpoch=${dtlsContext.readEpoch})');
+          print(
+              '[RECORD] Ignoring old record with epoch ${record.epoch} (readEpoch=${dtlsContext.readEpoch})');
           continue;
         }
 
@@ -249,14 +188,16 @@ class DtlsRecordLayer {
         // Check epoch
         if (record.epoch > dtlsContext.readEpoch) {
           // Future epoch - buffer the raw record for later processing
-          print('[RECORD] Buffering future-epoch record with epoch ${record.epoch} (readEpoch=${dtlsContext.readEpoch}), type=${record.contentType}');
+          print(
+              '[RECORD] Buffering future-epoch record with epoch ${record.epoch} (readEpoch=${dtlsContext.readEpoch}), type=${record.contentType}');
           futureEpochBuffer.add(record.serialize());
           continue;
         }
 
         if (record.epoch < dtlsContext.readEpoch) {
           // Old epoch - ignore
-          print('[RECORD] Ignoring old record with epoch ${record.epoch} (readEpoch=${dtlsContext.readEpoch})');
+          print(
+              '[RECORD] Ignoring old record with epoch ${record.epoch} (readEpoch=${dtlsContext.readEpoch})');
           continue;
         }
 

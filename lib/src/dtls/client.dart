@@ -167,13 +167,15 @@ class DtlsClient extends DtlsSocket {
           }
         }
 
-        // Check if handshake is complete
-        if (_handshakeCoordinator.isComplete && !isConnected) {
+        // Check if handshake is complete (but not if we're closed)
+        if (_handshakeCoordinator.isComplete && !isConnected && !isClosed) {
           _onHandshakeComplete();
         }
       } catch (e) {
-        errorController.add(e);
-        setState(DtlsSocketState.failed);
+        if (!isClosed) {
+          errorController.add(e);
+          setState(DtlsSocketState.failed);
+        }
       }
     });
   }
@@ -269,8 +271,10 @@ class DtlsClient extends DtlsSocket {
 
       if (alert.isFatal) {
         print('[CLIENT] Fatal alert received, closing connection');
-        errorController.add(Exception('Fatal alert: ${alert.description}'));
-        setState(DtlsSocketState.failed);
+        if (!isClosed) {
+          errorController.add(Exception('Fatal alert: ${alert.description}'));
+          setState(DtlsSocketState.failed);
+        }
         await close();
       } else if (alert.description == AlertDescription.closeNotify) {
         print('[CLIENT] Close notify received, closing connection');
@@ -280,7 +284,9 @@ class DtlsClient extends DtlsSocket {
       }
     } catch (e) {
       print('[CLIENT] Error processing alert: $e');
-      errorController.add(e);
+      if (!isClosed) {
+        errorController.add(e);
+      }
     }
   }
 

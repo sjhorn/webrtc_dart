@@ -1,5 +1,7 @@
 /// Audio peer connection example
 /// Demonstrates bidirectional audio track exchange between two local peers
+library;
+
 import 'dart:async';
 import 'package:webrtc_dart/webrtc_dart.dart';
 

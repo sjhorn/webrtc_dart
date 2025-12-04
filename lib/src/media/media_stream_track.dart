@@ -25,6 +25,10 @@ abstract class MediaStreamTrack {
   /// Track kind (audio or video)
   final MediaStreamTrackKind kind;
 
+  /// Restriction Identifier (RID) for simulcast
+  /// Identifies which simulcast layer this track belongs to (e.g., 'high', 'mid', 'low')
+  final String? rid;
+
   /// Current state
   MediaStreamTrackState _state = MediaStreamTrackState.live;
 
@@ -47,6 +51,7 @@ abstract class MediaStreamTrack {
     required this.id,
     required this.label,
     required this.kind,
+    this.rid,
   });
 
   /// Get current state
@@ -122,13 +127,10 @@ class AudioStreamTrack extends MediaStreamTrack {
       StreamController<AudioFrame>.broadcast();
 
   AudioStreamTrack({
-    required String id,
-    required String label,
-  }) : super(
-          id: id,
-          label: label,
-          kind: MediaStreamTrackKind.audio,
-        );
+    required super.id,
+    required super.label,
+    super.rid,
+  }) : super(kind: MediaStreamTrackKind.audio);
 
   /// Stream of audio frames
   Stream<AudioFrame> get onAudioFrame => _audioFrameController.stream;
@@ -145,6 +147,7 @@ class AudioStreamTrack extends MediaStreamTrack {
     return AudioStreamTrack(
       id: '${id}_clone_${DateTime.now().millisecondsSinceEpoch}',
       label: label,
+      rid: rid,
     );
   }
 
@@ -163,13 +166,10 @@ class VideoStreamTrack extends MediaStreamTrack {
       StreamController<VideoFrame>.broadcast();
 
   VideoStreamTrack({
-    required String id,
-    required String label,
-  }) : super(
-          id: id,
-          label: label,
-          kind: MediaStreamTrackKind.video,
-        );
+    required super.id,
+    required super.label,
+    super.rid,
+  }) : super(kind: MediaStreamTrackKind.video);
 
   /// Stream of video frames
   Stream<VideoFrame> get onVideoFrame => _videoFrameController.stream;
@@ -186,6 +186,7 @@ class VideoStreamTrack extends MediaStreamTrack {
     return VideoStreamTrack(
       id: '${id}_clone_${DateTime.now().millisecondsSinceEpoch}',
       label: label,
+      rid: rid,
     );
   }
 
@@ -248,16 +249,32 @@ class VideoFrame {
   /// Frame format (e.g., 'I420', 'NV12', 'H264')
   final String format;
 
+  /// Whether this is a keyframe (I-frame)
+  final bool keyframe;
+
+  /// Spatial layer ID (for SVC)
+  final int? spatialId;
+
+  /// Temporal layer ID (for SVC)
+  final int? temporalId;
+
   VideoFrame({
     required this.data,
     required this.width,
     required this.height,
     required this.timestamp,
     required this.format,
+    this.keyframe = false,
+    this.spatialId,
+    this.temporalId,
   });
 
   @override
   String toString() {
-    return 'VideoFrame(${width}x$height, format=$format, size=${data.length})';
+    final keyInfo = keyframe ? ', keyframe' : '';
+    final svcInfo = (spatialId != null || temporalId != null)
+        ? ', svc=S${spatialId ?? 0}T${temporalId ?? 0}'
+        : '';
+    return 'VideoFrame(${width}x$height, format=$format, size=${data.length}$keyInfo$svcInfo)';
   }
 }

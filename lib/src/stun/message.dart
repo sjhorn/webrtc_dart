@@ -1,6 +1,5 @@
 import 'dart:typed_data';
 
-import 'package:webrtc_dart/src/common/binary.dart';
 import 'package:webrtc_dart/src/common/crypto.dart';
 
 import 'attributes.dart';

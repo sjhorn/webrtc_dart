@@ -307,8 +307,8 @@ void main() {
     });
 
     test('respects localPref parameter', () {
-      final p1 = candidatePriority('host', 65535);
-      final p2 = candidatePriority('host', 32767);
+      final p1 = candidatePriority('host', localPref: 65535);
+      final p2 = candidatePriority('host', localPref: 32767);
 
       expect(p2, lessThan(p1));
     });

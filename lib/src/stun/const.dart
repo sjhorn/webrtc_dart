@@ -1,5 +1,6 @@
 /// STUN constants and enums
 /// Based on RFC 5389 and RFC 5766 (TURN)
+library;
 
 // Magic cookie value (0x2112A442)
 const int stunCookie = 0x2112A442;

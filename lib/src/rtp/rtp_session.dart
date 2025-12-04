@@ -42,9 +42,6 @@ class RtpSession {
   /// Callback for received RTP packets
   final void Function(RtpPacket packet)? onReceiveRtp;
 
-  /// Last SR send time (NTP format)
-  int? _lastSrSendTime;
-
   /// Retransmission buffer for sent packets
   final RetransmissionBuffer _retransmissionBuffer;
 
@@ -267,8 +264,7 @@ class RtpSession {
       receptionReports: receptionReports,
     );
 
-    // Update last SR send time
-    _lastSrSendTime = ntpTimestamp;
+    // Update sender statistics with SR send time
     senderStats.updateWithSentSr(ntpTimestamp: ntpTimestamp);
 
     // Convert to RTCP packet
@@ -581,7 +577,6 @@ class RtpSession {
   void reset() {
     senderStats.reset();
     _receiverStats.clear();
-    _lastSrSendTime = null;
     _retransmissionBuffer.clear();
   }
 

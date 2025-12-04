@@ -186,7 +186,17 @@ String candidateFoundation(
 
 /// Compute priority for a candidate
 /// See RFC 5245 - 4.1.2.1. Recommended Formula
-int candidatePriority(String candidateType, [int localPref = 65535]) {
+/// See RFC 6544 - Section 4.2 for TCP transport preference
+///
+/// Transport preference (0-15): UDP = 15, TCP = 6 (per RFC 6544)
+/// Local preference formula when including transport:
+///   localPref = (2^13) * direction + (2^9) * other + transportPref
+/// For simplicity, we fold transportPref into localPref directly.
+int candidatePriority(
+  String candidateType, {
+  int localPref = 65535,
+  int? transportPreference,
+}) {
   const candidateComponent = 1;
 
   // Type preference values from RFC 5245
@@ -208,6 +218,17 @@ int candidatePriority(String candidateType, [int localPref = 65535]) {
       typePref = 0;
   }
 
+  // If transport preference is specified, adjust localPref to include it
+  // This gives TCP lower priority than UDP for same candidate type
+  var effectiveLocalPref = localPref;
+  if (transportPreference != null) {
+    // Scale down localPref and add transport preference
+    // This ensures TCP candidates have lower priority than UDP
+    effectiveLocalPref = (localPref & 0xFFF0) | (transportPreference & 0x0F);
+  }
+
   // Priority formula: (2^24)*typePref + (2^8)*localPref + (256-componentId)
-  return (1 << 24) * typePref + (1 << 8) * localPref + (256 - candidateComponent);
+  return (1 << 24) * typePref +
+      (1 << 8) * effectiveLocalPref +
+      (256 - candidateComponent);
 }

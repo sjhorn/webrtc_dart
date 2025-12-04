@@ -1,5 +1,6 @@
 /// SCTP Constants
 /// RFC 4960 - Stream Control Transmission Protocol
+library;
 
 /// SCTP Chunk Types
 /// RFC 4960 Section 3.2

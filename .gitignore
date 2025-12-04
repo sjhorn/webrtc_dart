@@ -35,4 +35,4 @@ build/
 # werift-webrtc/
 
 # Interop signal files (temporary)
-interop/signals/*.jsonl
+interop/signals/*.jsonlinterop/node_modules/

@@ -1,0 +1,195 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>WebRTC Answer (Browser)</title>
+    <style>
+        body { font-family: sans-serif; padding: 20px; max-width: 800px; margin: 0 auto; }
+        #log {
+            background: #f5f5f5;
+            padding: 10px;
+            height: 400px;
+            overflow-y: scroll;
+            font-family: monospace;
+            font-size: 12px;
+            white-space: pre-wrap;
+        }
+        .info { color: blue; }
+        .recv { color: green; }
+        .sent { color: purple; }
+        .error { color: red; }
+        .status { color: orange; }
+        button { margin: 5px; padding: 10px 20px; }
+        input { padding: 10px; width: 200px; }
+    </style>
+</head>
+<body>
+    <h1>WebRTC Answer (Browser)</h1>
+    <p>This page connects to a signaling server and answers WebRTC offers from Dart peers.</p>
+
+    <div>
+        <label>Signaling Server: </label>
+        <input type="text" id="signalingUrl" value="ws://localhost:8888">
+        <button onclick="connect()">Connect</button>
+        <button onclick="disconnect()">Disconnect</button>
+    </div>
+
+    <h3>Log:</h3>
+    <div id="log"></div>
+
+    <script>
+        let socket = null;
+        let pc = null;
+        let dc = null;
+        let messageCount = 0;
+
+        function log(msg, className = '') {
+            const logDiv = document.getElementById('log');
+            const line = document.createElement('div');
+            line.className = className;
+            line.textContent = `[${new Date().toLocaleTimeString()}] ${msg}`;
+            logDiv.appendChild(line);
+            logDiv.scrollTop = logDiv.scrollHeight;
+        }
+
+        async function connect() {
+            const url = document.getElementById('signalingUrl').value;
+            log(`Connecting to signaling server: ${url}`, 'info');
+
+            try {
+                socket = new WebSocket(url);
+
+                socket.onopen = () => {
+                    log('Connected to signaling server', 'info');
+                    log('Waiting for offer...', 'info');
+                };
+
+                socket.onmessage = async (event) => {
+                    const message = JSON.parse(event.data);
+
+                    if (message.type === 'offer') {
+                        log('Received offer', 'recv');
+                        await handleOffer(message);
+                    }
+                };
+
+                socket.onerror = (error) => {
+                    log(`WebSocket error: ${error}`, 'error');
+                };
+
+                socket.onclose = () => {
+                    log('Disconnected from signaling server', 'info');
+                };
+            } catch (e) {
+                log(`Connection failed: ${e}`, 'error');
+            }
+        }
+
+        async function handleOffer(message) {
+            // Create peer connection
+            pc = new RTCPeerConnection({
+                iceServers: [{ urls: 'stun:stun.l.google.com:19302' }]
+            });
+            log('Created PeerConnection', 'info');
+
+            pc.onconnectionstatechange = () => {
+                log(`[PC] Connection state: ${pc.connectionState}`, 'status');
+            };
+
+            pc.oniceconnectionstatechange = () => {
+                log(`[PC] ICE state: ${pc.iceConnectionState}`, 'status');
+            };
+
+            const candidates = [];
+            pc.onicecandidate = (event) => {
+                if (event.candidate) {
+                    log(`[PC] Generated ICE candidate: ${event.candidate.type || 'unknown'}`, 'info');
+                    candidates.push(event.candidate);
+                }
+            };
+
+            // Handle incoming datachannel
+            pc.ondatachannel = (event) => {
+                dc = event.channel;
+                log(`[DC] Received datachannel: ${dc.label}`, 'recv');
+
+                dc.onopen = () => {
+                    log('[DC] Channel open', 'status');
+                };
+
+                dc.onmessage = (event) => {
+                    log(`[DC] Received: ${event.data}`, 'recv');
+                    // Reply to pings with pongs
+                    if (event.data.startsWith('ping')) {
+                        const reply = `pong ${++messageCount}`;
+                        dc.send(reply);
+                        log(`[DC] Sent: ${reply}`, 'sent');
+                    }
+                };
+
+                dc.onclose = () => {
+                    log('[DC] Channel closed', 'status');
+                };
+            };
+
+            // Set remote description (the offer)
+            await pc.setRemoteDescription({
+                type: 'offer',
+                sdp: message.sdp
+            });
+            log('Set remote description', 'info');
+
+            // Add remote ICE candidates
+            if (message.candidates) {
+                for (const c of message.candidates) {
+                    try {
+                        await pc.addIceCandidate({
+                            candidate: c.candidate,
+                            sdpMid: c.sdpMid || '0',
+                            sdpMLineIndex: 0
+                        });
+                        log('Added remote ICE candidate', 'info');
+                    } catch (e) {
+                        log(`Failed to add ICE candidate: ${e}`, 'error');
+                    }
+                }
+            }
+
+            // Create and set local description (the answer)
+            const answer = await pc.createAnswer();
+            await pc.setLocalDescription(answer);
+            log('Created and set local description (answer)', 'info');
+
+            // Wait for ICE gathering
+            await new Promise(r => setTimeout(r, 1000));
+
+            // Send answer via signaling
+            const answerMessage = {
+                type: 'answer',
+                sdp: pc.localDescription.sdp,
+                candidates: candidates.map(c => ({
+                    candidate: c.candidate,
+                    sdpMid: c.sdpMid
+                }))
+            };
+            socket.send(JSON.stringify(answerMessage));
+            log(`Sent answer (${candidates.length} candidates)`, 'sent');
+        }
+
+        function disconnect() {
+            if (dc) {
+                dc.close();
+                dc = null;
+            }
+            if (pc) {
+                pc.close();
+                pc = null;
+            }
+            if (socket) {
+                socket.close();
+                socket = null;
+            }
+            log('Disconnected', 'info');
+        }
+    </script>
+</body>
+</html>

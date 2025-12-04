@@ -1,6 +1,7 @@
 /// RTX SDP Tests
 ///
 /// Tests for parsing and generating RTX-related SDP attributes.
+library;
 
 import 'package:test/test.dart';
 import 'package:webrtc_dart/src/sdp/sdp.dart';

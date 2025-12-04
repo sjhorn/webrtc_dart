@@ -2,12 +2,14 @@ import 'dart:typed_data';
 import '../../srtp/rtcp_packet.dart';
 import 'pli.dart';
 import 'fir.dart';
+import 'remb.dart';
 
 /// Payload-Specific Feedback Message Types
 /// RFC 4585 and RFC 5104
 enum PayloadFeedbackType {
   pli(PictureLossIndication.fmt),
-  fir(FullIntraRequest.fmt);
+  fir(FullIntraRequest.fmt),
+  remb(ReceiverEstimatedMaxBitrate.fmt);
 
   final int value;
   const PayloadFeedbackType(this.value);
@@ -72,12 +74,31 @@ class PayloadSpecificFeedback {
     );
   }
 
+  /// Create REMB feedback
+  factory PayloadSpecificFeedback.remb({
+    required int senderSsrc,
+    int mediaSsrc = 0,
+    required BigInt bitrate,
+    List<int> ssrcFeedbacks = const [],
+  }) {
+    return PayloadSpecificFeedback(
+      ReceiverEstimatedMaxBitrate.fromBitrate(
+        senderSsrc: senderSsrc,
+        mediaSsrc: mediaSsrc,
+        bitrate: bitrate,
+        ssrcFeedbacks: ssrcFeedbacks,
+      ),
+    );
+  }
+
   /// Get feedback type
   PayloadFeedbackType get type {
     if (feedback is PictureLossIndication) {
       return PayloadFeedbackType.pli;
     } else if (feedback is FullIntraRequest) {
       return PayloadFeedbackType.fir;
+    } else if (feedback is ReceiverEstimatedMaxBitrate) {
+      return PayloadFeedbackType.remb;
     }
     throw StateError('Unknown feedback type: ${feedback.runtimeType}');
   }
@@ -88,6 +109,8 @@ class PayloadSpecificFeedback {
       return PictureLossIndication.fmt;
     } else if (feedback is FullIntraRequest) {
       return FullIntraRequest.fmt;
+    } else if (feedback is ReceiverEstimatedMaxBitrate) {
+      return ReceiverEstimatedMaxBitrate.fmt;
     }
     throw StateError('Unknown feedback type: ${feedback.runtimeType}');
   }
@@ -102,9 +125,16 @@ class PayloadSpecificFeedback {
     final length = (totalSize ~/ 4) - 1;
 
     // Get sender SSRC from feedback
-    final senderSsrc = feedback is PictureLossIndication
-        ? (feedback as PictureLossIndication).senderSsrc
-        : (feedback as FullIntraRequest).senderSsrc;
+    int senderSsrc;
+    if (feedback is PictureLossIndication) {
+      senderSsrc = (feedback as PictureLossIndication).senderSsrc;
+    } else if (feedback is FullIntraRequest) {
+      senderSsrc = (feedback as FullIntraRequest).senderSsrc;
+    } else if (feedback is ReceiverEstimatedMaxBitrate) {
+      senderSsrc = (feedback as ReceiverEstimatedMaxBitrate).senderSsrc;
+    } else {
+      throw StateError('Unknown feedback type: ${feedback.runtimeType}');
+    }
 
     return RtcpPacket(
       version: 2,
@@ -124,6 +154,8 @@ class PayloadSpecificFeedback {
       return (feedback as PictureLossIndication).serialize();
     } else if (feedback is FullIntraRequest) {
       return (feedback as FullIntraRequest).serialize();
+    } else if (feedback is ReceiverEstimatedMaxBitrate) {
+      return (feedback as ReceiverEstimatedMaxBitrate).serialize();
     }
     throw StateError('Unknown feedback type: ${feedback.runtimeType}');
   }
@@ -145,6 +177,13 @@ class PayloadSpecificFeedback {
       case FullIntraRequest.fmt:
         final fir = FullIntraRequest.deserialize(data);
         return PayloadSpecificFeedback(fir);
+
+      case ReceiverEstimatedMaxBitrate.fmt:
+        final remb = ReceiverEstimatedMaxBitrate.deserialize(
+          data,
+          senderSsrc: packet.ssrc,
+        );
+        return PayloadSpecificFeedback(remb);
 
       default:
         throw FormatException('Unknown PSFB FMT: $fmt');
@@ -190,6 +229,23 @@ RtcpCompoundPacket createFirPacket({
     senderSsrc: senderSsrc,
     mediaSsrc: mediaSsrc,
     entries: entries,
+  );
+
+  return RtcpCompoundPacket([psfb.toRtcpPacket()]);
+}
+
+/// Create a compound RTCP packet containing REMB
+RtcpCompoundPacket createRembPacket({
+  required int senderSsrc,
+  int mediaSsrc = 0,
+  required BigInt bitrate,
+  List<int> ssrcFeedbacks = const [],
+}) {
+  final psfb = PayloadSpecificFeedback.remb(
+    senderSsrc: senderSsrc,
+    mediaSsrc: mediaSsrc,
+    bitrate: bitrate,
+    ssrcFeedbacks: ssrcFeedbacks,
   );
 
   return RtcpCompoundPacket([psfb.toRtcpPacket()]);

@@ -1,0 +1,15 @@
+{
+  "name": "webrtc-dart-interop",
+  "version": "1.0.0",
+  "type": "module",
+  "scripts": {
+    "test": "node automated/browser_test.mjs all",
+    "test:chrome": "node automated/browser_test.mjs chrome",
+    "test:firefox": "node automated/browser_test.mjs firefox",
+    "test:safari": "node automated/browser_test.mjs webkit",
+    "test:auto": "./automated/run_browser_tests.sh all"
+  },
+  "dependencies": {
+    "playwright": "^1.57.0"
+  }
+}

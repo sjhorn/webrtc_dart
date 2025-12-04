@@ -20,7 +20,6 @@ import 'package:webrtc_dart/src/dtls/handshake/message/client_hello.dart';
 import 'package:webrtc_dart/src/dtls/handshake/message/client_key_exchange.dart';
 import 'package:webrtc_dart/src/dtls/handshake/message/finished.dart';
 import 'package:webrtc_dart/src/dtls/record/const.dart';
-import 'package:webrtc_dart/src/dtls/record/record.dart';
 import 'package:webrtc_dart/src/dtls/record/record_layer.dart';
 
 /// Flight 1: Initial ClientHello (without cookie)

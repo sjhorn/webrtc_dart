@@ -8,6 +8,7 @@
 /// Usage:
 ///   dart run interop/browser/server.dart
 ///   Then open http://localhost:8080 in Chrome
+library;
 
 import 'dart:async';
 import 'dart:convert';

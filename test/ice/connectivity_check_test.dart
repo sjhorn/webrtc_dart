@@ -186,8 +186,6 @@ void main() {
 
       await connection.gatherCandidates();
 
-      final localCount = connection.localCandidates.length;
-
       // Add remote candidate with different component
       final remoteCandidate = Candidate(
         foundation: '1',
@@ -243,8 +241,6 @@ void main() {
       final connection = IceConnectionImpl(iceControlling: true);
 
       await connection.gatherCandidates();
-
-      final localCount = connection.localCandidates.length;
 
       // Add first remote candidate
       await connection.addRemoteCandidate(Candidate(

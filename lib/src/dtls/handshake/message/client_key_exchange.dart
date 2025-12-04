@@ -39,7 +39,7 @@ class ClientKeyExchange {
 
   /// Parse from bytes
   static ClientKeyExchange parse(Uint8List data) {
-    if (data.length < 1) {
+    if (data.isEmpty) {
       throw FormatException('ClientKeyExchange too short: ${data.length} bytes');
     }
 

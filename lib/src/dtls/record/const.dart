@@ -1,5 +1,6 @@
 /// DTLS record layer constants
 /// Based on RFC 6347 (DTLS 1.2)
+library;
 
 /// Content type for DTLS records
 enum ContentType {
@@ -82,7 +83,7 @@ class ProtocolVersion {
   int get hashCode => Object.hash(major, minor);
 
   @override
-  String toString() => 'DTLS ${major}.${minor}';
+  String toString() => 'DTLS $major.$minor';
 }
 
 /// Record header length (13 bytes for DTLS)

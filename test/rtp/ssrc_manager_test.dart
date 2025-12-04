@@ -167,8 +167,6 @@ void main() {
     });
 
     test('generates unique SSRCs with deterministic random', () {
-      final random = Random(12345); // Seed for reproducibility
-
       final manager1 = SsrcManager(random: Random(12345));
       final manager2 = SsrcManager(random: Random(12345));
 

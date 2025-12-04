@@ -1,5 +1,6 @@
 /// Cipher suite constants for DTLS
 /// Based on RFC 5246 (TLS 1.2) and RFC 5289 (ECC cipher suites)
+library;
 
 import 'package:webrtc_dart/src/dtls/handshake/const.dart';
 

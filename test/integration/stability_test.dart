@@ -2,11 +2,11 @@
 ///
 /// Tests that a WebRTC connection remains stable for at least 60 seconds
 /// with periodic message exchange to verify ongoing connectivity.
+library;
 
 import 'dart:async';
 import 'package:test/test.dart';
 import 'package:webrtc_dart/webrtc_dart.dart';
-import 'package:webrtc_dart/src/ice/candidate.dart';
 
 void main() {
   group('Connection Stability', () {

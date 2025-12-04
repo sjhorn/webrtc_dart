@@ -625,54 +625,107 @@ This roadmap outlines the path from current MVP to full feature parity with the 
 
 ---
 
-## Phase 4: Future - Experimental (50-70 days)
+## Phase 4: werift Parity - Porting from TypeScript (25-35 days)
 
-**Goal:** Cutting-edge features and maximum flexibility
+**Goal:** Complete parity with werift-webrtc features
 
-### 4.1 Media Recording (Save to Disk)
-**Effort:** 10-15 days
+> **Note:** Phase 4 scope revised December 2025 to focus on features that actually exist in werift-webrtc.
+> Features NOT in werift (FEC, RTCP XR/APP, full GCC) are moved to Phase 5.
 
-- WebM container writing
-- MP4 container writing (H.264)
-- Ogg container (Opus)
-- Audio + video muxing
+### 4.1 IPv6 Support ✅ EXISTS IN WERIFT
+**Effort:** 3-5 days
 
-**Reference:** `werift-webrtc/packages/rtp/src/extra/container/`
+- IPv6 candidate gathering and connectivity
+- STUN XOR address handling for IPv6 (16-byte addresses)
+- IPv6 address family detection and normalization
+- Link-local IPv6 address zone ID handling (fe80::1%wlan0)
+- IPv6/IPv4 candidate pairing rules
 
-### 4.2 Insertable Streams API
-**Effort:** 8-10 days
+**Reference:**
+- `werift-webrtc/packages/ice/src/candidate.ts`
+- `werift-webrtc/packages/ice/src/stun/attributes.ts`
+- `werift-webrtc/packages/common/src/network.ts`
 
-- Transform streams for RTP
-- E2E encryption hooks
-- Custom processing pipeline
+### 4.2 Media Recording (WebM/MP4) ✅ EXISTS IN WERIFT
+**Effort:** 12-18 days
 
-### 4.3 Advanced Bandwidth Estimation (GCC)
-**Effort:** 12-15 days
+- WebM container with EBML encoding
+- MP4 container support (uses mp4box)
+- MediaRecorder API for tracks
+- Video codec support: VP8, VP9, H.264, AV1
+- Audio codec support: Opus
+- Cluster/cue point handling for seeking
 
-- Google Congestion Control
-- REMB (Receiver Estimated Max Bitrate)
-- Encoder bitrate adaptation
-- Quality scaling
+**Note:** Ogg container is NOT in werift, only WebM and MP4.
 
-**Reference:** `werift-webrtc/packages/webrtc/src/media/sender/senderBWE.ts`
+**Reference:**
+- `werift-webrtc/packages/webrtc/src/nonstandard/recorder/`
+- `werift-webrtc/packages/rtp/src/extra/container/webm/`
+- `werift-webrtc/packages/rtp/src/extra/container/mp4/`
 
-### 4.4 FEC (Forward Error Correction)
+### 4.3 REMB (Receiver Estimated Max Bitrate) ✅ EXISTS IN WERIFT
+**Effort:** 4-6 days
+
+- REMB RTCP packet parsing (RFC 5104)
+- REMB RTCP packet serialization
+- Integration with existing SenderBWE (TWCC-based)
+
+**Note:** werift does NOT have full GCC algorithm, only REMB + TWCC-based estimation.
+
+**Reference:**
+- `werift-webrtc/packages/rtp/src/rtcp/psfb/remb.ts`
+- `werift-webrtc/packages/webrtc/src/media/sender/senderBWE.ts`
+
+**Phase 4 Summary:**
+- **Total Effort:** 25-35 days
+- **Outcome:** Full feature parity with werift-webrtc
+
+---
+
+## Phase 5: Beyond werift - From RFCs (50-70 days)
+
+**Goal:** Features NOT in werift-webrtc, built from specifications
+
+> These features would need to be implemented from scratch using RFCs.
+
+### 5.1 FEC (Forward Error Correction)
 **Effort:** 15-20 days
 
 - FlexFEC (RFC 8627)
 - ULP FEC (RFC 5109)
 - Loss recovery without retransmission
 
-### 4.5 Advanced RTCP Features
-**Effort:** 6-8 days
+**Note:** NOT in werift - would need RFC implementation
 
-- Extended Reports (XR)
-- RTCP SDES
-- Application-specific RTCP (APP)
+### 5.2 Advanced RTCP Features
+**Effort:** 8-12 days
 
-**Phase 4 Summary:**
+- RTCP XR (Extended Reports) - RFC 3611
+- RTCP APP (Application-defined packets) - RFC 3550
+
+**Note:** werift has SDES (already complete in our implementation), but NOT XR or APP
+
+### 5.3 Full GCC (Google Congestion Control)
+**Effort:** 15-20 days
+
+- Delay-based congestion detection
+- Overuse estimator
+- Rate controller
+
+**Note:** werift only has basic TWCC + REMB, not full GCC
+
+### 5.4 Insertable Streams API
+**Effort:** 10-15 days
+
+- W3C encodedTransform API
+- VideoEncoder/AudioEncoder integration
+- RTCRtpSender.transform property
+
+**Note:** werift uses Node.js TransformStream, not W3C standard API
+
+**Phase 5 Summary:**
 - **Total Effort:** 50-70 days
-- **Outcome:** Full feature parity with werift-webrtc
+- **Outcome:** Beyond werift - bleeding edge features
 
 ---
 
@@ -905,6 +958,6 @@ dart run interop/browser/server.dart
 
 ---
 
-**Document Version:** 1.6
-**Last Updated:** November 2025
-**Status:** Phase 1 COMPLETE (891 tests passing), Chrome browser interop WORKING
+**Document Version:** 1.7
+**Last Updated:** December 2025
+**Status:** Phase 1-3 COMPLETE (1299 tests passing), Chrome/Firefox/Safari browser interop WORKING

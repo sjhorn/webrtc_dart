@@ -1,5 +1,6 @@
 /// SRTP Constants
 /// RFC 3711 - The Secure Real-time Transport Protocol (SRTP)
+library;
 
 /// SRTP authentication tag sizes
 class SrtpAuthTagSize {

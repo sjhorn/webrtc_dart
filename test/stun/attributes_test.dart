@@ -238,7 +238,7 @@ void main() {
           (StunAttributeType.iceControlling, BigInt.from(0x123456789ABC), unpackUnsigned64BigInt),
         ];
 
-        for (final (type, value, unpack) in testCases) {
+        for (final (type, value, _) in testCases) {
           final def = attributeDefinitions[type]!;
           final packed = def.pack(value);
           final unpacked = def.unpack(packed, transactionId);

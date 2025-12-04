@@ -219,4 +219,69 @@ a=sctp-port:5000
       expect(rtpmaps[1].value, '112 PCMU/8000');
     });
   });
+
+  group('ICE-lite detection', () {
+    test('detects session-level ice-lite', () {
+      const sdp = '''
+v=0
+o=- 123456 789012 IN IP4 127.0.0.1
+s=Test Session
+t=0 0
+a=ice-lite
+m=audio 9 UDP/TLS/RTP/SAVPF 111
+a=rtpmap:111 opus/48000/2
+''';
+
+      final message = SdpMessage.parse(sdp);
+      expect(message.isIceLite, isTrue);
+      expect(message.hasAttribute('ice-lite'), isTrue);
+    });
+
+    test('detects media-level ice-lite', () {
+      const sdp = '''
+v=0
+o=- 123456 789012 IN IP4 127.0.0.1
+s=Test Session
+t=0 0
+m=audio 9 UDP/TLS/RTP/SAVPF 111
+a=rtpmap:111 opus/48000/2
+a=ice-lite
+''';
+
+      final message = SdpMessage.parse(sdp);
+      expect(message.isIceLite, isTrue);
+      expect(message.mediaDescriptions[0].hasAttribute('ice-lite'), isTrue);
+    });
+
+    test('returns false when no ice-lite', () {
+      const sdp = '''
+v=0
+o=- 123456 789012 IN IP4 127.0.0.1
+s=Test Session
+t=0 0
+m=audio 9 UDP/TLS/RTP/SAVPF 111
+a=rtpmap:111 opus/48000/2
+''';
+
+      final message = SdpMessage.parse(sdp);
+      expect(message.isIceLite, isFalse);
+    });
+
+    test('session-level getAttributeValue works', () {
+      const sdp = '''
+v=0
+o=- 123456 789012 IN IP4 127.0.0.1
+s=Test Session
+t=0 0
+a=group:BUNDLE 0
+a=ice-options:trickle
+m=audio 9 UDP/TLS/RTP/SAVPF 111
+''';
+
+      final message = SdpMessage.parse(sdp);
+      expect(message.getAttributeValue('group'), 'BUNDLE 0');
+      expect(message.getAttributeValue('ice-options'), 'trickle');
+      expect(message.getAttributeValue('nonexistent'), isNull);
+    });
+  });
 }

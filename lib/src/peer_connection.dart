@@ -13,8 +13,6 @@ import 'package:webrtc_dart/src/media/media_stream_track.dart';
 import 'package:webrtc_dart/src/media/rtp_transceiver.dart';
 import 'package:webrtc_dart/src/rtp/rtp_session.dart';
 import 'package:webrtc_dart/src/codec/codec_parameters.dart';
-import 'package:webrtc_dart/src/srtp/rtp_packet.dart';
-import 'package:webrtc_dart/src/srtp/rtcp_packet.dart';
 import 'package:webrtc_dart/src/srtp/srtp_session.dart';
 import 'package:webrtc_dart/src/stats/rtc_stats.dart';
 
@@ -89,6 +87,16 @@ enum IceTransportPolicy {
   all,
 }
 
+/// Options for createOffer
+class RtcOfferOptions {
+  /// If true, triggers an ICE restart by generating new credentials
+  final bool iceRestart;
+
+  const RtcOfferOptions({
+    this.iceRestart = false,
+  });
+}
+
 /// RTCPeerConnection
 /// WebRTC Peer Connection API
 /// Based on W3C WebRTC 1.0 specification
@@ -110,6 +118,13 @@ class RtcPeerConnection {
 
   /// Track if we've started ICE connectivity checks
   bool _iceConnectCalled = false;
+
+  /// Flag indicating ICE restart is needed
+  bool _needsIceRestart = false;
+
+  /// Previous remote ICE credentials (for detecting remote ICE restart)
+  String? _previousRemoteIceUfrag;
+  String? _previousRemoteIcePwd;
 
   /// Local description
   SessionDescription? _localDescription;
@@ -313,10 +328,22 @@ class RtcPeerConnection {
   Stream<DataChannel> get onDataChannel => _dataChannelController.stream;
 
   /// Create an offer
-  Future<SessionDescription> createOffer() async {
+  ///
+  /// [options] - Optional configuration for the offer:
+  ///   - iceRestart: If true, generates new ICE credentials for ICE restart
+  Future<SessionDescription> createOffer([RtcOfferOptions? options]) async {
     if (_signalingState != SignalingState.stable &&
         _signalingState != SignalingState.haveLocalOffer) {
       throw StateError('Cannot create offer in state $_signalingState');
+    }
+
+    // Handle ICE restart
+    if (options?.iceRestart == true || _needsIceRestart) {
+      _needsIceRestart = false;
+      await _iceConnection.restart();
+      _iceConnectCalled = false;
+      _setIceGatheringState(IceGatheringState.new_);
+      print('[$_debugLabel] ICE restart: new credentials generated');
     }
 
     // Set ICE controlling role (offerer is controlling)
@@ -360,8 +387,7 @@ class RtcPeerConnection {
         SdpAttribute(key: 'rtcp-mux'),
         SdpAttribute(
           key: 'rtpmap',
-          value: '$payloadType ${codec.codecName}/${codec.clockRate}' +
-              (codec.channels != null && codec.channels! > 1 ? '/${codec.channels}' : ''),
+          value: '$payloadType ${codec.codecName}/${codec.clockRate}${codec.channels != null && codec.channels! > 1 ? '/${codec.channels}' : ''}',
         ),
         if (codec.parameters != null)
           SdpAttribute(key: 'fmtp', value: '$payloadType ${codec.parameters}'),
@@ -406,6 +432,8 @@ class RtcPeerConnection {
           port: 9,
           protocol: 'UDP/TLS/RTP/SAVPF',
           formats: formats,
+          // c= line is required at media level by Firefox (RFC 4566)
+          connection: const SdpConnection(connectionAddress: '0.0.0.0'),
           attributes: attributes,
         ),
       );
@@ -423,6 +451,8 @@ class RtcPeerConnection {
         port: 9,
         protocol: 'UDP/DTLS/SCTP',
         formats: ['webrtc-datachannel'],
+        // c= line is required at media level by Firefox (RFC 4566)
+        connection: const SdpConnection(connectionAddress: '0.0.0.0'),
         attributes: [
           SdpAttribute(key: 'ice-ufrag', value: iceUfrag),
           SdpAttribute(key: 'ice-pwd', value: icePwd),
@@ -444,6 +474,8 @@ class RtcPeerConnection {
         unicastAddress: '0.0.0.0',
       ),
       sessionName: '-',
+      // c= line at session level for browsers that check there
+      connection: const SdpConnection(connectionAddress: '0.0.0.0'),
       timing: [SdpTiming(startTime: 0, stopTime: 0)],
       attributes: [
         SdpAttribute(key: 'group', value: 'BUNDLE ${bundleMids.join(' ')}'),
@@ -561,6 +593,8 @@ class RtcPeerConnection {
           port: 9,
           protocol: remoteMedia.protocol,
           formats: remoteMedia.formats,
+          // c= line is required at media level by Firefox (RFC 4566)
+          connection: const SdpConnection(connectionAddress: '0.0.0.0'),
           attributes: attributes,
         ),
       );
@@ -575,6 +609,8 @@ class RtcPeerConnection {
         unicastAddress: '0.0.0.0',
       ),
       sessionName: '-',
+      // c= line at session level for browsers that check there
+      connection: const SdpConnection(connectionAddress: '0.0.0.0'),
       timing: [SdpTiming(startTime: 0, stopTime: 0)],
       attributes: [
         SdpAttribute(key: 'group', value: 'BUNDLE ${bundleMids.join(' ')}'),
@@ -665,9 +701,28 @@ class RtcPeerConnection {
       final icePwd = media.getAttributeValue('ice-pwd');
 
       if (iceUfrag != null && icePwd != null) {
-        print('[$_debugLabel] Setting remote ICE params: ufrag=$iceUfrag, pwd=${icePwd.substring(0, 8)}...');
+        // Detect remote ICE restart by checking if credentials changed
+        final isRemoteIceRestart = _previousRemoteIceUfrag != null &&
+            _previousRemoteIcePwd != null &&
+            (_previousRemoteIceUfrag != iceUfrag ||
+                _previousRemoteIcePwd != icePwd);
+
+        if (isRemoteIceRestart) {
+          print('[$_debugLabel] Remote ICE restart detected - credentials changed');
+          // Perform local ICE restart to match
+          await _iceConnection.restart();
+          _iceConnectCalled = false;
+          _setIceGatheringState(IceGatheringState.new_);
+        }
+
+        // Store credentials for future comparison
+        _previousRemoteIceUfrag = iceUfrag;
+        _previousRemoteIcePwd = icePwd;
+
+        final isIceLite = sdpMessage.isIceLite;
+        print('[$_debugLabel] Setting remote ICE params: ufrag=$iceUfrag, pwd=${icePwd.substring(0, 8)}...${isIceLite ? ' (ice-lite)' : ''}');
         _iceConnection.setRemoteParams(
-          iceLite: false, // TODO: Detect from SDP
+          iceLite: isIceLite,
           usernameFragment: iceUfrag,
           password: icePwd,
         );
@@ -767,7 +822,7 @@ class RtcPeerConnection {
 
       // Create codec parameters
       final mediaType = media.type == 'audio' ? 'audio' : 'video';
-      final codec = RtpCodecParameters(
+      final _ = RtpCodecParameters(
         mimeType: '$mediaType/$codecName',
         payloadType: payloadType,
         clockRate: clockRate ?? 48000,
@@ -795,7 +850,7 @@ class RtcPeerConnection {
         },
         onReceiveRtp: (packet) {
           if (transceiver != null) {
-            transceiver!.receiver.handleRtpPacket(packet);
+            transceiver.receiver.handleRtpPacket(packet);
           }
         },
       );
@@ -997,6 +1052,31 @@ class RtcPeerConnection {
   }
 
   // ========================================================================
+  // ICE Restart API
+  // ========================================================================
+
+  /// Request an ICE restart
+  ///
+  /// This sets a flag that will cause the next createOffer() call to
+  /// generate new ICE credentials. The actual restart occurs when
+  /// createOffer() is called with the new credentials.
+  ///
+  /// Usage:
+  /// ```dart
+  /// pc.restartIce();
+  /// final offer = await pc.createOffer();
+  /// await pc.setLocalDescription(offer);
+  /// // Send offer to remote peer
+  /// ```
+  void restartIce() {
+    if (_connectionState == PeerConnectionState.closed) {
+      throw StateError('PeerConnection is closed');
+    }
+    _needsIceRestart = true;
+    print('[$_debugLabel] ICE restart requested');
+  }
+
+  // ========================================================================
   // Media Track API
   // ========================================================================
 
@@ -1026,21 +1106,6 @@ class RtcPeerConnection {
     // Create transceiver first to get receiver
     // Then create RTP session with receiver callback
     RtpTransceiver? transceiver;
-    RtpReceiver? receiver;
-
-    // Pre-create receiver track
-    MediaStreamTrack receiveTrack;
-    if (track.kind == MediaStreamTrackKind.audio) {
-      receiveTrack = AudioStreamTrack(
-        id: 'audio_recv_$mid',
-        label: 'Audio Receiver',
-      );
-    } else {
-      receiveTrack = VideoStreamTrack(
-        id: 'video_recv_$mid',
-        label: 'Video Receiver',
-      );
-    }
 
     // Create RTP session with receiver callback
     // Store the transceiver so the callback can access it
@@ -1064,7 +1129,7 @@ class RtcPeerConnection {
       onReceiveRtp: (packet) {
         // Route to receiver when available
         if (transceiverRef != null) {
-          transceiverRef!.receiver.handleRtpPacket(packet);
+          transceiverRef.receiver.handleRtpPacket(packet);
         }
       },
     );
@@ -1216,6 +1281,9 @@ class RtcPeerConnection {
   List<RtpTransceiver> getTransceivers() {
     return List.unmodifiable(_transceivers);
   }
+
+  /// Get all transceivers (getter form)
+  List<RtpTransceiver> get transceivers => List.unmodifiable(_transceivers);
 
   /// Get senders
   List<RtpSender> getSenders() {

@@ -22,7 +22,7 @@ class ChangeCipherSpec {
 
   /// Parse from bytes
   static ChangeCipherSpec parse(Uint8List data) {
-    if (data.length < 1) {
+    if (data.isEmpty) {
       throw FormatException('ChangeCipherSpec too short: ${data.length} bytes');
     }
 

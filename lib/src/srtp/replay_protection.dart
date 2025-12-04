@@ -1,5 +1,3 @@
-import 'package:webrtc_dart/src/srtp/const.dart';
-
 /// Replay Protection using Sliding Window
 /// RFC 3711 Section 3.3.2
 ///

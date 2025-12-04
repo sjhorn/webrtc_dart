@@ -5,6 +5,7 @@
 /// - rtpmap: `a=rtpmap:97 rtx/90000`
 /// - fmtp apt: `a=fmtp:97 apt=96`
 /// - ssrc-group FID: `a=ssrc-group:FID 12345678 87654321`
+library;
 
 import 'sdp.dart';
 

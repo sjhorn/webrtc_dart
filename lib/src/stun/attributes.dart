@@ -1,8 +1,6 @@
 import 'dart:io';
 import 'dart:typed_data';
 
-import 'package:webrtc_dart/src/common/binary.dart';
-
 import 'const.dart';
 
 /// Address tuple (host, port)

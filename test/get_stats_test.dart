@@ -1,7 +1,6 @@
 import 'package:test/test.dart';
 import 'package:webrtc_dart/src/peer_connection.dart';
 import 'package:webrtc_dart/src/stats/rtc_stats.dart';
-import 'package:webrtc_dart/src/stats/rtp_stats.dart';
 
 void main() {
   group('RtcPeerConnection.getStats()', () {

@@ -1,5 +1,3 @@
-import 'dart:typed_data';
-
 import 'package:test/test.dart';
 import 'package:webrtc_dart/src/ice/candidate.dart';
 import 'package:webrtc_dart/src/ice/candidate_pair.dart';

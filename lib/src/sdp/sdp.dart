@@ -1,6 +1,9 @@
 /// Session Description Protocol (SDP)
 /// RFC 4566 - SDP: Session Description Protocol
 /// RFC 8866 - SDP: Session Description Protocol (updated)
+library;
+
+import '../media/parameters.dart';
 
 /// SDP Session Description
 class SessionDescription {
@@ -179,7 +182,38 @@ class SdpMessage {
       lines.addAll(media.serialize());
     }
 
-    return lines.join('\r\n') + '\r\n';
+    return '${lines.join('\r\n')}\r\n';
+  }
+
+  /// Get session-level attribute value by key
+  String? getAttributeValue(String key) {
+    for (final attr in attributes) {
+      if (attr.key == key) {
+        return attr.value;
+      }
+    }
+    return null;
+  }
+
+  /// Check if session-level attribute exists (flag attribute)
+  bool hasAttribute(String key) {
+    return attributes.any((attr) => attr.key == key);
+  }
+
+  /// Check if remote peer is ICE-lite
+  /// ICE-lite can be specified at session level or media level
+  bool get isIceLite {
+    // Check session-level first
+    if (hasAttribute('ice-lite')) {
+      return true;
+    }
+    // Check media-level
+    for (final media in mediaDescriptions) {
+      if (media.hasAttribute('ice-lite')) {
+        return true;
+      }
+    }
+    return false;
   }
 
   @override
@@ -233,7 +267,7 @@ class SdpConnection {
   final String addrType;
   final String connectionAddress;
 
-  SdpConnection({
+  const SdpConnection({
     this.netType = 'IN',
     this.addrType = 'IP4',
     required this.connectionAddress,
@@ -408,8 +442,186 @@ class SdpMedia {
     return attributes.where((attr) => attr.key == key).toList();
   }
 
+  /// Check if attribute exists (flag attribute)
+  bool hasAttribute(String key) {
+    return attributes.any((attr) => attr.key == key);
+  }
+
+  /// Get simulcast parameters from RID attributes
+  /// Parses a=rid:high send, a=rid:low send etc.
+  List<RTCRtpSimulcastParameters> getSimulcastParameters() {
+    final params = <RTCRtpSimulcastParameters>[];
+
+    for (final attr in getAttributes('rid')) {
+      if (attr.value != null) {
+        try {
+          params.add(RTCRtpSimulcastParameters.fromSdpRid(attr.value!));
+        } catch (e) {
+          // Skip invalid RID attributes
+        }
+      }
+    }
+
+    return params;
+  }
+
+  /// Get parsed simulcast attribute
+  /// Returns map with 'send' and 'recv' lists of RIDs
+  /// Parses a=simulcast:send high;low recv mid
+  SimulcastAttribute? getSimulcastAttribute() {
+    final attr = getAttributeValue('simulcast');
+    if (attr == null) return null;
+
+    return SimulcastAttribute.parse(attr);
+  }
+
+  /// Get RTP header extensions
+  /// Parses a=extmap:1 urn:ietf:params:rtp-hdrext:sdes:mid
+  List<RtpHeaderExtension> getHeaderExtensions() {
+    final extensions = <RtpHeaderExtension>[];
+
+    for (final attr in getAttributes('extmap')) {
+      if (attr.value != null) {
+        try {
+          extensions.add(RtpHeaderExtension.parse(attr.value!));
+        } catch (e) {
+          // Skip invalid extmap
+        }
+      }
+    }
+
+    return extensions;
+  }
+
+  /// Get media direction (sendrecv, sendonly, recvonly, inactive)
+  MediaDirection getDirection() {
+    if (hasAttribute('sendrecv')) return MediaDirection.sendrecv;
+    if (hasAttribute('sendonly')) return MediaDirection.sendonly;
+    if (hasAttribute('recvonly')) return MediaDirection.recvonly;
+    if (hasAttribute('inactive')) return MediaDirection.inactive;
+    return MediaDirection.sendrecv; // Default
+  }
+
+  /// Get mid (media ID)
+  String? getMid() => getAttributeValue('mid');
+
   @override
   String toString() {
     return 'SdpMedia(type=$type, port=$port, protocol=$protocol, formats=$formats)';
   }
+}
+
+/// Simulcast attribute (a=simulcast:)
+/// Format: a=simulcast:send rid1;rid2 recv rid3;rid4
+class SimulcastAttribute {
+  /// RIDs to send
+  final List<String> send;
+
+  /// RIDs to receive
+  final List<String> recv;
+
+  const SimulcastAttribute({
+    this.send = const [],
+    this.recv = const [],
+  });
+
+  /// Parse simulcast attribute value
+  /// Format: "send high;low recv mid" or "recv high;low"
+  static SimulcastAttribute parse(String value) {
+    final send = <String>[];
+    final recv = <String>[];
+
+    final parts = value.trim().split(RegExp(r'\s+'));
+    var currentDirection = '';
+
+    for (final part in parts) {
+      if (part == 'send') {
+        currentDirection = 'send';
+      } else if (part == 'recv') {
+        currentDirection = 'recv';
+      } else if (currentDirection.isNotEmpty) {
+        // Parse RID list (semicolon-separated)
+        final rids = part.split(';').where((r) => r.isNotEmpty).toList();
+        if (currentDirection == 'send') {
+          send.addAll(rids);
+        } else {
+          recv.addAll(rids);
+        }
+      }
+    }
+
+    return SimulcastAttribute(send: send, recv: recv);
+  }
+
+  /// Serialize to SDP attribute value
+  String serialize() {
+    final parts = <String>[];
+
+    if (recv.isNotEmpty) {
+      parts.add('recv ${recv.join(";")}');
+    }
+    if (send.isNotEmpty) {
+      parts.add('send ${send.join(";")}');
+    }
+
+    return parts.join(' ');
+  }
+
+  @override
+  String toString() => 'SimulcastAttribute(send: $send, recv: $recv)';
+}
+
+/// RTP Header Extension from extmap attribute
+/// Format: a=extmap:1 urn:ietf:params:rtp-hdrext:sdes:mid
+class RtpHeaderExtension {
+  /// Extension ID (1-14 for one-byte, 1-255 for two-byte)
+  final int id;
+
+  /// Extension URI
+  final String uri;
+
+  /// Direction (optional)
+  final String? direction;
+
+  const RtpHeaderExtension({
+    required this.id,
+    required this.uri,
+    this.direction,
+  });
+
+  /// Parse extmap attribute value
+  /// Format: "1 urn:..." or "1/sendonly urn:..."
+  static RtpHeaderExtension parse(String value) {
+    final parts = value.split(' ');
+    if (parts.length < 2) {
+      throw FormatException('Invalid extmap: $value');
+    }
+
+    final idPart = parts[0];
+    final uri = parts[1];
+
+    // Check for direction: "1/sendonly"
+    String? direction;
+    int id;
+    if (idPart.contains('/')) {
+      final idParts = idPart.split('/');
+      id = int.parse(idParts[0]);
+      direction = idParts[1];
+    } else {
+      id = int.parse(idPart);
+    }
+
+    return RtpHeaderExtension(id: id, uri: uri, direction: direction);
+  }
+
+  /// Serialize to extmap attribute value
+  String serialize() {
+    if (direction != null) {
+      return '$id/$direction $uri';
+    }
+    return '$id $uri';
+  }
+
+  @override
+  String toString() => 'RtpHeaderExtension(id: $id, uri: $uri)';
 }

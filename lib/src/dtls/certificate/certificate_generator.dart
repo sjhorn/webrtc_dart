@@ -1,7 +1,6 @@
 import 'dart:typed_data';
 import 'package:pointycastle/export.dart';
 import 'package:webrtc_dart/src/common/crypto.dart';
-import 'package:convert/convert.dart';
 
 /// Certificate information
 class CertificateInfo {
@@ -83,9 +82,9 @@ Future<CertificateKeyPair> generateSelfSignedCertificate({
 /// - Version: v3 (2)
 /// - Serial number: random
 /// - Signature algorithm: ECDSA with SHA-256
-/// - Issuer: CN=<commonName>
+/// - Issuer: CN=`<commonName>`
 /// - Validity: notBefore/notAfter
-/// - Subject: CN=<commonName>
+/// - Subject: CN=`<commonName>`
 /// - Subject public key info
 /// - Extensions: basic constraints, key usage
 /// - Signature
@@ -312,13 +311,13 @@ class _Asn1Builder {
   }
 
   void writeUtcTime(DateTime dateTime) {
-    final formatted = '${dateTime.year.toString().substring(2)}' +
-        dateTime.month.toString().padLeft(2, '0') +
-        dateTime.day.toString().padLeft(2, '0') +
-        dateTime.hour.toString().padLeft(2, '0') +
-        dateTime.minute.toString().padLeft(2, '0') +
-        dateTime.second.toString().padLeft(2, '0') +
-        'Z';
+    final year = dateTime.year.toString().substring(2);
+    final month = dateTime.month.toString().padLeft(2, '0');
+    final day = dateTime.day.toString().padLeft(2, '0');
+    final hour = dateTime.hour.toString().padLeft(2, '0');
+    final minute = dateTime.minute.toString().padLeft(2, '0');
+    final second = dateTime.second.toString().padLeft(2, '0');
+    final formatted = '$year$month$day$hour$minute${second}Z';
     _writeTagLengthValue(0x17, Uint8List.fromList(formatted.codeUnits));
   }
 

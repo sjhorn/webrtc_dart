@@ -1,5 +1,3 @@
-import 'dart:typed_data';
-
 /// RTP Statistics
 /// Tracks statistics for an RTP stream
 /// RFC 3550 Section 6.4 - Calculating RTCP fields
@@ -54,7 +52,6 @@ class RtpStatistics {
   /// Jitter calculation fields
   double jitter = 0.0;
   int? _lastTransitTime;
-  int? _lastArrivalTimestamp;
 
   RtpStatistics({required this.ssrc});
 
@@ -107,7 +104,6 @@ class RtpStatistics {
   void _updateJitter(int timestamp, int arrivalTime) {
     if (_lastTransitTime == null) {
       _lastTransitTime = arrivalTime - timestamp;
-      _lastArrivalTimestamp = arrivalTime;
       return;
     }
 
@@ -118,7 +114,6 @@ class RtpStatistics {
     jitter += (d - jitter) / 16.0;
 
     _lastTransitTime = transit;
-    _lastArrivalTimestamp = arrivalTime;
   }
 
   /// Update with received Sender Report
@@ -152,7 +147,6 @@ class RtpStatistics {
     cycles = 0;
     jitter = 0.0;
     _lastTransitTime = null;
-    _lastArrivalTimestamp = null;
     lastSrTimestamp = null;
     lastSrReceiveTime = null;
   }

@@ -5,6 +5,8 @@ import 'dart:typed_data';
 import 'package:webrtc_dart/src/common/crypto.dart';
 import 'package:webrtc_dart/src/ice/candidate.dart';
 import 'package:webrtc_dart/src/ice/candidate_pair.dart';
+import 'package:webrtc_dart/src/ice/mdns.dart';
+import 'package:webrtc_dart/src/ice/tcp_transport.dart';
 import 'package:webrtc_dart/src/ice/utils.dart';
 import 'package:webrtc_dart/src/stun/attributes.dart' show Address;
 import 'package:webrtc_dart/src/stun/const.dart';
@@ -75,6 +77,18 @@ class IceOptions {
   /// Port range for local candidates
   final (int, int)? portRange;
 
+  /// Enable TCP candidates (RFC 6544)
+  final bool useTcp;
+
+  /// Enable UDP candidates
+  final bool useUdp;
+
+  /// Enable mDNS candidate obfuscation (RFC 8828)
+  ///
+  /// When enabled, local IP addresses in host candidates are replaced
+  /// with random `.local` hostnames to protect user privacy.
+  final bool useMdns;
+
   const IceOptions({
     this.stunServer,
     this.turnServer,
@@ -83,6 +97,9 @@ class IceOptions {
     this.useIpv4 = true,
     this.useIpv6 = true,
     this.portRange,
+    this.useTcp = false, // Disabled by default for compatibility
+    this.useUdp = true,
+    this.useMdns = false, // Disabled by default for compatibility
   });
 }
 
@@ -207,6 +224,18 @@ class IceConnectionImpl implements IceConnection {
   // Subscription for TURN receive stream
   StreamSubscription<(Address, Uint8List)>? _turnReceiveSubscription;
 
+  // TCP candidate gatherer for passive TCP candidates
+  TcpCandidateGatherer? _tcpGatherer;
+
+  // Map of candidate foundation to TCP connection
+  final Map<String, IceTcpConnection> _tcpConnections = {};
+
+  // mDNS hostname to IP address mapping (for obfuscated candidates)
+  final Map<String, String> _mdnsHostnames = {};
+
+  // Whether mDNS service is started
+  bool _mdnsStarted = false;
+
   final IceOptions options;
 
   final _stateController = StreamController<IceState>.broadcast();
@@ -319,6 +348,12 @@ class IceConnectionImpl implements IceConnection {
     _setState(IceState.gathering);
 
     try {
+      // Start mDNS service if obfuscation is enabled
+      if (options.useMdns && !_mdnsStarted) {
+        await mdnsService.start();
+        _mdnsStarted = true;
+      }
+
       // Gather host candidates from network interfaces
       final addresses = await getHostAddresses(
         useIpv4: options.useIpv4,
@@ -326,53 +361,68 @@ class IceConnectionImpl implements IceConnection {
         useLinkLocalAddress: false,
       );
 
-      // Create host candidates for each address
-      for (final address in addresses) {
-        try {
-          final addr = InternetAddress(address);
+      // Create UDP host candidates for each address
+      if (options.useUdp) {
+        for (final address in addresses) {
+          try {
+            final addr = InternetAddress(address);
 
-          // Bind a UDP socket to get a port
-          final socket = await RawDatagramSocket.bind(
-            addr,
-            0, // Use any available port
-          );
+            // Bind a UDP socket to get a port
+            final socket = await RawDatagramSocket.bind(
+              addr,
+              0, // Use any available port
+            );
 
-          final foundation = candidateFoundation('host', 'udp', address);
-          final candidate = Candidate(
-            foundation: foundation,
-            component: 1, // RTP component
-            transport: 'udp',
-            priority: candidatePriority('host'),
-            host: address,
-            port: socket.port,
-            type: 'host',
-          );
-
-          _localCandidates.add(candidate);
-          _candidateController.add(candidate);
-          _sockets[foundation] = socket;
-
-          // Set up socket listener for incoming data
-          _setupSocketListener(socket);
-
-          // Create pairs with any already-received remote candidates
-          for (final remote in _remoteCandidates) {
-            if (candidate.canPairWith(remote)) {
-              final pair = CandidatePair(
-                id: '${candidate.foundation}-${remote.foundation}',
-                localCandidate: candidate,
-                remoteCandidate: remote,
-                iceControlling: _iceControlling,
-              );
-              _checkList.add(pair);
+            // Obfuscate the host address with mDNS if enabled
+            String candidateHost = address;
+            if (options.useMdns) {
+              final mdnsHostname = mdnsService.registerHostname(address);
+              _mdnsHostnames[mdnsHostname] = address;
+              candidateHost = mdnsHostname;
             }
+
+            final foundation = candidateFoundation('host', 'udp', address);
+            final candidate = Candidate(
+              foundation: foundation,
+              component: 1, // RTP component
+              transport: 'udp',
+              priority: candidatePriority('host'),
+              host: candidateHost,
+              port: socket.port,
+              type: 'host',
+            );
+
+            _localCandidates.add(candidate);
+            _candidateController.add(candidate);
+            _sockets[foundation] = socket;
+
+            // Set up socket listener for incoming data
+            _setupSocketListener(socket);
+
+            // Create pairs with any already-received remote candidates
+            for (final remote in _remoteCandidates) {
+              if (candidate.canPairWith(remote)) {
+                final pair = CandidatePair(
+                  id: '${candidate.foundation}-${remote.foundation}',
+                  localCandidate: candidate,
+                  remoteCandidate: remote,
+                  iceControlling: _iceControlling,
+                );
+                _checkList.add(pair);
+              }
+            }
+            // Sort pairs by priority
+            _checkList.sort((a, b) => b.priority.compareTo(a.priority));
+          } catch (e) {
+            // Failed to bind to this address, skip it
+            continue;
           }
-          // Sort pairs by priority
-          _checkList.sort((a, b) => b.priority.compareTo(a.priority));
-        } catch (e) {
-          // Failed to bind to this address, skip it
-          continue;
         }
+      }
+
+      // Create TCP host candidates (passive mode) for each address
+      if (options.useTcp) {
+        await _gatherTcpCandidates(addresses);
       }
 
       // Gather server reflexive candidates via STUN
@@ -564,6 +614,85 @@ class IceConnectionImpl implements IceConnection {
       // Failed to get relay candidate, continue without it
       _turnClient = null;
     }
+  }
+
+  /// Gather TCP host candidates (passive mode per RFC 6544)
+  ///
+  /// TCP candidates are gathered as passive (tcptype=passive), meaning
+  /// we listen for incoming connections rather than initiating them.
+  /// The remote peer with active TCP type will connect to us.
+  Future<void> _gatherTcpCandidates(List<String> addresses) async {
+    _tcpGatherer = TcpCandidateGatherer();
+
+    final tcpHosts = await _tcpGatherer!.gatherHostCandidates(addresses);
+
+    for (final tcpHost in tcpHosts) {
+      final foundation = candidateFoundation('host', 'tcp', tcpHost.address);
+      final candidate = Candidate(
+        foundation: foundation,
+        component: 1, // RTP component
+        transport: 'tcp',
+        priority: candidatePriority('host', transportPreference: 6), // TCP has lower preference
+        host: tcpHost.address,
+        port: tcpHost.port,
+        type: 'host',
+        tcpType: 'passive', // We listen for connections (RFC 6544)
+      );
+
+      _localCandidates.add(candidate);
+      _candidateController.add(candidate);
+
+      // Set up listener for incoming TCP connections
+      final server = _tcpGatherer!.getServer(tcpHost.address);
+      if (server != null) {
+        server.onConnection.listen(_handleTcpConnection);
+      }
+
+      // Create pairs with any already-received remote candidates
+      for (final remote in _remoteCandidates) {
+        if (candidate.canPairWith(remote)) {
+          final pair = CandidatePair(
+            id: '${candidate.foundation}-${remote.foundation}',
+            localCandidate: candidate,
+            remoteCandidate: remote,
+            iceControlling: _iceControlling,
+          );
+          _checkList.add(pair);
+        }
+      }
+    }
+
+    // Sort pairs by priority
+    if (tcpHosts.isNotEmpty) {
+      _checkList.sort((a, b) => b.priority.compareTo(a.priority));
+    }
+  }
+
+  /// Handle incoming TCP connection
+  void _handleTcpConnection(IceTcpConnection connection) {
+    final remoteKey =
+        '${connection.remoteAddress.address}:${connection.remotePort}';
+    _tcpConnections[remoteKey] = connection;
+
+    // Listen for incoming STUN messages over TCP
+    connection.onMessage.listen((data) {
+      if (_isStunMessage(data)) {
+        _handleStunMessage(
+            data, connection.remoteAddress, connection.remotePort);
+      } else {
+        // Non-STUN data received over TCP (e.g., DTLS)
+        if (!_dataController.isClosed) {
+          _dataController.add(data);
+        }
+      }
+    });
+
+    connection.onStateChange.listen((state) {
+      if (state == TcpConnectionState.closed ||
+          state == TcpConnectionState.failed) {
+        _tcpConnections.remove(remoteKey);
+      }
+    });
   }
 
   /// Handle data received through TURN relay
@@ -1144,11 +1273,25 @@ class IceConnectionImpl implements IceConnection {
     }
     _turnChannels.clear();
 
-    // Close all sockets
+    // Close all UDP sockets
     for (final socket in _sockets.values) {
       socket.close();
     }
     _sockets.clear();
+
+    // Close all TCP connections
+    for (final connection in _tcpConnections.values) {
+      await connection.close();
+    }
+    _tcpConnections.clear();
+
+    // Close TCP gatherer (closes all server sockets)
+    await _tcpGatherer?.close();
+    _tcpGatherer = null;
+
+    // Clear mDNS mappings
+    _mdnsHostnames.clear();
+    // Note: We don't stop the global mDNS service as it may be shared
 
     await _stateController.close();
     await _candidateController.close();
@@ -1174,11 +1317,24 @@ class IceConnectionImpl implements IceConnection {
     }
     _turnChannels.clear();
 
-    // Close existing sockets
+    // Close existing UDP sockets
     for (final socket in _sockets.values) {
       socket.close();
     }
     _sockets.clear();
+
+    // Close TCP connections
+    for (final connection in _tcpConnections.values) {
+      await connection.close();
+    }
+    _tcpConnections.clear();
+
+    // Close TCP gatherer
+    await _tcpGatherer?.close();
+    _tcpGatherer = null;
+
+    // Clear mDNS mappings
+    _mdnsHostnames.clear();
 
     _localCandidates.clear();
     _remoteCandidates.clear();

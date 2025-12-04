@@ -1,5 +1,6 @@
 /// DTLS handshake constants
 /// Based on RFC 6347 (DTLS 1.2) and RFC 5246 (TLS 1.2)
+library;
 
 /// Handshake message types
 enum HandshakeType {

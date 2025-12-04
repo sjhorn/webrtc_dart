@@ -124,7 +124,7 @@ void main() {
       final connection = IceConnectionImpl(iceControlling: true);
 
       // Add a local candidate manually for testing
-      final localCandidate = Candidate(
+      final _ = Candidate(
         foundation: '1',
         component: 1,
         transport: 'udp',

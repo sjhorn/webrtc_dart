@@ -4,7 +4,6 @@ import 'package:webrtc_dart/src/srtp/srtp_cipher.dart';
 import 'package:webrtc_dart/src/srtp/srtcp_cipher.dart';
 import 'package:webrtc_dart/src/srtp/rtp_packet.dart';
 import 'package:webrtc_dart/src/srtp/rtcp_packet.dart';
-import 'package:webrtc_dart/src/srtp/key_derivation.dart';
 
 /// SRTP Session
 /// Manages SRTP/SRTCP encryption and decryption for a media session

@@ -1,10 +1,7 @@
 import 'dart:typed_data';
 import 'package:test/test.dart';
-import 'package:webrtc_dart/src/ice/ice_connection.dart';
 import 'package:webrtc_dart/src/ice/candidate.dart';
 import 'package:webrtc_dart/src/sctp/association.dart';
-import 'package:webrtc_dart/src/sctp/const.dart';
-import 'package:webrtc_dart/src/datachannel/data_channel.dart';
 import 'package:webrtc_dart/src/sdp/sdp.dart';
 import 'package:webrtc_dart/src/peer_connection.dart';
 import 'package:webrtc_dart/src/codec/codec_parameters.dart';

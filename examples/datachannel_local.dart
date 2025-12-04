@@ -4,6 +4,7 @@
 /// a datachannel between them to exchange messages.
 ///
 /// Usage: dart run examples/datachannel_local.dart
+library;
 
 import 'dart:async';
 import 'dart:typed_data';

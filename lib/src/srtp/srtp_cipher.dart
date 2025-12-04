@@ -80,8 +80,7 @@ class SrtpCipher {
     final headerEnd = _findHeaderEnd(srtpPacket);
     final header = srtpPacket.sublist(0, headerEnd);
 
-    // Extract encrypted payload and auth tag
-    final encryptedEnd = srtpPacket.length - SrtpAuthTagSize.tag128;
+    // Extract encrypted payload
     final encrypted = srtpPacket.sublist(headerEnd, srtpPacket.length);
 
     // Parse header fields we need

@@ -7,6 +7,7 @@
 /// 4. Paste the offer JSON when prompted
 /// 5. Copy the answer JSON and paste it in the browser
 /// 6. Messages should flow!
+library;
 
 import 'dart:async';
 import 'dart:convert';

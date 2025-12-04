@@ -60,6 +60,9 @@ class SctpAssociation {
   /// Receive buffer (by TSN)
   final Map<int, SctpDataChunk> _receiveBuffer = {};
 
+  /// Outbound stream sequence numbers (per stream ID)
+  final Map<int, int> _outboundStreamSeq = {};
+
   /// Callback for sending packets
   final Future<void> Function(Uint8List packet) onSendPacket;
 
@@ -160,10 +163,14 @@ class SctpAssociation {
       throw ArgumentError('Invalid stream ID: $streamId');
     }
 
+    // Get and increment stream sequence number for ordered delivery
+    // Unordered messages always use sequence 0
+    final streamSeq = unordered ? 0 : (_outboundStreamSeq[streamId] ?? 0);
+
     final chunk = SctpDataChunk(
       tsn: _getNextTsn(),
       streamId: streamId,
-      streamSeq: 0, // TODO: Track per-stream sequence numbers
+      streamSeq: streamSeq,
       ppid: ppid,
       userData: data,
       flags: unordered
@@ -173,6 +180,11 @@ class SctpAssociation {
           : SctpDataChunkFlags.beginningFragment |
               SctpDataChunkFlags.endFragment,
     );
+
+    // Increment sequence number for ordered messages (wrap at 16-bit boundary)
+    if (!unordered) {
+      _outboundStreamSeq[streamId] = (streamSeq + 1) & 0xFFFF;
+    }
 
     _sendBuffer.add(chunk);
     await _flushSendBuffer();
@@ -618,6 +630,7 @@ class SctpAssociation {
     _sackTimer?.cancel();
     _sendBuffer.clear();
     _receiveBuffer.clear();
+    _outboundStreamSeq.clear();
     _setState(SctpAssociationState.closed);
     _stateController.close();
   }

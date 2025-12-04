@@ -41,9 +41,9 @@ void main() {
           .whereType<RTCPeerConnectionStats>()
           .first;
 
-      // MVP version doesn't track data channels yet (TODO)
-      expect(pcStats.dataChannelsOpened, isNull);
-      expect(pcStats.dataChannelsClosed, isNull);
+      // Data channel tracking is now implemented
+      expect(pcStats.dataChannelsOpened, equals(0));
+      expect(pcStats.dataChannelsClosed, equals(0));
     });
 
     test('includes RTP stats when transceivers exist', () async {

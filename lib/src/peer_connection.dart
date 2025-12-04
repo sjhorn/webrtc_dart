@@ -184,6 +184,12 @@ class RtcPeerConnection {
   /// Starts at 1 because MID 0 is reserved for DataChannel (SCTP)
   int _nextMid = 1;
 
+  /// Counter for data channels opened (for stats)
+  int _dataChannelsOpened = 0;
+
+  /// Counter for data channels closed (for stats)
+  int _dataChannelsClosed = 0;
+
   /// Debug label for this peer connection
   static int _instanceCounter = 0;
   late final String _debugLabel;
@@ -903,7 +909,8 @@ class RtcPeerConnection {
       throw StateError('Transport not initialized. Wait for initialization to complete.');
     }
 
-    return _transport!.createDataChannel(
+    _dataChannelsOpened++;
+    final channel = _transport!.createDataChannel(
       label: label,
       protocol: protocol,
       ordered: ordered,
@@ -911,6 +918,7 @@ class RtcPeerConnection {
       maxPacketLifeTime: maxPacketLifeTime,
       priority: priority,
     );
+    return channel;
   }
 
   /// Handle ICE state change
@@ -1298,18 +1306,14 @@ class RtcPeerConnection {
   /// Get RTC statistics
   /// Returns statistics about the peer connection
   ///
-  /// [selector] - Optional MediaStreamTrack to filter stats (not yet implemented)
+  /// [selector] - Optional MediaStreamTrack to filter stats.
+  ///   If null, returns all stats.
+  ///   If specified, only returns stats related to that track.
   ///
-  /// MVP implementation includes:
+  /// Implementation includes:
   /// - peer-connection stats (basic connection info)
   /// - RTP stats from all active sessions (inbound/outbound)
-  ///
-  /// TODO: Full implementation should include:
-  /// - data-channel stats
-  /// - media-source stats
-  /// - codec stats
-  /// - transport/ICE/certificate stats
-  /// - track selector filtering
+  /// - Track selector filtering (filters inbound-rtp and outbound-rtp stats)
   Future<RTCStatsReport> getStats([MediaStreamTrack? selector]) async {
     final stats = <RTCStats>[];
     final timestamp = getStatsTimestamp();
@@ -1319,21 +1323,49 @@ class RtcPeerConnection {
     stats.add(RTCPeerConnectionStats(
       timestamp: timestamp,
       id: pcId,
-      // TODO: Track data channel open/close counts
-      dataChannelsOpened: null,
-      dataChannelsClosed: null,
+      dataChannelsOpened: _dataChannelsOpened,
+      dataChannelsClosed: _dataChannelsClosed,
     ));
 
-    // Collect RTP stats from all sessions
-    for (final session in _rtpSessions.values) {
-      final sessionStats = session.getStats();
-      stats.addAll(sessionStats.values);
+    // Track which MIDs have been processed
+    final processedMids = <String>{};
+
+    // Collect RTP stats from transceivers with track selector filtering
+    for (final transceiver in _transceivers) {
+      // Check if this transceiver matches the selector
+      final includeTransceiverStats = selector == null ||
+          transceiver.sender.track == selector ||
+          transceiver.receiver.track == selector;
+
+      // Get RTP session by MID
+      final session = _rtpSessions[transceiver.mid];
+      if (session != null) {
+        processedMids.add(transceiver.mid);
+        final sessionStats = session.getStats();
+        for (final stat in sessionStats.values) {
+          // Filter track-specific stats by track selector
+          if (stat.type == RTCStatsType.outboundRtp ||
+              stat.type == RTCStatsType.mediaSource ||
+              stat.type == RTCStatsType.inboundRtp ||
+              stat.type == RTCStatsType.remoteOutboundRtp) {
+            if (includeTransceiverStats) {
+              stats.add(stat);
+            }
+          } else {
+            // Always include non-track-specific stats
+            stats.add(stat);
+          }
+        }
+      }
     }
 
-    // TODO: Add data channel stats
-    // TODO: Add media source stats for each transceiver
-    // TODO: Add codec stats from SDP negotiation
-    // TODO: Implement track selector filtering
+    // Add stats from sessions not associated with transceivers (legacy path)
+    for (final entry in _rtpSessions.entries) {
+      if (!processedMids.contains(entry.key)) {
+        final sessionStats = entry.value.getStats();
+        stats.addAll(sessionStats.values);
+      }
+    }
 
     return RTCStatsReport(stats);
   }

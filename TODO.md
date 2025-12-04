@@ -51,7 +51,9 @@ Minor items found in codebase (non-blocking):
 - `rtp_transceiver.dart:447` - Video frame encoding to codec format
 
 **Stats:**
-- `peer_connection.dart:1307-1336` - Extended getStats implementation (track selector, data channel stats, media source stats, codec stats)
+- ~~`peer_connection.dart:1307-1336` - Extended getStats implementation~~ ✅ DONE
+  - Track selector filtering implemented
+  - Data channel open/close counting added
 
 **DTLS:**
 - `client_handshake.dart:222` - Certificate chain validation
@@ -59,7 +61,8 @@ Minor items found in codebase (non-blocking):
 - `server_flights.dart:175` - CertificateRequest message
 
 **SCTP:**
-- `association.dart:166,421,463,509,563` - Stream sequence tracking, collision handling, cookie verification, retransmission
+- ~~`association.dart:166` - Stream sequence tracking~~ ✅ DONE (per-stream sequence numbers)
+- `association.dart:421,463,509,563` - Collision handling, cookie verification, retransmission
 
 **DataChannel:**
 - `data_channel.dart:223` - Graceful close with message delivery

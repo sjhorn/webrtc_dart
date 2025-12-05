@@ -156,7 +156,7 @@ void main() async {
 
 Run the full example:
 ```bash
-dart run examples/datachannel_local.dart
+dart run example/datachannel_local.dart
 ```
 
 ### Example 2: Receiving Media (Video/Audio)
@@ -212,7 +212,7 @@ void main() async {
 
 Run the media example:
 ```bash
-dart run examples/mediachannel_local.dart
+dart run example/mediachannel_local.dart
 ```
 
 ### Example 3: Using STUN/TURN Servers
@@ -241,7 +241,7 @@ void main() async {
 
 Run the TURN example:
 ```bash
-dart run examples/ice_turn.dart
+dart run example/ice_turn.dart
 ```
 
 ### Example 4: ICE Restart
@@ -269,28 +269,28 @@ void main() async {
 
 Run the ICE restart example:
 ```bash
-dart run examples/ice_restart.dart
+dart run example/ice_restart.dart
 ```
 
 ### More Examples
 
 | Example | Description | Command |
 |---------|-------------|---------|
-| `datachannel_local.dart` | Local peer-to-peer data exchange | `dart run examples/datachannel_local.dart` |
-| `datachannel_string.dart` | String message data channels | `dart run examples/datachannel_string.dart` |
-| `mediachannel_local.dart` | Local audio/video tracks | `dart run examples/mediachannel_local.dart` |
-| `simulcast_local.dart` | Simulcast stream handling | `dart run examples/simulcast_local.dart` |
-| `ice_restart.dart` | ICE restart demonstration | `dart run examples/ice_restart.dart` |
-| `ice_trickle.dart` | Trickle ICE candidates | `dart run examples/ice_trickle.dart` |
-| `ice_turn.dart` | TURN server usage | `dart run examples/ice_turn.dart` |
-| `rtx_retransmission.dart` | RTX packet retransmission | `dart run examples/rtx_retransmission.dart` |
-| `twcc_congestion.dart` | Transport-wide congestion control | `dart run examples/twcc_congestion.dart` |
-| `red_redundancy.dart` | RED audio redundancy | `dart run examples/red_redundancy.dart` |
-| `save_to_disk.dart` | Save media to WebM | `dart run examples/save_to_disk.dart` |
-| `save_to_disk_mp4.dart` | Save media to MP4 | `dart run examples/save_to_disk_mp4.dart` |
-| `getstats_demo.dart` | Statistics API demo | `dart run examples/getstats_demo.dart` |
-| `ffmpeg_video_send.dart` | Send video via FFmpeg pipe | `dart run examples/ffmpeg_video_send.dart` |
-| `signaling/` | Full signaling server example | See `examples/signaling/` |
+| `datachannel_local.dart` | Local peer-to-peer data exchange | `dart run example/datachannel_local.dart` |
+| `datachannel_string.dart` | String message data channels | `dart run example/datachannel_string.dart` |
+| `mediachannel_local.dart` | Local audio/video tracks | `dart run example/mediachannel_local.dart` |
+| `simulcast_local.dart` | Simulcast stream handling | `dart run example/simulcast_local.dart` |
+| `ice_restart.dart` | ICE restart demonstration | `dart run example/ice_restart.dart` |
+| `ice_trickle.dart` | Trickle ICE candidates | `dart run example/ice_trickle.dart` |
+| `ice_turn.dart` | TURN server usage | `dart run example/ice_turn.dart` |
+| `rtx_retransmission.dart` | RTX packet retransmission | `dart run example/rtx_retransmission.dart` |
+| `twcc_congestion.dart` | Transport-wide congestion control | `dart run example/twcc_congestion.dart` |
+| `red_redundancy.dart` | RED audio redundancy | `dart run example/red_redundancy.dart` |
+| `save_to_disk.dart` | Save media to WebM | `dart run example/save_to_disk.dart` |
+| `save_to_disk_mp4.dart` | Save media to MP4 | `dart run example/save_to_disk_mp4.dart` |
+| `getstats_demo.dart` | Statistics API demo | `dart run example/getstats_demo.dart` |
+| `ffmpeg_video_send.dart` | Send video via FFmpeg pipe | `dart run example/ffmpeg_video_send.dart` |
+| `signaling/` | Full signaling server example | See `example/signaling/` |
 
 ## Architecture
 
@@ -403,7 +403,7 @@ final pc = RtcPeerConnection(RtcConfiguration(
 
 ## Contributing
 
-Contributions are welcome! Check out the [examples directory](examples/) for usage patterns.
+Contributions are welcome! Check out the [examples directory](example/) for usage patterns.
 
 ```bash
 # Format code

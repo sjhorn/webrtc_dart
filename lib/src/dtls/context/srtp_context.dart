@@ -39,8 +39,8 @@ class SrtpContext {
     _keyMaterial = material;
   }
 
-  /// Get key material
-  Uint8List? get keyMaterial => _keyMaterial;
+  /// Get key material (returns empty if not set)
+  Uint8List get keyMaterial => _keyMaterial ?? Uint8List(0);
 
   /// Get key material length for the selected profile
   int get keyMaterialLength {

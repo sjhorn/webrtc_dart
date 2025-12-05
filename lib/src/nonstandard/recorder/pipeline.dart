@@ -565,8 +565,10 @@ class TrackPipeline {
       if (jitterOut.rtp == null) continue;
 
       // 2. Time conversion (NTP or RTP-based)
-      if (_ntpTime != null) {
-        final timeOutputs = _ntpTime.processRtp(jitterOut.rtp!);
+      final ntpTime = _ntpTime;
+      final rtpTime = _rtpTime;
+      if (ntpTime != null) {
+        final timeOutputs = ntpTime.processRtp(jitterOut.rtp!);
         for (final timeOut in timeOutputs) {
           // 3. Depacketize
           final frames = _depacketizer.processInput(
@@ -577,8 +579,8 @@ class TrackPipeline {
             onFrame?.call(frame);
           }
         }
-      } else if (_rtpTime != null) {
-        final timeMs = _rtpTime.processRtp(jitterOut.rtp!);
+      } else if (rtpTime != null) {
+        final timeMs = rtpTime.processRtp(jitterOut.rtp!);
         final frames = _depacketizer.processInput(
           rtp: jitterOut.rtp,
           timeMs: timeMs,
@@ -599,10 +601,12 @@ class TrackPipeline {
   void endOfStream() {
     // Flush jitter buffer
     final jitterOutputs = _jitterBuffer.processInput(eol: true);
+    final ntpTime = _ntpTime;
+    final rtpTime = _rtpTime;
     for (final jitterOut in jitterOutputs) {
       if (jitterOut.rtp != null) {
-        if (_ntpTime != null) {
-          final timeOutputs = _ntpTime.processRtp(jitterOut.rtp!);
+        if (ntpTime != null) {
+          final timeOutputs = ntpTime.processRtp(jitterOut.rtp!);
           for (final timeOut in timeOutputs) {
             final frames = _depacketizer.processInput(
               rtp: timeOut.rtp,
@@ -612,8 +616,8 @@ class TrackPipeline {
               onFrame?.call(frame);
             }
           }
-        } else if (_rtpTime != null) {
-          final timeMs = _rtpTime.processRtp(jitterOut.rtp!);
+        } else if (rtpTime != null) {
+          final timeMs = rtpTime.processRtp(jitterOut.rtp!);
           final frames = _depacketizer.processInput(
             rtp: jitterOut.rtp,
             timeMs: timeMs,

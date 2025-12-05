@@ -36,3 +36,4 @@ build/
 
 # Interop signal files (temporary)
 interop/signals/*.jsonlinterop/node_modules/
+interop/node_modules/

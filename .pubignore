@@ -1,0 +1,36 @@
+# Exclude werift-webrtc TypeScript reference (not part of published package)
+werift-webrtc/
+
+# Exclude interop testing files (not needed for pub.dev users)
+interop/
+
+# Exclude test files
+test/
+
+# Exclude benchmark
+benchmark/
+
+# Exclude development documentation
+docs/
+AGENTS.md
+CLAUDE.md
+MVP.md
+ROADMAP.md
+TODO.md
+
+# Exclude git files
+.git/
+.gitignore
+
+# Exclude IDE files
+.idea/
+.vscode/
+*.iml
+
+# Exclude temporary files
+*.log
+*.tmp
+.DS_Store
+
+# Exclude node_modules if any
+node_modules/

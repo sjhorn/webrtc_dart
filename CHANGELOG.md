@@ -1,3 +1,82 @@
-## 1.0.0
+# Changelog
 
-- Initial version.
+All notable changes to this project will be documented in this file.
+
+## 0.22.2
+
+Initial release - complete Dart port of werift-webrtc v0.22.2.
+
+### Features
+
+**Core Protocols**
+- STUN message encoding/decoding with MESSAGE-INTEGRITY and FINGERPRINT
+- ICE candidate model (host, srflx, relay, prflx)
+- ICE checklists, connectivity checks, nomination
+- ICE TCP candidates and mDNS obfuscation
+- ICE restart support
+- DTLS 1.2 handshake (client and server) with certificate authentication
+- SRTP/SRTCP encryption (AES-GCM)
+- RTP/RTCP stack (SR, RR, SDES, BYE)
+- SCTP association over DTLS
+- DataChannel protocol (reliable/unreliable, ordered/unordered)
+- SDP parsing and generation
+
+**Video Codec Depacketization**
+- VP8 depacketization
+- VP9 depacketization with SVC support
+- H.264 depacketization with FU-A/STAP-A
+- AV1 depacketization with OBU parsing
+
+**RTCP Feedback**
+- NACK (Generic Negative Acknowledgement)
+- PLI (Picture Loss Indication)
+- FIR (Full Intra Request)
+- REMB (Receiver Estimated Max Bitrate)
+
+**Retransmission**
+- RTX packet wrapping/unwrapping
+- RetransmissionBuffer (128-packet circular buffer)
+- RTX SDP negotiation
+
+**TURN Support**
+- TURN allocation with 401 authentication (RFC 5766)
+- Channel binding (0x4000-0x7FFF)
+- Permission management
+- Send/Data indications
+- ICE integration with relay candidates
+
+**TWCC (Transport-Wide Congestion Control)**
+- Transport-wide sequence numbers (RTP header extension)
+- Receive delta encoding/decoding
+- Packet status chunks
+- Bandwidth estimation algorithm
+
+**Simulcast**
+- RID (Restriction Identifier) support (RFC 8851)
+- RTP header extension parsing for RID/MID
+- SDP simulcast attribute parsing
+- RtpRouter for RID-based packet routing
+
+**Quality Features**
+- Jitter buffer with configurable sizing
+- RED (Redundancy Encoding) for audio (RFC 2198)
+- Media Track Management (addTrack, removeTrack, replaceTrack)
+- Extended getStats() API (ICE, transport, data channel stats)
+
+**Media Recording**
+- WebM container support
+- MP4 container support (fMP4)
+- EBML encoding/decoding
+
+**Browser Compatibility**
+- Chrome: Tested and working
+- Firefox: Tested and working
+- Safari: Tested and working
+
+### Test Coverage
+
+1658 tests covering all implemented components.
+
+### Acknowledgments
+
+This is a Dart port of [werift-webrtc](https://github.com/shinyoshiaki/werift-webrtc) by Yuki Shindo.

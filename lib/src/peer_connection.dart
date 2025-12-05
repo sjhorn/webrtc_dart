@@ -15,6 +15,8 @@ import 'package:webrtc_dart/src/rtp/rtp_session.dart';
 import 'package:webrtc_dart/src/codec/codec_parameters.dart';
 import 'package:webrtc_dart/src/srtp/srtp_session.dart';
 import 'package:webrtc_dart/src/stats/rtc_stats.dart';
+import 'package:webrtc_dart/src/media/rtp_router.dart';
+import 'package:webrtc_dart/src/srtp/rtp_packet.dart';
 
 /// RTCPeerConnection State
 enum PeerConnectionState {
@@ -160,6 +162,9 @@ class RtcPeerConnection {
 
   /// RTP sessions by MID
   final Map<String, RtpSession> _rtpSessions = {};
+
+  /// RTP router for SSRC-based packet routing (matching werift: packages/webrtc/src/media/router.ts)
+  final RtpRouter _rtpRouter = RtpRouter();
 
   /// RTX SSRC mapping by MID (original SSRC -> RTX SSRC)
   final Map<String, int> _rtxSsrcByMid = {};
@@ -1260,24 +1265,61 @@ class RtcPeerConnection {
     }
   }
 
-  /// Route RTP packet to appropriate session
+  /// Route RTP packet to appropriate session using RtpRouter
+  /// (matching werift: packages/webrtc/src/peerConnection.ts - router.routeRtp)
   void _routeRtpPacket(int ssrc, Uint8List data) async {
-    // Find RTP session by SSRC or by any active receiver
-    // For now, we'll route to the first available session since we need
-    // proper SSRC mapping from SDP negotiation
-    for (final session in _rtpSessions.values) {
-      // TODO: Match by remote SSRC when we have proper SDP negotiation
-      // For now, deliver to all sessions (will be filtered by RtpSession)
-      await session.receiveRtp(data);
+    // Parse RTP packet for routing
+    try {
+      final packet = RtpPacket.parse(data);
+
+      // Use RtpRouter if we have registered handlers
+      if (_rtpRouter.registeredSsrcs.isNotEmpty || _rtpRouter.registeredRids.isNotEmpty) {
+        _rtpRouter.routeRtp(packet);
+        return;
+      }
+
+      // Fallback: deliver to all sessions if no SSRC registration yet
+      // This handles the case before SDP negotiation provides SSRC mappings
+      for (final session in _rtpSessions.values) {
+        await session.receiveRtp(data);
+      }
+    } catch (e) {
+      // Parse error - try fallback delivery
+      for (final session in _rtpSessions.values) {
+        await session.receiveRtp(data);
+      }
     }
   }
 
   /// Route RTCP packet to appropriate session
   void _routeRtcpPacket(int ssrc, Uint8List data) async {
-    // Similar to RTP routing
+    // Route RTCP by SSRC to the appropriate session
+    final session = _findSessionBySsrc(ssrc);
+    if (session != null) {
+      await session.receiveRtcp(data);
+      return;
+    }
+
+    // Fallback: deliver to all sessions
     for (final session in _rtpSessions.values) {
       await session.receiveRtcp(data);
     }
+  }
+
+  /// Find RTP session by SSRC (local or remote)
+  RtpSession? _findSessionBySsrc(int ssrc) {
+    for (final entry in _rtpSessions.entries) {
+      final session = entry.value;
+      // Check local SSRC
+      if (session.localSsrc == ssrc) {
+        return session;
+      }
+      // Check if this SSRC is a known receiver SSRC
+      if (session.getReceiverStatistics(ssrc) != null) {
+        return session;
+      }
+    }
+    return null;
   }
 
   /// Remove a track

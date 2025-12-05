@@ -48,7 +48,7 @@
 Minor items found in codebase (non-blocking):
 
 **Media/Codec:**
-- `rtp_transceiver.dart:447` - Video frame encoding to codec format
+- ~~`rtp_transceiver.dart:447` - Video frame encoding to codec format~~ ✅ N/A (matching werift - uses external encoders like FFmpeg, see examples/ffmpeg_video_send.dart)
 
 **Stats:**
 - ~~`peer_connection.dart:1307-1336` - Extended getStats implementation~~ ✅ DONE
@@ -69,7 +69,7 @@ Minor items found in codebase (non-blocking):
 
 **Other:**
 - ~~`peer_connection.dart:725` - ICE-lite detection from SDP~~ ✅ DONE
-- `peer_connection.dart:1246` - Remote SSRC matching (requires RtpRouter)
+- ~~`peer_connection.dart:1246` - Remote SSRC matching (requires RtpRouter)~~ ✅ DONE (RtpRouter integrated)
 
 ---
 

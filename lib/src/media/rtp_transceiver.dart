@@ -440,11 +440,22 @@ class RtpSender {
   }
 
   /// Handle video frame from track
+  /// Note: This method handles raw VideoFrame data, which requires video encoding
+  /// (VP8, H264, VP9, AV1, etc.) before it can be sent as RTP.
+  ///
+  /// werift-webrtc does not implement video encoding - it expects pre-encoded RTP
+  /// packets via track.writeRtp() (using FFmpeg or other external encoders).
+  /// See: werift-webrtc/examples/mediachannel/sendonly/ffmpeg.ts
+  ///
+  /// For sending pre-encoded video, use the nonstandard MediaStreamTrack.writeRtp()
+  /// method with RTP packets from an external encoder (FFmpeg, GStreamer, etc.).
+  /// See: examples/ffmpeg_video_send.dart
   void _handleVideoFrame(VideoFrame frame) async {
     if (_stopped || !track!.enabled) return;
 
-    // TODO: Encode video frame to codec format (VP8, H264, etc.)
-    // For now, placeholder implementation
+    // Raw video frame encoding is not implemented (matching werift behavior).
+    // Use track.writeRtp() with pre-encoded RTP packets instead.
+    // This placeholder sends empty payload which receivers will drop.
 
     final payload = Uint8List(0);
 

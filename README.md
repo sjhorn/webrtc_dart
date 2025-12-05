@@ -60,7 +60,7 @@ void main() async {
   // Handle ICE candidates
   pc.onIceCandidate.listen((candidate) {
     // Send this candidate to the remote peer via your signaling server
-    print('New ICE candidate: ${candidate.toSdpString()}');
+    print('New ICE candidate: ${candidate.toSdp()}');
   });
 
   // Create an offer
@@ -154,65 +154,44 @@ void main() async {
 }
 ```
 
-Run the full example:
+Run this example:
 ```bash
-dart run example/datachannel_local.dart
+dart run example/quickstart_local.dart
 ```
 
 ### Example 2: Receiving Media (Video/Audio)
 
-webrtc_dart excels at receiving media streams. Here's how to receive video from a browser:
+webrtc_dart excels at receiving media streams. Here's how to set up for receiving media:
 
 ```dart
 import 'package:webrtc_dart/webrtc_dart.dart';
 
 void main() async {
+  // Create a peer connection
   final pc = RtcPeerConnection(RtcConfiguration(
-    codecs: RtcCodecConfiguration(
-      video: [
-        RtcRtpCodecParameters(
-          mimeType: 'video/VP8',
-          clockRate: 90000,
-        ),
-        RtcRtpCodecParameters(
-          mimeType: 'video/H264',
-          clockRate: 90000,
-        ),
-      ],
-      audio: [
-        RtcRtpCodecParameters(
-          mimeType: 'audio/opus',
-          clockRate: 48000,
-          channels: 2,
-        ),
-      ],
-    ),
+    iceServers: [IceServer(urls: ['stun:stun.l.google.com:19302'])],
   ));
 
   // Listen for incoming tracks
-  pc.onTrack.listen((event) {
-    final track = event.track;
-    print('Received ${track.kind} track!');
-
-    // Access raw RTP packets via the transceiver
-    event.transceiver.receiver.onRtpPacket.listen((packet) {
-      print('RTP packet: seq=${packet.sequenceNumber}');
-    });
+  pc.onTrack.listen((transceiver) {
+    print('Received ${transceiver.kind} track!');
+    print('  mid: ${transceiver.mid}');
+    print('  direction: ${transceiver.direction}');
   });
 
-  // Add transceivers to receive media
-  pc.addTransceiver(kind: 'video', direction: TransceiverDirection.recvonly);
-  pc.addTransceiver(kind: 'audio', direction: TransceiverDirection.recvonly);
-
-  // Create offer to receive media
+  // Create offer
   final offer = await pc.createOffer();
   await pc.setLocalDescription(offer);
+
+  print('Peer connection ready to receive media');
+  print('Offer SDP created (send to remote peer):');
+  print(offer.sdp);
 }
 ```
 
-Run the media example:
+Run this example:
 ```bash
-dart run example/mediachannel_local.dart
+dart run example/quickstart_media.dart
 ```
 
 ### Example 3: Using STUN/TURN Servers
@@ -239,9 +218,9 @@ void main() async {
 }
 ```
 
-Run the TURN example:
+Run this example:
 ```bash
-dart run example/ice_turn.dart
+dart run example/quickstart_turn.dart
 ```
 
 ### Example 4: ICE Restart
@@ -267,9 +246,9 @@ void main() async {
 }
 ```
 
-Run the ICE restart example:
+Run this example:
 ```bash
-dart run example/ice_restart.dart
+dart run example/quickstart_ice_restart.dart
 ```
 
 ### More Examples

@@ -1,6 +1,8 @@
 import 'dart:typed_data';
 import 'package:webrtc_dart/src/dtls/handshake/const.dart';
+import 'package:webrtc_dart/src/dtls/handshake/extensions/elliptic_curves.dart';
 import 'package:webrtc_dart/src/dtls/handshake/extensions/extended_master_secret.dart';
+import 'package:webrtc_dart/src/dtls/handshake/extensions/signature_algorithms.dart';
 import 'package:webrtc_dart/src/dtls/handshake/extensions/use_srtp.dart';
 
 /// Base class for TLS extensions
@@ -72,11 +74,13 @@ class ExtensionParser {
   static Extension? _parseExtension(ExtensionType type, Uint8List data) {
     switch (type) {
       case ExtensionType.ellipticCurves:
-        // TODO: implement if needed
-        return null;
+        // Parsed from ClientHello but not actively used - we select curves based on our preference
+        // werift parses this in EllipticCurves.fromData() but doesn't use it for server curve selection
+        return EllipticCurvesExtension.parse(data);
       case ExtensionType.signatureAlgorithms:
-        // TODO: implement if needed
-        return null;
+        // Parsed from ClientHello - indicates supported signature schemes for certificate verification
+        // werift parses this but uses server's preferred scheme for signing
+        return SignatureAlgorithmsExtension.parse(data);
       case ExtensionType.useSrtp:
         return UseSrtpExtension.parse(data);
       case ExtensionType.extendedMasterSecret:

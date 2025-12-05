@@ -357,10 +357,19 @@ class RtpSession {
         }
         break;
       case RtcpPacketType.sourceDescription:
+        // SDES packets contain CNAME, NAME, etc. - not processed for now
+        // werift also doesn't actively process these (informational only)
+        break;
       case RtcpPacketType.goodbye:
+        // BYE packets indicate peer is leaving - could trigger cleanup
+        // werift handles this in RTCRtpReceiver for stream termination
+        break;
       case RtcpPacketType.applicationDefined:
+        // APP packets are application-specific - not used in WebRTC
+        break;
       case RtcpPacketType.payloadFeedback:
-        // TODO: Implement other RTCP packet types
+        // PSFB packets (PLI, FIR, etc.) handled by higher layer (RtpTransceiver)
+        // werift routes these to onPictureLossIndication/onFir callbacks
         break;
     }
   }
@@ -413,12 +422,23 @@ class RtpSession {
   }
 
   /// Handle reception report about our stream
+  /// This provides feedback about how the remote peer is receiving our packets
   void _handleReceptionReport(RtcpReceptionReportBlock report) {
-    // TODO: Process feedback about our sending
-    // - Packet loss rate
-    // - Jitter
-    // - Round-trip time calculation using LSR/DLSR
-    // This can be used for congestion control and quality monitoring
+    // Reception report contains:
+    // - report.fractionLost: packet loss in last interval (0-255, 255 = 100% loss)
+    // - report.totalLost: cumulative packets lost
+    // - report.highestSeqReceived: highest sequence number received
+    // - report.jitter: interarrival jitter estimate
+    // - report.lastSr: middle 32 bits of NTP timestamp from last SR
+    // - report.delaySinceLastSr: time since last SR in 1/65536 seconds
+    //
+    // This data can be used for:
+    // - Congestion control (adjust bitrate based on loss)
+    // - RTT calculation: RTT = now - lastSr - delaySinceLastSr
+    // - Quality monitoring and statistics
+    //
+    // werift exposes this via getStats() but doesn't implement congestion control
+    // Full GCC implementation is a Phase 5 feature (beyond werift parity)
   }
 
   /// Generate NTP timestamp (64-bit)

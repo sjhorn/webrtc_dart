@@ -562,7 +562,8 @@ class SctpAssociation {
 
     if (cookieTimestamp < now - _cookieLifetime || cookieTimestamp > now) {
       print('[SCTP] _handleCookieEcho: cookie expired (timestamp=$cookieTimestamp, now=$now)');
-      // TODO: Send ERROR chunk with Stale Cookie Error (matching werift)
+      // Send ERROR chunk with Stale Cookie Error (matching werift: packages/sctp/src/sctp.ts)
+      await _sendChunk(SctpErrorChunk.staleCookie());
       return;
     }
 

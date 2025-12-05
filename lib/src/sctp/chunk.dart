@@ -734,6 +734,22 @@ class SctpErrorChunk extends SctpChunk {
 
   SctpErrorChunk({this.causes});
 
+  /// Create an ERROR chunk with Stale Cookie Error cause
+  /// RFC 4960 Section 3.3.10.3
+  /// werift sends this with 8 bytes of zeros as the staleness value
+  factory SctpErrorChunk.staleCookie() {
+    // Error cause format:
+    // 2 bytes: cause code (3 = Stale Cookie)
+    // 2 bytes: cause length (including header)
+    // N bytes: cause data (measure of staleness, typically 8 bytes of zeros)
+    final causeData = Uint8List(12);
+    final buffer = ByteData.sublistView(causeData);
+    buffer.setUint16(0, SctpCauseCode.staleCookieError.value); // Cause code
+    buffer.setUint16(2, 12); // Length including header
+    // Remaining 8 bytes are zeros (staleness value, matching werift)
+    return SctpErrorChunk(causes: causeData);
+  }
+
   @override
   Uint8List serialize() {
     final result = Uint8List(length);

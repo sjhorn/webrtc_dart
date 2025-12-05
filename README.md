@@ -2,6 +2,7 @@
 
 **webrtc_dart** is a pure Dart implementation of WebRTC. No native dependencies, no browser required - just add to your `pubspec.yaml` and go!
 
+[![pub package](https://img.shields.io/pub/v/webrtc_dart.svg)](https://pub.dev/packages/webrtc_dart)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
 ## What is webrtc_dart?
@@ -20,8 +21,7 @@ Add to your `pubspec.yaml`:
 
 ```yaml
 dependencies:
-  webrtc_dart:
-    git: https://github.com/user/webrtc_dart.git
+  webrtc_dart: ^0.22.2
 ```
 
 Then run:

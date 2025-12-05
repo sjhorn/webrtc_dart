@@ -2,9 +2,6 @@ import 'dart:typed_data';
 import 'package:webrtc_dart/src/dtls/cipher/const.dart';
 import 'package:webrtc_dart/src/dtls/cipher/key_derivation.dart';
 import 'package:webrtc_dart/src/dtls/context/cipher_context.dart';
-import 'package:webrtc_dart/src/dtls/context/dtls_context.dart';
-import 'package:webrtc_dart/src/dtls/context/srtp_context.dart';
-import 'package:webrtc_dart/src/dtls/context/transport.dart';
 import 'package:webrtc_dart/src/dtls/handshake/const.dart';
 import 'package:webrtc_dart/src/dtls/handshake/handshake_header.dart';
 import 'package:webrtc_dart/src/dtls/handshake/message/alert.dart';
@@ -41,40 +38,35 @@ class DtlsServer extends DtlsSocket {
   final List<Uint8List> _futureEpochBuffer = [];
 
   DtlsServer({
-    required DtlsTransport transport,
-    DtlsContext? dtlsContext,
+    required super.transport,
+    super.dtlsContext,
     CipherContext? cipherContext,
-    SrtpContext? srtpContext,
+    super.srtpContext,
     List<CipherSuite>? cipherSuites,
     List<NamedCurve>? supportedCurves,
     this.certificate,
     this.privateKey,
-  })  : cipherSuites = cipherSuites ??
-            [
-              CipherSuite.tlsEcdheEcdsaWithAes128GcmSha256,
-              CipherSuite.tlsEcdheRsaWithAes128GcmSha256,
-            ],
-        supportedCurves = supportedCurves ??
-            [
-              NamedCurve.x25519,
-              NamedCurve.secp256r1,
-            ],
-        super(
-          transport: transport,
-          dtlsContext: dtlsContext,
-          cipherContext: cipherContext ?? CipherContext(isClient: false),
-          srtpContext: srtpContext,
-          initialState: DtlsSocketState.closed,
-        ) {
+  }) : cipherSuites =
+           cipherSuites ??
+           [
+             CipherSuite.tlsEcdheEcdsaWithAes128GcmSha256,
+             CipherSuite.tlsEcdheRsaWithAes128GcmSha256,
+           ],
+       supportedCurves =
+           supportedCurves ?? [NamedCurve.x25519, NamedCurve.secp256r1],
+       super(
+         cipherContext: cipherContext ?? CipherContext(isClient: false),
+         initialState: DtlsSocketState.closed,
+       ) {
     // Initialize record layer
     _recordLayer = DtlsRecordLayer(
-      dtlsContext: this.dtlsContext,
+      dtlsContext: dtlsContext,
       cipherContext: this.cipherContext,
     );
 
     // Initialize handshake coordinator
     _handshakeCoordinator = ServerHandshakeCoordinator(
-      dtlsContext: this.dtlsContext,
+      dtlsContext: dtlsContext,
       cipherContext: this.cipherContext,
       recordLayer: _recordLayer,
       flightManager: flightManager,
@@ -138,14 +130,19 @@ class DtlsServer extends DtlsSocket {
 
               // Reprocess buffered future-epoch records
               if (_futureEpochBuffer.isNotEmpty) {
-                print('[SERVER] Reprocessing ${_futureEpochBuffer.length} buffered records');
+                print(
+                  '[SERVER] Reprocessing ${_futureEpochBuffer.length} buffered records',
+                );
                 final buffered = List<Uint8List>.from(_futureEpochBuffer);
                 _futureEpochBuffer.clear();
                 for (final bufferedData in buffered) {
                   // Process the buffered data with new epoch
-                  final bufferedRecords = await _recordLayer.processRecords(bufferedData);
+                  final bufferedRecords = await _recordLayer.processRecords(
+                    bufferedData,
+                  );
                   for (final bufferedProcessed in bufferedRecords) {
-                    if (bufferedProcessed.contentType == ContentType.handshake) {
+                    if (bufferedProcessed.contentType ==
+                        ContentType.handshake) {
                       await _processHandshakeRecord(bufferedProcessed.data);
                     }
                   }
@@ -203,8 +200,12 @@ class DtlsServer extends DtlsSocket {
   /// Send pending flights
   Future<void> _sendPendingFlights() async {
     final currentFlight = flightManager.currentFlight;
-    if (currentFlight != null && !currentFlight.sent && currentFlight.messages.isNotEmpty) {
-      print('[SERVER] Sending flight ${currentFlight.flight.flightNumber} with ${currentFlight.messages.length} messages');
+    if (currentFlight != null &&
+        !currentFlight.sent &&
+        currentFlight.messages.isNotEmpty) {
+      print(
+        '[SERVER] Sending flight ${currentFlight.flight.flightNumber} with ${currentFlight.messages.length} messages',
+      );
       for (final message in currentFlight.messages) {
         await transport.send(message);
       }

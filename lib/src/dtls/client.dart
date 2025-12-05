@@ -3,9 +3,6 @@ import 'package:webrtc_dart/src/dtls/cipher/const.dart';
 import 'package:webrtc_dart/src/dtls/cipher/key_derivation.dart';
 import 'package:webrtc_dart/src/dtls/client_handshake.dart';
 import 'package:webrtc_dart/src/dtls/context/cipher_context.dart';
-import 'package:webrtc_dart/src/dtls/context/dtls_context.dart';
-import 'package:webrtc_dart/src/dtls/context/srtp_context.dart';
-import 'package:webrtc_dart/src/dtls/context/transport.dart';
 import 'package:webrtc_dart/src/dtls/handshake/const.dart';
 import 'package:webrtc_dart/src/dtls/handshake/extensions/use_srtp.dart';
 import 'package:webrtc_dart/src/dtls/handshake/handshake_header.dart';
@@ -39,44 +36,40 @@ class DtlsClient extends DtlsSocket {
   final List<Uint8List> _futureEpochBuffer = [];
 
   DtlsClient({
-    required DtlsTransport transport,
-    DtlsContext? dtlsContext,
+    required super.transport,
+    super.dtlsContext,
     CipherContext? cipherContext,
-    SrtpContext? srtpContext,
+    super.srtpContext,
     List<CipherSuite>? cipherSuites,
     List<NamedCurve>? supportedCurves,
     List<SrtpProtectionProfile>? srtpProfiles,
-  })  : cipherSuites = cipherSuites ??
-            [
-              CipherSuite.tlsEcdheEcdsaWithAes128GcmSha256,
-              CipherSuite.tlsEcdheRsaWithAes128GcmSha256,
-            ],
-        supportedCurves = supportedCurves ??
-            [
-              NamedCurve.x25519,
-              NamedCurve.secp256r1,
-            ],
-        srtpProfiles = srtpProfiles ??
-            [
-              SrtpProtectionProfile.srtpAeadAes128Gcm,
-              SrtpProtectionProfile.srtpAes128CmHmacSha1_80,
-            ],
-        super(
-          transport: transport,
-          dtlsContext: dtlsContext,
-          cipherContext: cipherContext ?? CipherContext(isClient: true),
-          srtpContext: srtpContext,
-          initialState: DtlsSocketState.closed,
-        ) {
+  }) : cipherSuites =
+           cipherSuites ??
+           [
+             CipherSuite.tlsEcdheEcdsaWithAes128GcmSha256,
+             CipherSuite.tlsEcdheRsaWithAes128GcmSha256,
+           ],
+       supportedCurves =
+           supportedCurves ?? [NamedCurve.x25519, NamedCurve.secp256r1],
+       srtpProfiles =
+           srtpProfiles ??
+           [
+             SrtpProtectionProfile.srtpAeadAes128Gcm,
+             SrtpProtectionProfile.srtpAes128CmHmacSha1_80,
+           ],
+       super(
+         cipherContext: cipherContext ?? CipherContext(isClient: true),
+         initialState: DtlsSocketState.closed,
+       ) {
     // Initialize record layer
     _recordLayer = DtlsRecordLayer(
-      dtlsContext: this.dtlsContext,
+      dtlsContext: dtlsContext,
       cipherContext: this.cipherContext,
     );
 
     // Initialize handshake coordinator
     _handshakeCoordinator = ClientHandshakeCoordinator(
-      dtlsContext: this.dtlsContext,
+      dtlsContext: dtlsContext,
       cipherContext: this.cipherContext,
       recordLayer: _recordLayer,
       flightManager: flightManager,
@@ -127,7 +120,10 @@ class DtlsClient extends DtlsSocket {
       try {
         // Parse DTLS records - this returns records that match current readEpoch
         // Future-epoch records are returned with a special marker
-        final records = await _recordLayer.processRecordsWithFutureEpoch(data, _futureEpochBuffer);
+        final records = await _recordLayer.processRecordsWithFutureEpoch(
+          data,
+          _futureEpochBuffer,
+        );
 
         bool ccsReceived = false;
         for (final processed in records) {
@@ -138,7 +134,9 @@ class DtlsClient extends DtlsSocket {
 
             case ContentType.changeCipherSpec:
               // CCS received - increment read epoch for decryption
-              print('[CLIENT] Received ChangeCipherSpec, incrementing readEpoch from ${dtlsContext.readEpoch} to ${dtlsContext.readEpoch + 1}');
+              print(
+                '[CLIENT] Received ChangeCipherSpec, incrementing readEpoch from ${dtlsContext.readEpoch} to ${dtlsContext.readEpoch + 1}',
+              );
               dtlsContext.readEpoch++;
               ccsReceived = true;
               break;
@@ -159,7 +157,9 @@ class DtlsClient extends DtlsSocket {
 
         // If we received CCS, reprocess any buffered future-epoch records
         if (ccsReceived && _futureEpochBuffer.isNotEmpty) {
-          print('[CLIENT] Reprocessing ${_futureEpochBuffer.length} buffered future-epoch records');
+          print(
+            '[CLIENT] Reprocessing ${_futureEpochBuffer.length} buffered future-epoch records',
+          );
           final bufferedData = List<Uint8List>.from(_futureEpochBuffer);
           _futureEpochBuffer.clear();
           for (final buffered in bufferedData) {
@@ -218,7 +218,9 @@ class DtlsClient extends DtlsSocket {
       // The coordinator will add the full message to the handshake buffer
       // Use rawBytes if available to preserve original bytes for handshake hash
       final fullMessage = handshakeMsg.rawBytes ?? handshakeMsg.serialize();
-      print('[CLIENT] Processing ${handshakeMsg.header.messageType}, rawBytes available: ${handshakeMsg.rawBytes != null}, fullMessage len: ${fullMessage.length}');
+      print(
+        '[CLIENT] Processing ${handshakeMsg.header.messageType}, rawBytes available: ${handshakeMsg.rawBytes != null}, fullMessage len: ${fullMessage.length}',
+      );
       await _handshakeCoordinator.processHandshakeWithType(
         handshakeMsg.header.messageType,
         handshakeMsg.body,
@@ -233,8 +235,12 @@ class DtlsClient extends DtlsSocket {
   /// Send pending flights
   Future<void> _sendPendingFlights() async {
     final currentFlight = flightManager.currentFlight;
-    if (currentFlight != null && !currentFlight.sent && currentFlight.messages.isNotEmpty) {
-      print('[CLIENT] Sending flight ${currentFlight.flight.flightNumber} with ${currentFlight.messages.length} messages');
+    if (currentFlight != null &&
+        !currentFlight.sent &&
+        currentFlight.messages.isNotEmpty) {
+      print(
+        '[CLIENT] Sending flight ${currentFlight.flight.flightNumber} with ${currentFlight.messages.length} messages',
+      );
       for (var i = 0; i < currentFlight.messages.length; i++) {
         final message = currentFlight.messages[i];
         print('[CLIENT]   Message $i: ${message.length} bytes');

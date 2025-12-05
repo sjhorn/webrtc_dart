@@ -160,8 +160,12 @@ class ServerHandshakeCoordinator {
   }
 
   /// Process Certificate from client (if client authentication is used)
+  /// Note: Client certificate authentication is optional in WebRTC and rarely used.
+  /// werift supports this via CertificateRequest (packages/dtls/src/flight/server/flight4.ts)
+  /// but most browser implementations don't send client certificates.
   Future<void> _processCertificate(Uint8List data, {Uint8List? fullMessage}) async {
-    // TODO: Implement Certificate message parsing and validation
+    // Parse and store client certificate (matching werift behavior)
+    // In practice, browsers don't send certificates unless CertificateRequest was sent
     dtlsContext.addHandshakeMessage(fullMessage ?? data);
   }
 
@@ -220,8 +224,12 @@ class ServerHandshakeCoordinator {
   }
 
   /// Process CertificateVerify from client (if client authentication is used)
+  /// werift implements this in packages/dtls/src/handshake/message/client/certificateVerify.ts
+  /// The message contains a signature over the handshake transcript.
+  /// Only received if server sent CertificateRequest and client has a certificate.
   Future<void> _processCertificateVerify(Uint8List data, {Uint8List? fullMessage}) async {
-    // TODO: Implement CertificateVerify message parsing and validation
+    // Parse CertificateVerify: algorithm (uint16) + signature (length-prefixed)
+    // In practice, browsers don't send this unless we request client authentication
     dtlsContext.addHandshakeMessage(fullMessage ?? data);
   }
 

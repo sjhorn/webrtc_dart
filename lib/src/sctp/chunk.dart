@@ -71,7 +71,7 @@ abstract class SctpChunk {
       case SctpChunkType.forwardTsn:
         return SctpForwardTsnChunk.parse(data);
       case SctpChunkType.reconfig:
-        throw UnimplementedError('RECONFIG chunk not implemented');
+        return SctpReconfigChunk.parse(data);
     }
   }
 
@@ -938,4 +938,331 @@ class ForwardTsnStream {
   final int streamSeq;
 
   const ForwardTsnStream({required this.streamId, required this.streamSeq});
+}
+
+// ============================================================================
+// SCTP Stream Reconfiguration (RFC 6525)
+// ============================================================================
+
+/// Reconfig Parameter Type constants
+class ReconfigParamType {
+  static const int outgoingSsnResetRequest = 13;
+  static const int incomingSsnResetRequest = 14;
+  static const int ssnTsnResetRequest = 15;
+  static const int reconfigResponse = 16;
+  static const int addOutgoingStreams = 17;
+  static const int addIncomingStreams = 18;
+
+  ReconfigParamType._();
+}
+
+/// Reconfig Result codes
+class ReconfigResult {
+  /// Success - Nothing to do
+  static const int successNothingToDo = 0;
+
+  /// Success - Performed
+  static const int successPerformed = 1;
+
+  /// Denied
+  static const int denied = 2;
+
+  /// Error - Wrong SSN
+  static const int errorWrongSsn = 3;
+
+  /// Error - Request already in progress
+  static const int errorRequestInProgress = 4;
+
+  /// Error - Bad Sequence Number
+  static const int errorBadSequence = 5;
+
+  /// In Progress
+  static const int inProgress = 6;
+
+  ReconfigResult._();
+}
+
+/// Abstract base for reconfig parameters
+abstract class SctpReconfigParam {
+  int get paramType;
+  Uint8List serialize();
+}
+
+/// Outgoing SSN Reset Request Parameter (Type 13)
+/// RFC 6525 Section 4.1
+///
+///  0                   1                   2                   3
+///  0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1
+/// +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+/// |     Parameter Type = 13       | Parameter Length = 16 + 2 * N |
+/// +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+/// |           Re-configuration Request Sequence Number            |
+/// +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+/// |           Re-configuration Response Sequence Number           |
+/// +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+/// |                Sender's Last Assigned TSN                     |
+/// +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+/// |  Stream Number 1 (optional)   |    Stream Number 2 (optional) |
+/// +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+class OutgoingSsnResetRequestParam extends SctpReconfigParam {
+  @override
+  final int paramType = ReconfigParamType.outgoingSsnResetRequest;
+
+  /// Re-configuration Request Sequence Number
+  final int requestSequence;
+
+  /// Re-configuration Response Sequence Number
+  final int responseSequence;
+
+  /// Sender's Last Assigned TSN
+  final int lastTsn;
+
+  /// Stream numbers to reset
+  final List<int> streams;
+
+  OutgoingSsnResetRequestParam({
+    required this.requestSequence,
+    required this.responseSequence,
+    required this.lastTsn,
+    required this.streams,
+  });
+
+  @override
+  Uint8List serialize() {
+    // Calculate length: 4 (header) + 12 (fixed fields) + 2 * streams
+    final paramLen = 16 + (streams.length * 2);
+    // Pad to 4-byte boundary
+    final paddedLen = (paramLen + 3) & ~3;
+    final result = Uint8List(paddedLen);
+    final buffer = ByteData.sublistView(result);
+
+    // Parameter header
+    buffer.setUint16(0, paramType);
+    buffer.setUint16(2, paramLen);
+
+    // Fixed fields
+    buffer.setUint32(4, requestSequence);
+    buffer.setUint32(8, responseSequence);
+    buffer.setUint32(12, lastTsn);
+
+    // Stream numbers
+    var offset = 16;
+    for (final stream in streams) {
+      buffer.setUint16(offset, stream);
+      offset += 2;
+    }
+
+    return result;
+  }
+
+  static OutgoingSsnResetRequestParam parse(Uint8List data) {
+    final buffer = ByteData.sublistView(data);
+    final paramLen = buffer.getUint16(2);
+
+    final requestSequence = buffer.getUint32(4);
+    final responseSequence = buffer.getUint32(8);
+    final lastTsn = buffer.getUint32(12);
+
+    final streams = <int>[];
+    for (var offset = 16; offset < paramLen; offset += 2) {
+      streams.add(buffer.getUint16(offset));
+    }
+
+    return OutgoingSsnResetRequestParam(
+      requestSequence: requestSequence,
+      responseSequence: responseSequence,
+      lastTsn: lastTsn,
+      streams: streams,
+    );
+  }
+
+  @override
+  String toString() =>
+      'OutgoingSsnResetRequest(reqSeq=$requestSequence, respSeq=$responseSequence, lastTsn=$lastTsn, streams=$streams)';
+}
+
+/// Re-configuration Response Parameter (Type 16)
+/// RFC 6525 Section 4.4
+///
+///  0                   1                   2                   3
+///  0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1
+/// +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+/// |     Parameter Type = 16       |      Parameter Length         |
+/// +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+/// |         Re-configuration Response Sequence Number             |
+/// +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+/// |                            Result                             |
+/// +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+/// |                   Sender's Next TSN (optional)                |
+/// +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+/// |                  Receiver's Next TSN (optional)               |
+/// +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+class ReconfigResponseParam extends SctpReconfigParam {
+  @override
+  final int paramType = ReconfigParamType.reconfigResponse;
+
+  /// Response Sequence Number
+  final int responseSequence;
+
+  /// Result code
+  final int result;
+
+  /// Sender's Next TSN (optional)
+  final int? senderNextTsn;
+
+  /// Receiver's Next TSN (optional)
+  final int? receiverNextTsn;
+
+  ReconfigResponseParam({
+    required this.responseSequence,
+    required this.result,
+    this.senderNextTsn,
+    this.receiverNextTsn,
+  });
+
+  @override
+  Uint8List serialize() {
+    // Calculate length
+    var paramLen = 12; // header + responseSequence + result
+    if (senderNextTsn != null) paramLen += 4;
+    if (receiverNextTsn != null) paramLen += 4;
+
+    final result = Uint8List(paramLen);
+    final buffer = ByteData.sublistView(result);
+
+    // Parameter header
+    buffer.setUint16(0, paramType);
+    buffer.setUint16(2, paramLen);
+
+    // Fixed fields
+    buffer.setUint32(4, responseSequence);
+    buffer.setUint32(8, this.result);
+
+    // Optional fields
+    var offset = 12;
+    if (senderNextTsn != null) {
+      buffer.setUint32(offset, senderNextTsn!);
+      offset += 4;
+    }
+    if (receiverNextTsn != null) {
+      buffer.setUint32(offset, receiverNextTsn!);
+    }
+
+    return result;
+  }
+
+  static ReconfigResponseParam parse(Uint8List data) {
+    final buffer = ByteData.sublistView(data);
+    final paramLen = buffer.getUint16(2);
+
+    final responseSequence = buffer.getUint32(4);
+    final result = buffer.getUint32(8);
+
+    int? senderNextTsn;
+    int? receiverNextTsn;
+
+    if (paramLen >= 16) {
+      senderNextTsn = buffer.getUint32(12);
+    }
+    if (paramLen >= 20) {
+      receiverNextTsn = buffer.getUint32(16);
+    }
+
+    return ReconfigResponseParam(
+      responseSequence: responseSequence,
+      result: result,
+      senderNextTsn: senderNextTsn,
+      receiverNextTsn: receiverNextTsn,
+    );
+  }
+
+  @override
+  String toString() =>
+      'ReconfigResponse(respSeq=$responseSequence, result=$result)';
+}
+
+/// SCTP RE-CONFIGURATION Chunk (Type 130)
+/// RFC 6525 Section 3.1
+class SctpReconfigChunk extends SctpChunk {
+  @override
+  final SctpChunkType type = SctpChunkType.reconfig;
+
+  @override
+  final int flags;
+
+  /// Reconfig parameters
+  final List<SctpReconfigParam> params;
+
+  @override
+  int get length {
+    var len = 4; // chunk header
+    for (final param in params) {
+      final paramBytes = param.serialize();
+      // Add padded length
+      len += (paramBytes.length + 3) & ~3;
+    }
+    return len;
+  }
+
+  SctpReconfigChunk({
+    this.flags = 0,
+    required this.params,
+  });
+
+  @override
+  Uint8List serialize() {
+    final result = Uint8List(length);
+    final buffer = ByteData.sublistView(result);
+
+    writeHeader(buffer, 0);
+
+    var offset = 4;
+    for (final param in params) {
+      final paramBytes = param.serialize();
+      result.setRange(offset, offset + paramBytes.length, paramBytes);
+      // Pad to 4-byte boundary
+      offset += (paramBytes.length + 3) & ~3;
+    }
+
+    return result;
+  }
+
+  static SctpReconfigChunk parse(Uint8List data) {
+    final buffer = ByteData.sublistView(data);
+    final flags = buffer.getUint8(1);
+    final chunkLength = buffer.getUint16(2);
+
+    final params = <SctpReconfigParam>[];
+    var offset = 4;
+
+    while (offset < chunkLength) {
+      final paramType = buffer.getUint16(offset);
+      final paramLen = buffer.getUint16(offset + 2);
+
+      final paramData = data.sublist(offset, offset + paramLen);
+
+      switch (paramType) {
+        case ReconfigParamType.outgoingSsnResetRequest:
+          params.add(OutgoingSsnResetRequestParam.parse(paramData));
+          break;
+        case ReconfigParamType.reconfigResponse:
+          params.add(ReconfigResponseParam.parse(paramData));
+          break;
+        default:
+          // Unknown parameter type, skip
+          break;
+      }
+
+      // Move to next parameter (padded to 4-byte boundary)
+      offset += (paramLen + 3) & ~3;
+    }
+
+    return SctpReconfigChunk(
+      flags: flags,
+      params: params,
+    );
+  }
+
+  @override
+  String toString() => 'RE-CONFIG(params=$params)';
 }

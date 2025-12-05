@@ -27,6 +27,20 @@ class DataChannelManager {
     // Listen for incoming data from SCTP
     // Note: This requires modifying SctpAssociation to expose a stream
     // For now, we'll set up the callback
+
+    // Handle stream reconfiguration (RFC 6525)
+    _association.onReconfigStreams = _handleReconfigStreams;
+  }
+
+  /// Handle stream reconfiguration (close event from peer or response to our close)
+  void _handleReconfigStreams(List<int> streamIds) {
+    for (final streamId in streamIds) {
+      final channel = _channels[streamId];
+      if (channel != null) {
+        channel.handleStreamReset();
+        _channels.remove(streamId);
+      }
+    }
   }
 
   /// Stream of new incoming DataChannels

@@ -173,6 +173,22 @@ class SctpConstants {
   /// Cookie lifetime in seconds
   static const int cookieLifetime = 60;
 
+  /// Maximum user data per chunk (fragment size)
+  /// Typically MTU - headers, but we use 1024 for safety
+  static const int userDataMaxLength = 1024;
+
+  /// Initial congestion window (cwnd)
+  static const int initialCwnd = 4380; // 3 * MTU typical
+
+  /// RTO alpha for SRTT calculation
+  static const double rtoAlpha = 0.125;
+
+  /// RTO beta for RTTVAR calculation
+  static const double rtoBeta = 0.25;
+
+  /// TSN modulo (2^32)
+  static const int tsnModulo = 0x100000000;
+
   SctpConstants._();
 }
 

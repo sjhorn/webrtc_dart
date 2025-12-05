@@ -212,6 +212,7 @@ class DataChannel {
   }
 
   /// Close the data channel
+  /// Uses SCTP Stream Reconfiguration (RFC 6525) for graceful close
   Future<void> close() async {
     if (_state == DataChannelState.closed ||
         _state == DataChannelState.closing) {
@@ -220,10 +221,29 @@ class DataChannel {
 
     _setState(DataChannelState.closing);
 
-    // TODO: Send final messages and wait for delivery
+    // Check if SCTP association is established
+    if (_association.state == SctpAssociationState.established) {
+      // Add to reconfig queue if not already there
+      if (!_association.reconfigQueue.contains(streamId)) {
+        _association.reconfigQueue.add(streamId);
+      }
+      // Trigger reconfig request if this is the first item in queue
+      if (_association.reconfigQueue.length == 1) {
+        await _association.transmitReconfigRequest();
+      }
+      // The actual close will happen when we receive the reconfig response
+      // via onReconfigStreams callback
+    } else {
+      // Association not established, close immediately
+      _setState(DataChannelState.closed);
+      await _dispose();
+    }
+  }
 
+  /// Called when the stream is reconfigured (closed by peer or response received)
+  void handleStreamReset() {
     _setState(DataChannelState.closed);
-    await _dispose();
+    _dispose();
   }
 
   /// Set state

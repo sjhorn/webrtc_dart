@@ -10,12 +10,7 @@ import 'package:webrtc_dart/src/rtp/rtp_session.dart';
 import 'package:webrtc_dart/src/srtp/rtp_packet.dart';
 
 /// RTP Transceiver Direction
-enum RtpTransceiverDirection {
-  sendrecv,
-  sendonly,
-  recvonly,
-  inactive,
-}
+enum RtpTransceiverDirection { sendrecv, sendonly, recvonly, inactive }
 
 /// RTP Transceiver
 /// Manages sending and receiving RTP for a media track
@@ -68,6 +63,7 @@ class RtpTransceiver {
   }
 
   /// Get current direction
+  // ignore: unnecessary_getters_setters
   RtpTransceiverDirection get direction => _direction;
 
   /// Set direction
@@ -221,20 +217,23 @@ class RtpSender {
     // Validate transaction ID
     if (params.transactionId != _transactionId) {
       throw StateError(
-          'Invalid transactionId: expected $_transactionId, got ${params.transactionId}');
+        'Invalid transactionId: expected $_transactionId, got ${params.transactionId}',
+      );
     }
 
     // Validate encoding count
     if (params.encodings.length != _encodings.length) {
       throw StateError(
-          'Cannot change number of encodings: was ${_encodings.length}, got ${params.encodings.length}');
+        'Cannot change number of encodings: was ${_encodings.length}, got ${params.encodings.length}',
+      );
     }
 
     // Validate RIDs haven't changed
     for (var i = 0; i < _encodings.length; i++) {
       if (params.encodings[i].rid != _encodings[i].rid) {
         throw StateError(
-            'Cannot change RID at index $i: was ${_encodings[i].rid}, got ${params.encodings[i].rid}');
+          'Cannot change RID at index $i: was ${_encodings[i].rid}, got ${params.encodings[i].rid}',
+        );
       }
     }
 
@@ -259,8 +258,7 @@ class RtpSender {
       _encodings.where((e) => e.active).toList();
 
   /// Get all encodings
-  List<RTCRtpEncodingParameters> get encodings =>
-      List.unmodifiable(_encodings);
+  List<RTCRtpEncodingParameters> get encodings => List.unmodifiable(_encodings);
 
   /// Check if simulcast is enabled (more than one encoding)
   bool get isSimulcast => _encodings.length > 1;
@@ -385,7 +383,8 @@ class RtpSender {
     // Validate track kind compatibility
     if (newTrack != null && _track != null && newTrack.kind != _track!.kind) {
       throw ArgumentError(
-          'New track kind (${newTrack.kind}) must match original kind (${_track!.kind})');
+        'New track kind (${newTrack.kind}) must match original kind (${_track!.kind})',
+      );
     }
 
     // Validate track is not stopped
@@ -557,7 +556,10 @@ class RtpReceiver {
 
   /// Handle RTP packet by RID (for simulcast)
   void handleRtpByRid(
-      RtpPacket packet, String rid, Map<String, dynamic> extensions) {
+    RtpPacket packet,
+    String rid,
+    Map<String, dynamic> extensions,
+  ) {
     if (_stopped) return;
 
     latestRid = rid;
@@ -709,13 +711,19 @@ class RtpReceiver {
   /// available bandwidth. Requires scalability mode to be set.
   void selectLayersByBitrate(int targetBitrateBps, {bool immediate = false}) {
     if (_scalabilityMode != null && svcFilter != null) {
-      svcFilter!.selectByBitrate(targetBitrateBps, _scalabilityMode!,
-          immediate: immediate);
+      svcFilter!.selectByBitrate(
+        targetBitrateBps,
+        _scalabilityMode!,
+        immediate: immediate,
+      );
     }
   }
 
   /// Set layer selection directly
-  void setLayerSelection(SvcLayerSelection selection, {bool immediate = false}) {
+  void setLayerSelection(
+    SvcLayerSelection selection, {
+    bool immediate = false,
+  }) {
     svcFilter?.setSelection(selection, immediate: immediate);
   }
 

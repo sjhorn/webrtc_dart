@@ -48,11 +48,7 @@ enum IceConnectionState {
 }
 
 /// RTCIceGatheringState
-enum IceGatheringState {
-  new_,
-  gathering,
-  complete,
-}
+enum IceGatheringState { new_, gathering, complete }
 
 /// RTCConfiguration
 class RtcConfiguration {
@@ -74,27 +70,18 @@ class IceServer {
   final String? username;
   final String? credential;
 
-  const IceServer({
-    required this.urls,
-    this.username,
-    this.credential,
-  });
+  const IceServer({required this.urls, this.username, this.credential});
 }
 
 /// ICE Transport Policy
-enum IceTransportPolicy {
-  relay,
-  all,
-}
+enum IceTransportPolicy { relay, all }
 
 /// Options for createOffer
 class RtcOfferOptions {
   /// If true, triggers an ICE restart by generating new credentials
   final bool iceRestart;
 
-  const RtcOfferOptions({
-    this.iceRestart = false,
-  });
+  const RtcOfferOptions({this.iceRestart = false});
 }
 
 /// RTCPeerConnection
@@ -188,7 +175,7 @@ class RtcPeerConnection {
   int _dataChannelsOpened = 0;
 
   /// Counter for data channels closed (for stats)
-  int _dataChannelsClosed = 0;
+  final int _dataChannelsClosed = 0;
 
   /// Debug label for this peer connection
   static int _instanceCounter = 0;
@@ -393,7 +380,8 @@ class RtcPeerConnection {
         SdpAttribute(key: 'rtcp-mux'),
         SdpAttribute(
           key: 'rtpmap',
-          value: '$payloadType ${codec.codecName}/${codec.clockRate}${codec.channels != null && codec.channels! > 1 ? '/${codec.channels}' : ''}',
+          value:
+              '$payloadType ${codec.codecName}/${codec.clockRate}${codec.channels != null && codec.channels! > 1 ? '/${codec.channels}' : ''}',
         ),
         if (codec.parameters != null)
           SdpAttribute(key: 'fmtp', value: '$payloadType ${codec.parameters}'),
@@ -411,30 +399,29 @@ class RtcPeerConnection {
 
         // Add RTX attributes using RtxSdpBuilder
         attributes.addAll([
-          RtxSdpBuilder.createRtxRtpMap(rtxPayloadType, clockRate: codec.clockRate),
+          RtxSdpBuilder.createRtxRtpMap(
+            rtxPayloadType,
+            clockRate: codec.clockRate,
+          ),
           RtxSdpBuilder.createRtxFmtp(rtxPayloadType, payloadType),
           RtxSdpBuilder.createSsrcGroupFid(ssrc, rtxSsrc),
         ]);
 
         // Add SSRC attributes for original
-        attributes.add(SdpAttribute(
-          key: 'ssrc',
-          value: '$ssrc cname:$cname',
-        ));
+        attributes.add(SdpAttribute(key: 'ssrc', value: '$ssrc cname:$cname'));
 
         // Add SSRC attributes for RTX
         attributes.add(RtxSdpBuilder.createSsrcCname(rtxSsrc, cname));
       } else {
         // Audio: just add SSRC cname
-        attributes.add(SdpAttribute(
-          key: 'ssrc',
-          value: '$ssrc cname:$cname',
-        ));
+        attributes.add(SdpAttribute(key: 'ssrc', value: '$ssrc cname:$cname'));
       }
 
       mediaDescriptions.add(
         SdpMedia(
-          type: transceiver.kind == MediaStreamTrackKind.audio ? 'audio' : 'video',
+          type: transceiver.kind == MediaStreamTrackKind.audio
+              ? 'audio'
+              : 'video',
           port: 9,
           protocol: 'UDP/TLS/RTP/SAVPF',
           formats: formats,
@@ -552,7 +539,9 @@ class RtcPeerConnection {
         }
 
         // Add local SSRC if we have a transceiver for this media
-        final transceiver = _transceivers.where((t) => t.mid == mid).firstOrNull;
+        final transceiver = _transceivers
+            .where((t) => t.mid == mid)
+            .firstOrNull;
         if (transceiver != null) {
           final ssrc = transceiver.sender.rtpSession.localSsrc;
           final cname = _iceConnection.localUsername;
@@ -569,26 +558,23 @@ class RtcPeerConnection {
               attributes.add(RtxSdpBuilder.createSsrcGroupFid(ssrc, rtxSsrc));
 
               // Add SSRC cname for original
-              attributes.add(SdpAttribute(
-                key: 'ssrc',
-                value: '$ssrc cname:$cname',
-              ));
+              attributes.add(
+                SdpAttribute(key: 'ssrc', value: '$ssrc cname:$cname'),
+              );
 
               // Add SSRC cname for RTX
               attributes.add(RtxSdpBuilder.createSsrcCname(rtxSsrc, cname));
             } else {
               // No RTX, just add SSRC cname
-              attributes.add(SdpAttribute(
-                key: 'ssrc',
-                value: '$ssrc cname:$cname',
-              ));
+              attributes.add(
+                SdpAttribute(key: 'ssrc', value: '$ssrc cname:$cname'),
+              );
             }
           } else {
             // Audio: just add SSRC cname
-            attributes.add(SdpAttribute(
-              key: 'ssrc',
-              value: '$ssrc cname:$cname',
-            ));
+            attributes.add(
+              SdpAttribute(key: 'ssrc', value: '$ssrc cname:$cname'),
+            );
           }
         }
       }
@@ -666,7 +652,9 @@ class RtcPeerConnection {
     // If we now have both local and remote descriptions, start connecting
     // Note: ICE connect runs asynchronously - don't await it here
     // This allows the signaling to complete while ICE runs in background
-    if (_localDescription != null && _remoteDescription != null && !_iceConnectCalled) {
+    if (_localDescription != null &&
+        _remoteDescription != null &&
+        !_iceConnectCalled) {
       _iceConnectCalled = true;
       // Start ICE connectivity checks in background
       _iceConnection.connect().catchError((e) {
@@ -708,13 +696,16 @@ class RtcPeerConnection {
 
       if (iceUfrag != null && icePwd != null) {
         // Detect remote ICE restart by checking if credentials changed
-        final isRemoteIceRestart = _previousRemoteIceUfrag != null &&
+        final isRemoteIceRestart =
+            _previousRemoteIceUfrag != null &&
             _previousRemoteIcePwd != null &&
             (_previousRemoteIceUfrag != iceUfrag ||
                 _previousRemoteIcePwd != icePwd);
 
         if (isRemoteIceRestart) {
-          print('[$_debugLabel] Remote ICE restart detected - credentials changed');
+          print(
+            '[$_debugLabel] Remote ICE restart detected - credentials changed',
+          );
           // Perform local ICE restart to match
           await _iceConnection.restart();
           _iceConnectCalled = false;
@@ -726,7 +717,9 @@ class RtcPeerConnection {
         _previousRemoteIcePwd = icePwd;
 
         final isIceLite = sdpMessage.isIceLite;
-        print('[$_debugLabel] Setting remote ICE params: ufrag=$iceUfrag, pwd=${icePwd.substring(0, 8)}...${isIceLite ? ' (ice-lite)' : ''}');
+        print(
+          '[$_debugLabel] Setting remote ICE params: ufrag=$iceUfrag, pwd=${icePwd.substring(0, 8)}...${isIceLite ? ' (ice-lite)' : ''}',
+        );
         _iceConnection.setRemoteParams(
           iceLite: isIceLite,
           usernameFragment: iceUfrag,
@@ -745,15 +738,21 @@ class RtcPeerConnection {
         if (setup == 'active') {
           // Remote is client, we are server
           _transport!.dtlsRole = DtlsRole.server;
-          print('[$_debugLabel] Setting DTLS role to server (remote is active)');
+          print(
+            '[$_debugLabel] Setting DTLS role to server (remote is active)',
+          );
         } else if (setup == 'passive') {
           // Remote is server, we are client
           _transport!.dtlsRole = DtlsRole.client;
-          print('[$_debugLabel] Setting DTLS role to client (remote is passive)');
+          print(
+            '[$_debugLabel] Setting DTLS role to client (remote is passive)',
+          );
         } else if (setup == 'actpass') {
           // Remote can be either, we choose to be client
           _transport!.dtlsRole = DtlsRole.client;
-          print('[$_debugLabel] Setting DTLS role to client (remote is actpass)');
+          print(
+            '[$_debugLabel] Setting DTLS role to client (remote is actpass)',
+          );
         }
       }
     }
@@ -764,7 +763,9 @@ class RtcPeerConnection {
     // If we have both local and remote descriptions, start connecting
     // Note: ICE connect runs asynchronously - don't await it here
     // This allows the signaling to complete while ICE runs in background
-    if (_localDescription != null && _remoteDescription != null && !_iceConnectCalled) {
+    if (_localDescription != null &&
+        _remoteDescription != null &&
+        !_iceConnectCalled) {
       _setConnectionState(PeerConnectionState.connecting);
       _iceConnectCalled = true;
       // Start ICE connectivity checks in background
@@ -788,7 +789,9 @@ class RtcPeerConnection {
       }
 
       // Check if we already have a transceiver for this MID
-      final existingTransceiver = _transceivers.where((t) => t.mid == mid).firstOrNull;
+      final existingTransceiver = _transceivers
+          .where((t) => t.mid == mid)
+          .firstOrNull;
       if (existingTransceiver != null) {
         // Transceiver already exists (we created it when adding a local track)
         // This is a sendrecv transceiver - it sends our local track and receives the remote track
@@ -816,7 +819,9 @@ class RtcPeerConnection {
       }
 
       final codecName = codecInfo[0].toLowerCase();
-      final clockRate = codecInfo.length > 1 ? int.tryParse(codecInfo[1]) : null;
+      final clockRate = codecInfo.length > 1
+          ? int.tryParse(codecInfo[1])
+          : null;
       final channels = codecInfo.length > 2 ? int.tryParse(codecInfo[2]) : null;
 
       // Get fmtp parameters if available
@@ -906,7 +911,9 @@ class RtcPeerConnection {
     int priority = 0,
   }) {
     if (_transport == null) {
-      throw StateError('Transport not initialized. Wait for initialization to complete.');
+      throw StateError(
+        'Transport not initialized. Wait for initialization to complete.',
+      );
     }
 
     _dataChannelsOpened++;
@@ -975,18 +982,21 @@ class RtcPeerConnection {
       case SignalingState.haveRemoteOffer:
         if (type != 'answer' && type != 'pranswer') {
           throw StateError(
-              'Can only set answer/pranswer in have-remote-offer state');
+            'Can only set answer/pranswer in have-remote-offer state',
+          );
         }
         break;
       case SignalingState.haveLocalPranswer:
         if (type != 'answer' && type != 'pranswer') {
           throw StateError(
-              'Can only set answer/pranswer in have-local-pranswer state');
+            'Can only set answer/pranswer in have-local-pranswer state',
+          );
         }
         break;
       case SignalingState.haveRemotePranswer:
         throw StateError(
-            'Cannot set local description in have-remote-pranswer state');
+          'Cannot set local description in have-remote-pranswer state',
+        );
       case SignalingState.closed:
         throw StateError('PeerConnection is closed');
     }
@@ -1008,7 +1018,8 @@ class RtcPeerConnection {
       case SignalingState.haveLocalOffer:
         if (type != 'answer' && type != 'pranswer') {
           throw StateError(
-              'Can only set answer/pranswer in have-local-offer state');
+            'Can only set answer/pranswer in have-local-offer state',
+          );
         }
         break;
       case SignalingState.haveRemoteOffer:
@@ -1018,11 +1029,13 @@ class RtcPeerConnection {
         break;
       case SignalingState.haveLocalPranswer:
         throw StateError(
-            'Cannot set remote description in have-local-pranswer state');
+          'Cannot set remote description in have-local-pranswer state',
+        );
       case SignalingState.haveRemotePranswer:
         if (type != 'answer' && type != 'pranswer') {
           throw StateError(
-              'Can only set answer/pranswer in have-remote-pranswer state');
+            'Can only set answer/pranswer in have-remote-pranswer state',
+          );
         }
         break;
       case SignalingState.closed:
@@ -1229,14 +1242,16 @@ class RtcPeerConnection {
         // RTCP header: VV PT(8) length(16) SSRC(32)
         // SSRC is at bytes 4-7
         if (data.length >= 8) {
-          final ssrc = (data[4] << 24) | (data[5] << 16) | (data[6] << 8) | data[7];
+          final ssrc =
+              (data[4] << 24) | (data[5] << 16) | (data[6] << 8) | data[7];
           _routeRtcpPacket(ssrc, data);
         }
       } else {
         // RTP packet - parse to get SSRC
         // RTP header has SSRC at bytes 8-11
         if (data.length >= 12) {
-          final ssrc = (data[8] << 24) | (data[9] << 16) | (data[10] << 8) | data[11];
+          final ssrc =
+              (data[8] << 24) | (data[9] << 16) | (data[10] << 8) | data[11];
           _routeRtpPacket(ssrc, data);
         }
       }
@@ -1320,12 +1335,14 @@ class RtcPeerConnection {
 
     // Add peer-connection level stats
     final pcId = generateStatsId('peer-connection');
-    stats.add(RTCPeerConnectionStats(
-      timestamp: timestamp,
-      id: pcId,
-      dataChannelsOpened: _dataChannelsOpened,
-      dataChannelsClosed: _dataChannelsClosed,
-    ));
+    stats.add(
+      RTCPeerConnectionStats(
+        timestamp: timestamp,
+        id: pcId,
+        dataChannelsOpened: _dataChannelsOpened,
+        dataChannelsClosed: _dataChannelsClosed,
+      ),
+    );
 
     // Track which MIDs have been processed
     final processedMids = <String>{};
@@ -1333,7 +1350,8 @@ class RtcPeerConnection {
     // Collect RTP stats from transceivers with track selector filtering
     for (final transceiver in _transceivers) {
       // Check if this transceiver matches the selector
-      final includeTransceiverStats = selector == null ||
+      final includeTransceiverStats =
+          selector == null ||
           transceiver.sender.track == selector ||
           transceiver.receiver.track == selector;
 

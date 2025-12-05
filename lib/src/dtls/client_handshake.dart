@@ -219,8 +219,10 @@ class ClientHandshakeCoordinator {
     _serverCertificate = Certificate.parse(data);
     print('[CLIENT] Received certificate with ${_serverCertificate!.certificates.length} certificate(s)');
 
-    // TODO: Perform certificate validation (check validity dates, chain, etc.)
-    // For now, we just parse and store it
+    // Note: Certificate chain validation is not performed here (matching werift:
+    // packages/dtls/src/flight/client/flight5.ts - just stores remoteCertificate).
+    // In WebRTC, certificates are self-signed and security comes from fingerprint
+    // verification via SDP, not traditional PKI chain validation.
 
     dtlsContext.addHandshakeMessage(fullMessage ?? data);
 

@@ -1,136 +1,341 @@
-# webrtc_dart
+# webrtc_dart - WebRTC for Dart
 
-A pure Dart implementation of WebRTC protocols, ported from [werift-webrtc](https://github.com/shinyoshiaki/werift-webrtc).
+**webrtc_dart** is a pure Dart implementation of WebRTC. No native dependencies, no browser required - just add to your `pubspec.yaml` and go!
 
-## Project Status
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
-This is an in-progress port of WebRTC to Dart. Current implementation status:
+## What is webrtc_dart?
 
-### ✅ Completed Components
+webrtc_dart lets you build WebRTC applications entirely in Dart. Whether you're creating a media server, an SFU (Selective Forwarding Unit), a signaling server, or peer-to-peer data channels - webrtc_dart has you covered.
 
-#### Phase 1-2: Foundations & Network Layer
-- **STUN** - RFC 5389 implementation
-  - Message encoding/decoding
-  - Attribute handling (XOR-MAPPED-ADDRESS, etc.)
-  - Authentication with MESSAGE-INTEGRITY
-- **ICE** - RFC 5245 implementation
-  - Candidate gathering (host, server-reflexive)
-  - Connectivity checks with STUN binding
-  - Candidate pair management and nomination
-  - ICE agent state machine
-  - Bidirectional data transport over nominated pairs
+Unlike browser-based WebRTC, webrtc_dart gives you direct access to RTP packets, making it perfect for building custom media servers, recording solutions, and real-time communication backends.
 
-#### Phase 3: Security Layer
-- **DTLS** - RFC 6347 implementation
-  - Full DTLS 1.2 handshake (client & server)
-  - Certificate generation and verification
-  - Cipher suites (AES-128-GCM, AES-256-GCM)
-  - Session resumption
-  - Fragmentation and retransmission
-- **SRTP/SRTCP** - RFC 3711 implementation
-  - AES-GCM encryption for RTP/RTCP
-  - Replay protection
-  - Key derivation
-  - ROC (Rollover Counter) tracking
+This is a complete port of [werift-webrtc](https://github.com/shinyoshiaki/werift-webrtc) (TypeScript) to Dart.
 
-#### Phase 4: Media & Data
-- **RTP/RTCP** - RFC 3550 implementation
-  - RTP packet handling
-  - RTCP Sender/Receiver Reports (SR/RR)
-  - Statistics tracking (jitter, packet loss)
-  - SSRC management
-- **SCTP** - RFC 4960 implementation
-  - Packet structure with CRC32c
-  - All chunk types (DATA, INIT, SACK, etc.)
-  - Association state machine
-  - Stream management
-- **DataChannel** - RFC 8831/8832 implementation
-  - DCEP (Data Channel Establishment Protocol)
-  - Channel types (reliable/unreliable, ordered/unordered)
-  - String and binary message support
-- **Opus Codec** - RFC 7587
-  - RTP payload format
-  - Codec parameters
-  - OpusHead generation
+## Quick Start
 
-#### Phase 5: Signaling & API
-- **SDP** - RFC 4566/8866 implementation
-  - Full SDP parsing
-  - SDP generation
-  - Media descriptions
-  - Attribute handling
-- **PeerConnection API**
-  - W3C WebRTC-compatible API
-  - Offer/answer exchange
-  - ICE candidate handling
-  - State machine management
-  - Event streams
+### Installation
 
-#### Phase 6: Integration Layer
-- **Transport Integration** - Full protocol stack connectivity
-  - ICE → DTLS → SCTP data flow
-  - Automatic DTLS handshake on ICE connection
-  - SCTP association over encrypted DTLS channel
-  - End-to-end integration testing
+Add to your `pubspec.yaml`:
 
-### 📋 Not Yet Implemented
+```yaml
+dependencies:
+  webrtc_dart:
+    git: https://github.com/user/webrtc_dart.git
+```
 
-- TURN support (STUN only currently)
-- Video codecs (H.264, VP8, VP9)
-- Media track management
-- Statistics API (getStats)
-- Browser interoperability
+Then run:
+```bash
+dart pub get
+```
 
-## Test Coverage
+### Your First DataChannel
 
-**536 tests passing** covering all implemented components:
+Here's a simple example of creating a peer connection and data channel:
 
-- STUN: 35 tests
-- ICE: 49 tests (including local connection tests)
-- DTLS: 89 tests (including integration tests)
-- SRTP: 23 tests
-- RTP/RTCP: 54 tests
-- SCTP: 22 tests
-- DataChannel: 10 tests
-- SDP: 10 tests
-- PeerConnection: 22 tests
-- Codecs: 23 tests
-- Component Integration: 9 tests
-- **Full Stack Integration: 2 tests** (ICE + DTLS + SCTP + DataChannel E2E)
+```dart
+import 'package:webrtc_dart/webrtc_dart.dart';
+
+void main() async {
+  // Create a new peer connection
+  final pc = RtcPeerConnection(RtcConfiguration(
+    iceServers: [IceServer(urls: ['stun:stun.l.google.com:19302'])],
+  ));
+
+  // Create a data channel
+  final dataChannel = pc.createDataChannel('chat');
+
+  // Handle data channel events
+  dataChannel.onStateChange.listen((state) {
+    if (state == DataChannelState.open) {
+      print('Data channel is open!');
+      dataChannel.sendString('Hello from webrtc_dart!');
+    }
+  });
+
+  dataChannel.onMessage.listen((message) {
+    print('Received: $message');
+  });
+
+  // Handle ICE candidates
+  pc.onIceCandidate.listen((candidate) {
+    // Send this candidate to the remote peer via your signaling server
+    print('New ICE candidate: ${candidate.toSdpString()}');
+  });
+
+  // Create an offer
+  final offer = await pc.createOffer();
+  await pc.setLocalDescription(offer);
+
+  // Send the offer to your remote peer via signaling...
+  print('Offer SDP: ${offer.sdp}');
+}
+```
+
+## Features
+
+webrtc_dart supports a comprehensive set of WebRTC features:
+
+| Feature | Status |
+|---------|--------|
+| **ICE** | STUN, TURN (UDP), Trickle ICE, ICE Restart, ICE TCP, mDNS |
+| **DTLS** | DTLS-SRTP with Curve25519 and P-256 |
+| **DataChannel** | Full support via SCTP (reliable/unreliable, ordered/unordered) |
+| **MediaChannel** | sendonly, recvonly, sendrecv, multi-track |
+| **Video Codecs** | VP8, VP9, H.264, AV1 (depacketization) |
+| **Audio Codecs** | Opus |
+| **RTP/RTCP** | RFC 3550, RTX, RED, NACK, PLI, FIR, REMB, TWCC |
+| **Simulcast** | Receive simulcast streams with RID/MID |
+| **Recording** | WebM/MP4 via MediaRecorder |
+| **Stats** | Full getStats() API |
+
+### Browser Compatibility
+
+webrtc_dart is tested and compatible with:
+- Chrome
+- Firefox
+- Safari
+- Other WebRTC implementations (Pion, aiortc, werift)
 
 ## Examples
 
-### Local DataChannel
+### Example 1: Local DataChannel Test
 
-Demonstrates offer/answer exchange between two local peer connections:
+Connect two peer connections locally and exchange messages:
 
+```dart
+import 'package:webrtc_dart/webrtc_dart.dart';
+
+void main() async {
+  // Create two peer connections
+  final pcOffer = RtcPeerConnection();
+  final pcAnswer = RtcPeerConnection();
+
+  // Exchange ICE candidates
+  pcOffer.onIceCandidate.listen((candidate) async {
+    await pcAnswer.addIceCandidate(candidate);
+  });
+
+  pcAnswer.onIceCandidate.listen((candidate) async {
+    await pcOffer.addIceCandidate(candidate);
+  });
+
+  // Handle incoming data channel on answer side
+  pcAnswer.onDataChannel.listen((channel) {
+    channel.onMessage.listen((message) {
+      print('Answer received: $message');
+      channel.sendString('Hello back!');
+    });
+  });
+
+  // Perform offer/answer exchange
+  final offer = await pcOffer.createOffer();
+  await pcOffer.setLocalDescription(offer);
+  await pcAnswer.setRemoteDescription(offer);
+
+  final answer = await pcAnswer.createAnswer();
+  await pcAnswer.setLocalDescription(answer);
+  await pcOffer.setRemoteDescription(answer);
+
+  // Wait for connection
+  await Future.delayed(Duration(seconds: 2));
+
+  // Create and use data channel
+  final dc = pcOffer.createDataChannel('chat');
+  dc.onStateChange.listen((state) {
+    if (state == DataChannelState.open) {
+      dc.sendString('Hello from offer side!');
+    }
+  });
+
+  dc.onMessage.listen((message) {
+    print('Offer received: $message');
+  });
+}
+```
+
+Run the full example:
 ```bash
 dart run examples/datachannel_local.dart
 ```
 
+### Example 2: Receiving Media (Video/Audio)
+
+webrtc_dart excels at receiving media streams. Here's how to receive video from a browser:
+
+```dart
+import 'package:webrtc_dart/webrtc_dart.dart';
+
+void main() async {
+  final pc = RtcPeerConnection(RtcConfiguration(
+    codecs: RtcCodecConfiguration(
+      video: [
+        RtcRtpCodecParameters(
+          mimeType: 'video/VP8',
+          clockRate: 90000,
+        ),
+        RtcRtpCodecParameters(
+          mimeType: 'video/H264',
+          clockRate: 90000,
+        ),
+      ],
+      audio: [
+        RtcRtpCodecParameters(
+          mimeType: 'audio/opus',
+          clockRate: 48000,
+          channels: 2,
+        ),
+      ],
+    ),
+  ));
+
+  // Listen for incoming tracks
+  pc.onTrack.listen((event) {
+    final track = event.track;
+    print('Received ${track.kind} track!');
+
+    // Access raw RTP packets via the transceiver
+    event.transceiver.receiver.onRtpPacket.listen((packet) {
+      print('RTP packet: seq=${packet.sequenceNumber}');
+    });
+  });
+
+  // Add transceivers to receive media
+  pc.addTransceiver(kind: 'video', direction: TransceiverDirection.recvonly);
+  pc.addTransceiver(kind: 'audio', direction: TransceiverDirection.recvonly);
+
+  // Create offer to receive media
+  final offer = await pc.createOffer();
+  await pc.setLocalDescription(offer);
+}
+```
+
+Run the media example:
+```bash
+dart run examples/mediachannel_local.dart
+```
+
+### Example 3: Using STUN/TURN Servers
+
+Configure ICE servers for NAT traversal:
+
+```dart
+import 'package:webrtc_dart/webrtc_dart.dart';
+
+void main() async {
+  final pc = RtcPeerConnection(RtcConfiguration(
+    iceServers: [
+      // STUN server
+      IceServer(urls: ['stun:stun.l.google.com:19302']),
+
+      // TURN server (UDP)
+      IceServer(
+        urls: ['turn:your-turn-server.com:3478'],
+        username: 'user',
+        credential: 'password',
+      ),
+    ],
+  ));
+}
+```
+
+Run the TURN example:
+```bash
+dart run examples/ice_turn.dart
+```
+
+### Example 4: ICE Restart
+
+Reconnect without creating a new peer connection:
+
+```dart
+import 'package:webrtc_dart/webrtc_dart.dart';
+
+void main() async {
+  final pc = RtcPeerConnection();
+
+  // ... after connection is established and network changes ...
+
+  // Trigger ICE restart
+  pc.restartIce();
+
+  // Create a new offer with ICE restart flag
+  final offer = await pc.createOffer();
+  await pc.setLocalDescription(offer);
+
+  // Send the new offer to the remote peer for renegotiation
+}
+```
+
+Run the ICE restart example:
+```bash
+dart run examples/ice_restart.dart
+```
+
+### More Examples
+
+| Example | Description | Command |
+|---------|-------------|---------|
+| `datachannel_local.dart` | Local peer-to-peer data exchange | `dart run examples/datachannel_local.dart` |
+| `datachannel_string.dart` | String message data channels | `dart run examples/datachannel_string.dart` |
+| `mediachannel_local.dart` | Local audio/video tracks | `dart run examples/mediachannel_local.dart` |
+| `simulcast_local.dart` | Simulcast stream handling | `dart run examples/simulcast_local.dart` |
+| `ice_restart.dart` | ICE restart demonstration | `dart run examples/ice_restart.dart` |
+| `ice_trickle.dart` | Trickle ICE candidates | `dart run examples/ice_trickle.dart` |
+| `ice_turn.dart` | TURN server usage | `dart run examples/ice_turn.dart` |
+| `rtx_retransmission.dart` | RTX packet retransmission | `dart run examples/rtx_retransmission.dart` |
+| `twcc_congestion.dart` | Transport-wide congestion control | `dart run examples/twcc_congestion.dart` |
+| `red_redundancy.dart` | RED audio redundancy | `dart run examples/red_redundancy.dart` |
+| `save_to_disk.dart` | Save media to WebM | `dart run examples/save_to_disk.dart` |
+| `save_to_disk_mp4.dart` | Save media to MP4 | `dart run examples/save_to_disk_mp4.dart` |
+| `getstats_demo.dart` | Statistics API demo | `dart run examples/getstats_demo.dart` |
+| `ffmpeg_video_send.dart` | Send video via FFmpeg pipe | `dart run examples/ffmpeg_video_send.dart` |
+| `signaling/` | Full signaling server example | See `examples/signaling/` |
+
 ## Architecture
 
-The implementation follows a layered protocol stack:
+webrtc_dart is designed with a modular architecture:
 
 ```
-┌─────────────────────────────────────┐
-│      PeerConnection API             │  W3C WebRTC API
-├─────────────────────────────────────┤
-│  DataChannel  │  Media Tracks       │  Application Layer
-├───────────────┴─────────────────────┤
-│  SCTP         │  RTP/RTCP + SRTP    │  Transport Layer
-├───────────────┴─────────────────────┤
-│           DTLS (Security)           │  Security Layer
-├─────────────────────────────────────┤
-│          ICE (Connectivity)         │  Network Layer
-├─────────────────────────────────────┤
-│          STUN (Discovery)           │  Discovery Layer
-└─────────────────────────────────────┘
+webrtc_dart
+├── ICE      - Interactive Connectivity Establishment
+├── DTLS     - Datagram Transport Layer Security
+├── SCTP     - Stream Control Transmission Protocol (DataChannels)
+├── RTP      - Real-time Transport Protocol (Media)
+├── RTCP     - RTP Control Protocol
+├── SRTP     - Secure RTP
+└── SDP      - Session Description Protocol
 ```
 
-## Development
+### Code Structure
 
-### Running Tests
+```
+lib/src/
+├── stun/          # STUN/TURN protocol
+├── ice/           # ICE agent and candidates
+├── dtls/          # DTLS handshake and encryption
+├── srtp/          # SRTP/SRTCP encryption
+├── rtp/           # RTP/RTCP media transport
+├── sctp/          # SCTP reliable transport
+├── datachannel/   # DataChannel API
+├── media/         # Media tracks and transceivers
+├── codec/         # Codec implementations
+├── sdp/           # SDP parsing and generation
+├── stats/         # Statistics collection
+├── container/     # WebM/MP4 recording
+└── peer_connection.dart  # Main PeerConnection API
+```
+
+### Design Philosophy
+
+- **Pure Dart**: No native bindings or browser dependencies
+- **Direct RTP Access**: Full control over media packets for custom processing
+- **Browser-Compatible API**: Familiar `RTCPeerConnection`-style interface
+- **Modular**: Use only what you need
+
+## Test Coverage
+
+**1658 tests passing** covering all implemented components.
 
 ```bash
 # Run all tests
@@ -140,57 +345,86 @@ dart test
 dart test test/ice/
 dart test test/dtls/
 dart test test/peer_connection_test.dart
-
-# Run with coverage
-dart test --coverage=coverage
 ```
 
-### Code Structure
+## Browser Interop Testing
 
-```
-lib/src/
-├── stun/          # STUN protocol
-├── ice/           # ICE agent and candidates
-├── dtls/          # DTLS handshake and encryption
-├── srtp/          # SRTP/SRTCP encryption
-├── rtp/           # RTP/RTCP media transport
-├── sctp/          # SCTP reliable transport
-├── datachannel/   # DataChannel API
-├── codec/         # Codec implementations
-├── sdp/           # SDP parsing and generation
-└── peer_connection.dart  # Main PeerConnection API
+Automated tests verify compatibility with Chrome, Firefox, and Safari:
+
+```bash
+cd interop
+npm install
+npm test              # Test all browsers
+npm run test:chrome   # Test Chrome only
+npm run test:firefox  # Test Firefox only
+npm run test:safari   # Test Safari/WebKit only
 ```
 
-## Comparison with werift-webrtc
+## Configuration Options
 
-This implementation closely follows the TypeScript werift-webrtc architecture:
+```dart
+import 'package:webrtc_dart/webrtc_dart.dart';
 
-| Feature | werift-webrtc | webrtc_dart | Status |
-|---------|---------------|-------------|--------|
-| ICE | ✅ | ✅ | Complete |
-| DTLS | ✅ | ✅ | Complete |
-| SRTP | ✅ | ✅ | Complete |
-| SCTP | ✅ | ✅ | Complete |
-| DataChannel | ✅ | ✅ | Complete |
-| RTP/RTCP | ✅ | ✅ | Complete |
-| Opus | ✅ | ✅ | Complete |
-| SDP | ✅ | ✅ | Complete |
-| PeerConnection | ✅ | ✅ | Complete |
-| Integration | ✅ | 🚧 | In Progress |
-| Video Codecs | ✅ | ❌ | Not Started |
+final pc = RtcPeerConnection(RtcConfiguration(
+  // ICE configuration
+  iceServers: [
+    IceServer(urls: ['stun:stun.l.google.com:19302']),
+  ],
 
-## MVP Goal
+  // Supported codecs
+  codecs: RtcCodecConfiguration(
+    video: [
+      RtcRtpCodecParameters(
+        mimeType: 'video/VP8',
+        clockRate: 90000,
+      ),
+    ],
+    audio: [
+      RtcRtpCodecParameters(
+        mimeType: 'audio/opus',
+        clockRate: 48000,
+        channels: 2,
+      ),
+    ],
+  ),
 
-The Minimum Viable Product goal is to:
+  // RTP header extensions
+  headerExtensions: RtcHeaderExtensions(
+    video: [/* ... */],
+    audio: [/* ... */],
+  ),
+));
+```
 
-1. ✅ Establish connection between Dart peer and TypeScript werift-webrtc peer
-2. ✅ Exchange "hello world" message over datachannel (see test/integration/datachannel_e2e_test.dart)
-3. 🚧 Transmit/receive basic audio stream (Opus)
+## Related Projects
+
+- **[werift-webrtc](https://github.com/shinyoshiaki/werift-webrtc)** - The original TypeScript implementation this project is ported from
+- **[node-sfu](https://github.com/shinyoshiaki/node-sfu)** - A complete SFU built with werift
+
+## Contributing
+
+Contributions are welcome! Check out the [examples directory](examples/) for usage patterns.
+
+```bash
+# Format code
+dart format .
+
+# Analyze code
+dart analyze
+
+# Run tests
+dart test
+```
 
 ## License
 
-MIT
+MIT License - see [LICENSE](LICENSE) for details.
 
 ## Acknowledgments
 
 This project is a Dart port of [werift-webrtc](https://github.com/shinyoshiaki/werift-webrtc) by Yuki Shindo.
+
+webrtc_dart is inspired by and references:
+- [werift-webrtc](https://github.com/shinyoshiaki/werift-webrtc) - TypeScript WebRTC implementation
+- [aiortc](https://github.com/aiortc/aiortc) - Python WebRTC implementation
+- [pion/webrtc](https://github.com/pion/webrtc) - Go WebRTC implementation

@@ -215,6 +215,12 @@ void main() async {
       ),
     ],
   ));
+
+  print('Peer connection created with STUN/TURN configuration');
+  print('ICE servers configured:');
+  for (final server in pc.configuration.iceServers) {
+    print('  - ${server.urls}');
+  }
 }
 ```
 
@@ -243,6 +249,9 @@ void main() async {
   await pc.setLocalDescription(offer);
 
   // Send the new offer to the remote peer for renegotiation
+  print('ICE restart triggered');
+  print('New offer SDP for renegotiation:');
+  print(offer.sdp);
 }
 ```
 

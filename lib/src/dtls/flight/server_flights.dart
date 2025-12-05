@@ -1,5 +1,6 @@
 import 'dart:typed_data';
 import 'package:webrtc_dart/src/dtls/handshake/message/certificate.dart';
+import 'package:webrtc_dart/src/dtls/handshake/message/certificate_request.dart';
 import 'package:webrtc_dart/src/common/crypto.dart';
 import 'package:webrtc_dart/src/dtls/cipher/const.dart';
 import 'package:webrtc_dart/src/dtls/cipher/key_derivation.dart';
@@ -171,8 +172,19 @@ class ServerFlight4 extends Flight {
     }
 
     // 4. CertificateRequest (if requiring client authentication)
+    // RFC 5246 Section 7.4.4 - sent between ServerKeyExchange and ServerHelloDone
+    // Note: Browsers typically don't send client certificates in WebRTC.
+    // This is here for completeness to match werift (flight4.ts).
     if (requireClientCert) {
-      // TODO: Implement CertificateRequest message
+      final certRequest = CertificateRequest.createDefault();
+      final certReqBody = certRequest.serialize();
+      final certReqMsg = wrapHandshakeMessage(
+        HandshakeType.certificateRequest,
+        certReqBody,
+        messageSeq: 0,
+      );
+      dtlsContext.addHandshakeMessage(certReqMsg);
+      messages.add(recordLayer.wrapHandshake(certReqMsg).serialize());
     }
 
     // 5. ServerHelloDone

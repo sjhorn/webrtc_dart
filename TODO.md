@@ -58,7 +58,7 @@ Minor items found in codebase (non-blocking):
 **DTLS:**
 - ~~`client_handshake.dart:222` - Certificate chain validation~~ ✅ N/A (matching werift - WebRTC uses fingerprint verification via SDP, not PKI)
 - ~~`server_handshake.dart:164,224` - Certificate/CertificateVerify parsing~~ ✅ Comments updated (client auth rarely used in WebRTC)
-- CertificateRequest message - werift has this (flight4.ts) but browsers don't typically use client certificates
+- ~~CertificateRequest message~~ ✅ DONE (matching werift flight4.ts, with 9 tests)
 
 **SCTP:**
 - ~~`association.dart:166` - Stream sequence tracking~~ ✅ DONE (per-stream sequence numbers)

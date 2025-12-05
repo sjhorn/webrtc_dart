@@ -14,6 +14,9 @@ void main() async {
     iceServers: [IceServer(urls: ['stun:stun.l.google.com:19302'])],
   ));
 
+  // Wait for transport initialization (DTLS certificate generation)
+  await Future.delayed(Duration(milliseconds: 500));
+
   // Create a data channel
   final dataChannel = pc.createDataChannel('chat');
 

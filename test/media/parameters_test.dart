@@ -116,8 +116,10 @@ void main() {
     });
 
     test('hashCode is consistent', () {
-      final a = RTCRtpSimulcastParameters(rid: 'h', direction: SimulcastDirection.send);
-      final b = RTCRtpSimulcastParameters(rid: 'h', direction: SimulcastDirection.send);
+      final a = RTCRtpSimulcastParameters(
+          rid: 'h', direction: SimulcastDirection.send);
+      final b = RTCRtpSimulcastParameters(
+          rid: 'h', direction: SimulcastDirection.send);
       expect(a.hashCode, equals(b.hashCode));
     });
   });
@@ -326,9 +328,12 @@ void main() {
 
   group('DegradationPreference', () {
     test('enum values', () {
-      expect(DegradationPreference.values, contains(DegradationPreference.maintainFramerate));
-      expect(DegradationPreference.values, contains(DegradationPreference.maintainResolution));
-      expect(DegradationPreference.values, contains(DegradationPreference.balanced));
+      expect(DegradationPreference.values,
+          contains(DegradationPreference.maintainFramerate));
+      expect(DegradationPreference.values,
+          contains(DegradationPreference.maintainResolution));
+      expect(DegradationPreference.values,
+          contains(DegradationPreference.balanced));
     });
   });
 
@@ -349,7 +354,8 @@ void main() {
       );
       expect(params.transactionId, equals('tx-123'));
       expect(params.encodings.length, equals(1));
-      expect(params.degradationPreference, equals(DegradationPreference.balanced));
+      expect(
+          params.degradationPreference, equals(DegradationPreference.balanced));
     });
 
     test('construction with all values', () {
@@ -371,7 +377,8 @@ void main() {
       );
       expect(params.transactionId, equals('tx-123'));
       expect(params.encodings.length, equals(2));
-      expect(params.degradationPreference, equals(DegradationPreference.maintainFramerate));
+      expect(params.degradationPreference,
+          equals(DegradationPreference.maintainFramerate));
       expect(params.codecs.length, equals(1));
       expect(params.muxId, equals('mid-1'));
     });
@@ -386,7 +393,8 @@ void main() {
       );
 
       expect(copy.transactionId, equals('tx-123'));
-      expect(copy.degradationPreference, equals(DegradationPreference.maintainResolution));
+      expect(copy.degradationPreference,
+          equals(DegradationPreference.maintainResolution));
     });
 
     test('copyWith updates specified values', () {

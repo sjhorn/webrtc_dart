@@ -7,7 +7,17 @@ library;
 export 'src/webrtc_dart_base.dart';
 
 // Core API
-export 'src/peer_connection.dart';
+export 'src/peer_connection.dart'
+    show
+        RtcPeerConnection,
+        PeerConnectionState,
+        SignalingState,
+        IceConnectionState,
+        IceGatheringState,
+        RtcConfiguration,
+        IceServer,
+        IceTransportPolicy,
+        RtcOfferOptions;
 export 'src/sdp/sdp.dart';
 export 'src/sdp/rtx_sdp.dart';
 
@@ -30,6 +40,7 @@ export 'src/media/media_stream_track.dart';
 export 'src/media/media_stream.dart';
 export 'src/media/rtp_transceiver.dart';
 export 'src/media/svc_manager.dart';
+export 'src/media/parameters.dart';
 
 // Codecs
 export 'src/codec/codec_parameters.dart';
@@ -51,8 +62,28 @@ export 'src/stats/rtp_stats.dart';
 export 'src/rtcp/psfb/pli.dart';
 export 'src/rtcp/psfb/fir.dart';
 export 'src/rtcp/psfb/psfb.dart';
+export 'src/rtcp/psfb/remb.dart';
+export 'src/rtcp/rtpfb/twcc.dart';
 export 'src/rtcp/nack.dart';
 
 // RTP Extensions
 export 'src/rtp/rtx.dart';
 export 'src/rtp/nack_handler.dart';
+export 'src/rtp/header_extension.dart';
+
+// RTP/SRTP
+export 'src/srtp/rtp_packet.dart';
+export 'src/srtp/rtcp_packet.dart';
+
+// Transport Layer
+export 'src/transport/transport.dart';
+export 'src/dtls/dtls_transport.dart';
+export 'src/sctp/association.dart';
+
+// STUN Protocol
+export 'src/stun/message.dart';
+export 'src/stun/attributes.dart';
+
+// Utilities
+export 'src/common/binary.dart'
+    show random16, random32, bufferXor, bufferArrayXor;

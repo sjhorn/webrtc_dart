@@ -56,7 +56,8 @@ void main() {
 
     test('disconnected has correct value', () {
       expect(RTCIceTransportState.disconnected.value, equals('disconnected'));
-      expect(RTCIceTransportState.disconnected.toString(), equals('disconnected'));
+      expect(
+          RTCIceTransportState.disconnected.toString(), equals('disconnected'));
     });
 
     test('failed has correct value', () {
@@ -141,7 +142,8 @@ void main() {
       expect(stats.localCertificateId, equals('cert-local'));
       expect(stats.remoteCertificateId, equals('cert-remote'));
       expect(stats.tlsVersion, equals('1.2'));
-      expect(stats.dtlsCipher, equals('TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256'));
+      expect(
+          stats.dtlsCipher, equals('TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256'));
       expect(stats.dtlsState, equals(RTCDtlsTransportState.connected));
       expect(stats.srtpCipher, equals('AEAD_AES_128_GCM'));
       expect(stats.tlsGroup, equals('X25519'));
@@ -192,7 +194,8 @@ void main() {
       expect(json['localCertificateId'], equals('cert-local'));
       expect(json['remoteCertificateId'], equals('cert-remote'));
       expect(json['tlsVersion'], equals('1.2'));
-      expect(json['dtlsCipher'], equals('TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256'));
+      expect(json['dtlsCipher'],
+          equals('TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256'));
       expect(json['dtlsState'], equals('connected'));
       expect(json['srtpCipher'], equals('AEAD_AES_128_GCM'));
       expect(json['tlsGroup'], equals('X25519'));

@@ -15,13 +15,19 @@ void main() {
     });
 
     test('fromValue returns correct type', () {
-      expect(RtcpPacketType.fromValue(200), equals(RtcpPacketType.senderReport));
-      expect(RtcpPacketType.fromValue(201), equals(RtcpPacketType.receiverReport));
-      expect(RtcpPacketType.fromValue(202), equals(RtcpPacketType.sourceDescription));
+      expect(
+          RtcpPacketType.fromValue(200), equals(RtcpPacketType.senderReport));
+      expect(
+          RtcpPacketType.fromValue(201), equals(RtcpPacketType.receiverReport));
+      expect(RtcpPacketType.fromValue(202),
+          equals(RtcpPacketType.sourceDescription));
       expect(RtcpPacketType.fromValue(203), equals(RtcpPacketType.goodbye));
-      expect(RtcpPacketType.fromValue(204), equals(RtcpPacketType.applicationDefined));
-      expect(RtcpPacketType.fromValue(205), equals(RtcpPacketType.transportFeedback));
-      expect(RtcpPacketType.fromValue(206), equals(RtcpPacketType.payloadFeedback));
+      expect(RtcpPacketType.fromValue(204),
+          equals(RtcpPacketType.applicationDefined));
+      expect(RtcpPacketType.fromValue(205),
+          equals(RtcpPacketType.transportFeedback));
+      expect(RtcpPacketType.fromValue(206),
+          equals(RtcpPacketType.payloadFeedback));
     });
 
     test('fromValue returns null for unknown values', () {
@@ -251,7 +257,8 @@ void main() {
         packetType: RtcpPacketType.receiverReport,
         length: 5,
         ssrc: 0xDEADBEEF,
-        payload: Uint8List.fromList([1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16]),
+        payload: Uint8List.fromList(
+            [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16]),
       );
 
       final bytes = original.serialize();
@@ -340,9 +347,11 @@ void main() {
       final compound = RtcpCompoundPacket.parse(data);
 
       expect(compound.packets.length, equals(2));
-      expect(compound.packets[0].packetType, equals(RtcpPacketType.senderReport));
+      expect(
+          compound.packets[0].packetType, equals(RtcpPacketType.senderReport));
       expect(compound.packets[0].ssrc, equals(0x11111111));
-      expect(compound.packets[1].packetType, equals(RtcpPacketType.sourceDescription));
+      expect(compound.packets[1].packetType,
+          equals(RtcpPacketType.sourceDescription));
       expect(compound.packets[1].ssrc, equals(0x22222222));
     });
 

@@ -5,14 +5,16 @@ import 'package:webrtc_dart/src/dtls/handshake/message/finished.dart';
 void main() {
   group('Finished', () {
     test('constructor creates Finished with verifyData', () {
-      final verifyData = Uint8List.fromList([1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12]);
+      final verifyData =
+          Uint8List.fromList([1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12]);
       final finished = Finished(verifyData: verifyData);
 
       expect(finished.verifyData, equals(verifyData));
     });
 
     test('create factory validates 12-byte verify data', () {
-      final verifyData = Uint8List.fromList([1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12]);
+      final verifyData =
+          Uint8List.fromList([1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12]);
       final finished = Finished.create(verifyData);
 
       expect(finished.verifyData, equals(verifyData));
@@ -42,7 +44,8 @@ void main() {
     });
 
     test('serialize returns verify data bytes', () {
-      final verifyData = Uint8List.fromList([1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12]);
+      final verifyData =
+          Uint8List.fromList([1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12]);
       final finished = Finished(verifyData: verifyData);
 
       final serialized = finished.serialize();
@@ -50,7 +53,20 @@ void main() {
     });
 
     test('parse creates Finished from 12-byte data', () {
-      final data = Uint8List.fromList([0xAA, 0xBB, 0xCC, 0xDD, 0xEE, 0xFF, 0x11, 0x22, 0x33, 0x44, 0x55, 0x66]);
+      final data = Uint8List.fromList([
+        0xAA,
+        0xBB,
+        0xCC,
+        0xDD,
+        0xEE,
+        0xFF,
+        0x11,
+        0x22,
+        0x33,
+        0x44,
+        0x55,
+        0x66
+      ]);
       final finished = Finished.parse(data);
 
       expect(finished.verifyData, equals(data));
@@ -80,7 +96,20 @@ void main() {
     });
 
     test('roundtrip serialize/parse', () {
-      final verifyData = Uint8List.fromList([0x01, 0x23, 0x45, 0x67, 0x89, 0xAB, 0xCD, 0xEF, 0x12, 0x34, 0x56, 0x78]);
+      final verifyData = Uint8List.fromList([
+        0x01,
+        0x23,
+        0x45,
+        0x67,
+        0x89,
+        0xAB,
+        0xCD,
+        0xEF,
+        0x12,
+        0x34,
+        0x56,
+        0x78
+      ]);
       final original = Finished(verifyData: verifyData);
 
       final serialized = original.serialize();
@@ -120,7 +149,8 @@ void main() {
 
     test('equality returns false for different lengths', () {
       final data1 = Uint8List.fromList([1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12]);
-      final data2 = Uint8List.fromList([1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13]);
+      final data2 =
+          Uint8List.fromList([1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13]);
 
       final finished1 = Finished(verifyData: data1);
       final finished2 = Finished(verifyData: data2);

@@ -17,7 +17,6 @@ import 'package:webrtc_dart/webrtc_dart.dart';
 
 // Import nonstandard track for writeRtp() support
 import 'package:webrtc_dart/src/nonstandard/media/track.dart' as nonstandard;
-import 'package:webrtc_dart/src/srtp/rtp_packet.dart';
 
 void main() async {
   print('=== FFmpeg Video Sender Example ===\n');

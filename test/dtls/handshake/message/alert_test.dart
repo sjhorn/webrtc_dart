@@ -81,7 +81,8 @@ void main() {
       test('unsupportedCertificate is fatal', () {
         final alert = Alert.unsupportedCertificate;
         expect(alert.level, equals(AlertLevel.fatal));
-        expect(alert.description, equals(AlertDescription.unsupportedCertificate));
+        expect(
+            alert.description, equals(AlertDescription.unsupportedCertificate));
       });
 
       test('certificateRevoked is fatal', () {
@@ -141,7 +142,8 @@ void main() {
       test('insufficientSecurity is fatal', () {
         final alert = Alert.insufficientSecurity;
         expect(alert.level, equals(AlertLevel.fatal));
-        expect(alert.description, equals(AlertDescription.insufficientSecurity));
+        expect(
+            alert.description, equals(AlertDescription.insufficientSecurity));
       });
 
       test('internalError is fatal', () {
@@ -165,7 +167,8 @@ void main() {
       test('unsupportedExtension is fatal', () {
         final alert = Alert.unsupportedExtension;
         expect(alert.level, equals(AlertLevel.fatal));
-        expect(alert.description, equals(AlertDescription.unsupportedExtension));
+        expect(
+            alert.description, equals(AlertDescription.unsupportedExtension));
       });
     });
 

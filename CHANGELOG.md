@@ -2,6 +2,25 @@
 
 All notable changes to this project will be documented in this file.
 
+## 0.22.5
+
+### Added
+
+- Expanded public API exports in `webrtc_dart.dart`:
+  - Configuration types: `PeerConnectionState`, `SignalingState`, `IceConnectionState`, `IceGatheringState`, `RtcConfiguration`, `IceServer`, `IceTransportPolicy`, `RtcOfferOptions`
+  - Media parameters: Complete RTP parameters API (`RTCRtpParameters`, `RTCRtpCodecParameters`, `RTCRtpEncodingParameters`, etc.)
+  - RTCP feedback: REMB (`src/rtcp/psfb/remb.dart`) and TWCC (`src/rtcp/rtpfb/twcc.dart`)
+  - RTP extensions: Header extension handling (`src/rtp/header_extension.dart`)
+  - RTCP packet types (`src/srtp/rtcp_packet.dart`)
+  - Transport layer: `IntegratedTransport`, `DtlsTransport`, `SctpAssociation`
+  - STUN protocol: Message and attribute handling for advanced use cases
+  - Binary utilities: `random16`, `random32`, `bufferXor`, `bufferArrayXor`
+
+### Changed
+
+- Core API exports now use explicit `show` clause for better API documentation
+- Improved package API completeness to match werift-webrtc structure
+
 ## 0.22.4
 
 ### Added

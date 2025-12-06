@@ -230,9 +230,10 @@ void main() {
       );
 
       expect(compound.packets.length, equals(1));
+      expect(compound.packets[0].packetType,
+          equals(RtcpPacketType.payloadFeedback));
       expect(
-          compound.packets[0].packetType, equals(RtcpPacketType.payloadFeedback));
-      expect(compound.packets[0].reportCount, equals(PictureLossIndication.fmt));
+          compound.packets[0].reportCount, equals(PictureLossIndication.fmt));
     });
   });
 
@@ -245,8 +246,8 @@ void main() {
       );
 
       expect(compound.packets.length, equals(1));
-      expect(
-          compound.packets[0].packetType, equals(RtcpPacketType.payloadFeedback));
+      expect(compound.packets[0].packetType,
+          equals(RtcpPacketType.payloadFeedback));
       expect(compound.packets[0].reportCount, equals(FullIntraRequest.fmt));
     });
   });
@@ -260,10 +261,10 @@ void main() {
       );
 
       expect(compound.packets.length, equals(1));
-      expect(
-          compound.packets[0].packetType, equals(RtcpPacketType.payloadFeedback));
-      expect(
-          compound.packets[0].reportCount, equals(ReceiverEstimatedMaxBitrate.fmt));
+      expect(compound.packets[0].packetType,
+          equals(RtcpPacketType.payloadFeedback));
+      expect(compound.packets[0].reportCount,
+          equals(ReceiverEstimatedMaxBitrate.fmt));
     });
   });
 }

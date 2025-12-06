@@ -24,13 +24,15 @@ void main() {
 
   group('TurnState', () {
     test('enum has all expected values', () {
-      expect(TurnState.values, containsAll([
-        TurnState.idle,
-        TurnState.connecting,
-        TurnState.connected,
-        TurnState.failed,
-        TurnState.closed,
-      ]));
+      expect(
+          TurnState.values,
+          containsAll([
+            TurnState.idle,
+            TurnState.connecting,
+            TurnState.connected,
+            TurnState.failed,
+            TurnState.closed,
+          ]));
     });
   });
 
@@ -287,8 +289,7 @@ void main() {
     });
 
     test('ignores unknown transport values', () {
-      final result =
-          parseTurnUrl('turn:turn.example.com?transport=udp');
+      final result = parseTurnUrl('turn:turn.example.com?transport=udp');
 
       expect(result, isNotNull);
       final (host, port, transport, secure) = result!;

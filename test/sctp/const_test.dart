@@ -129,8 +129,8 @@ void main() {
     });
 
     test('flags can be combined', () {
-      final flags = SctpDataChunkFlags.beginningFragment |
-          SctpDataChunkFlags.endFragment;
+      final flags =
+          SctpDataChunkFlags.beginningFragment | SctpDataChunkFlags.endFragment;
       expect(flags, equals(0x03));
 
       final allFlags = SctpDataChunkFlags.beginningFragment |
@@ -151,10 +151,10 @@ void main() {
     });
 
     test('fromValue returns correct type', () {
-      expect(
-          SctpParameterType.fromValue(1), equals(SctpParameterType.heartbeatInfo));
-      expect(
-          SctpParameterType.fromValue(7), equals(SctpParameterType.stateCookie));
+      expect(SctpParameterType.fromValue(1),
+          equals(SctpParameterType.heartbeatInfo));
+      expect(SctpParameterType.fromValue(7),
+          equals(SctpParameterType.stateCookie));
       expect(SctpParameterType.fromValue(0xC000),
           equals(SctpParameterType.forwardTsnSupported));
     });

@@ -21,7 +21,8 @@ void main() {
         profile: SrtpProtectionProfile.srtpAes128CmHmacSha1_80,
       );
 
-      expect(context.profile, equals(SrtpProtectionProfile.srtpAes128CmHmacSha1_80));
+      expect(context.profile,
+          equals(SrtpProtectionProfile.srtpAes128CmHmacSha1_80));
     });
 
     test('hasKeys returns false when keys not set', () {

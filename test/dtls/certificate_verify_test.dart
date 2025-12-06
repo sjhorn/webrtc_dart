@@ -62,7 +62,8 @@ void main() {
       final cv = CertificateVerify.parse(bytes);
 
       expect(cv.signatureScheme, equals(SignatureScheme.ecdsaSecp256r1Sha256));
-      expect(cv.signature, equals(Uint8List.fromList([0x11, 0x22, 0x33, 0x44])));
+      expect(
+          cv.signature, equals(Uint8List.fromList([0x11, 0x22, 0x33, 0x44])));
     });
 
     test('parse throws on too short data', () {

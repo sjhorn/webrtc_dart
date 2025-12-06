@@ -34,10 +34,12 @@ void main() {
     });
 
     test('fromValue returns correct description', () {
-      expect(AlertDescription.fromValue(0), equals(AlertDescription.closeNotify));
       expect(
-          AlertDescription.fromValue(40), equals(AlertDescription.handshakeFailure));
-      expect(AlertDescription.fromValue(48), equals(AlertDescription.unknownCa));
+          AlertDescription.fromValue(0), equals(AlertDescription.closeNotify));
+      expect(AlertDescription.fromValue(40),
+          equals(AlertDescription.handshakeFailure));
+      expect(
+          AlertDescription.fromValue(48), equals(AlertDescription.unknownCa));
     });
 
     test('fromValue returns null for unknown value', () {

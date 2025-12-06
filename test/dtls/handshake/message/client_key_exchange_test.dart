@@ -27,7 +27,8 @@ void main() {
     });
 
     test('parse from valid bytes', () {
-      final data = Uint8List.fromList([3, 0xAA, 0xBB, 0xCC]); // Length 3, then 3 bytes
+      final data =
+          Uint8List.fromList([3, 0xAA, 0xBB, 0xCC]); // Length 3, then 3 bytes
       final cke = ClientKeyExchange.parse(data);
 
       expect(cke.publicKey.length, equals(3));

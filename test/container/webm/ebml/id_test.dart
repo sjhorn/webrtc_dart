@@ -6,7 +6,8 @@ void main() {
   group('EbmlId', () {
     group('EBML Header IDs', () {
       test('ebml header ID has correct bytes', () {
-        expect(EbmlId.ebml, equals(Uint8List.fromList([0x1a, 0x45, 0xdf, 0xa3])));
+        expect(
+            EbmlId.ebml, equals(Uint8List.fromList([0x1a, 0x45, 0xdf, 0xa3])));
       });
 
       test('ebmlVersion ID has correct bytes', () {
@@ -14,15 +15,18 @@ void main() {
       });
 
       test('ebmlReadVersion ID has correct bytes', () {
-        expect(EbmlId.ebmlReadVersion, equals(Uint8List.fromList([0x42, 0xf7])));
+        expect(
+            EbmlId.ebmlReadVersion, equals(Uint8List.fromList([0x42, 0xf7])));
       });
 
       test('ebmlMaxIdLength ID has correct bytes', () {
-        expect(EbmlId.ebmlMaxIdLength, equals(Uint8List.fromList([0x42, 0xf2])));
+        expect(
+            EbmlId.ebmlMaxIdLength, equals(Uint8List.fromList([0x42, 0xf2])));
       });
 
       test('ebmlMaxSizeLength ID has correct bytes', () {
-        expect(EbmlId.ebmlMaxSizeLength, equals(Uint8List.fromList([0x42, 0xf3])));
+        expect(
+            EbmlId.ebmlMaxSizeLength, equals(Uint8List.fromList([0x42, 0xf3])));
       });
 
       test('docType ID has correct bytes', () {
@@ -34,7 +38,8 @@ void main() {
       });
 
       test('docTypeReadVersion ID has correct bytes', () {
-        expect(EbmlId.docTypeReadVersion, equals(Uint8List.fromList([0x42, 0x85])));
+        expect(EbmlId.docTypeReadVersion,
+            equals(Uint8List.fromList([0x42, 0x85])));
       });
     });
 
@@ -50,13 +55,15 @@ void main() {
 
     group('Segment IDs', () {
       test('segment ID has correct bytes', () {
-        expect(EbmlId.segment, equals(Uint8List.fromList([0x18, 0x53, 0x80, 0x67])));
+        expect(EbmlId.segment,
+            equals(Uint8List.fromList([0x18, 0x53, 0x80, 0x67])));
       });
     });
 
     group('Seek Head IDs', () {
       test('seekHead ID has correct bytes', () {
-        expect(EbmlId.seekHead, equals(Uint8List.fromList([0x11, 0x4d, 0x9b, 0x74])));
+        expect(EbmlId.seekHead,
+            equals(Uint8List.fromList([0x11, 0x4d, 0x9b, 0x74])));
       });
 
       test('seek ID has correct bytes', () {
@@ -74,11 +81,13 @@ void main() {
 
     group('Segment Info IDs', () {
       test('info ID has correct bytes', () {
-        expect(EbmlId.info, equals(Uint8List.fromList([0x15, 0x49, 0xa9, 0x66])));
+        expect(
+            EbmlId.info, equals(Uint8List.fromList([0x15, 0x49, 0xa9, 0x66])));
       });
 
       test('timecodeScale ID has correct bytes', () {
-        expect(EbmlId.timecodeScale, equals(Uint8List.fromList([0x2a, 0xd7, 0xb1])));
+        expect(EbmlId.timecodeScale,
+            equals(Uint8List.fromList([0x2a, 0xd7, 0xb1])));
       });
 
       test('duration ID has correct bytes', () {
@@ -96,7 +105,8 @@ void main() {
 
     group('Cluster IDs', () {
       test('cluster ID has correct bytes', () {
-        expect(EbmlId.cluster, equals(Uint8List.fromList([0x1f, 0x43, 0xb6, 0x75])));
+        expect(EbmlId.cluster,
+            equals(Uint8List.fromList([0x1f, 0x43, 0xb6, 0x75])));
       });
 
       test('timecode ID has correct bytes', () {
@@ -118,7 +128,8 @@ void main() {
 
     group('Track IDs', () {
       test('tracks ID has correct bytes', () {
-        expect(EbmlId.tracks, equals(Uint8List.fromList([0x16, 0x54, 0xae, 0x6b])));
+        expect(EbmlId.tracks,
+            equals(Uint8List.fromList([0x16, 0x54, 0xae, 0x6b])));
       });
 
       test('trackEntry ID has correct bytes', () {
@@ -188,7 +199,8 @@ void main() {
 
     group('Cue IDs', () {
       test('cues ID has correct bytes', () {
-        expect(EbmlId.cues, equals(Uint8List.fromList([0x1c, 0x53, 0xbb, 0x6b])));
+        expect(
+            EbmlId.cues, equals(Uint8List.fromList([0x1c, 0x53, 0xbb, 0x6b])));
       });
 
       test('cuePoint ID has correct bytes', () {
@@ -206,7 +218,8 @@ void main() {
 
     group('Chapter IDs', () {
       test('chapters ID has correct bytes', () {
-        expect(EbmlId.chapters, equals(Uint8List.fromList([0x10, 0x43, 0xa7, 0x70])));
+        expect(EbmlId.chapters,
+            equals(Uint8List.fromList([0x10, 0x43, 0xa7, 0x70])));
       });
 
       test('chapterAtom ID has correct bytes', () {
@@ -224,7 +237,8 @@ void main() {
 
     group('Tag IDs', () {
       test('tags ID has correct bytes', () {
-        expect(EbmlId.tags, equals(Uint8List.fromList([0x12, 0x54, 0xc3, 0x67])));
+        expect(
+            EbmlId.tags, equals(Uint8List.fromList([0x12, 0x54, 0xc3, 0x67])));
       });
 
       test('tag ID has correct bytes', () {

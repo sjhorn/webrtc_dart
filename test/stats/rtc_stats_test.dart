@@ -10,7 +10,8 @@ void main() {
       expect(RTCStatsType.inboundRtp.value, equals('inbound-rtp'));
       expect(RTCStatsType.outboundRtp.value, equals('outbound-rtp'));
       expect(RTCStatsType.remoteInboundRtp.value, equals('remote-inbound-rtp'));
-      expect(RTCStatsType.remoteOutboundRtp.value, equals('remote-outbound-rtp'));
+      expect(
+          RTCStatsType.remoteOutboundRtp.value, equals('remote-outbound-rtp'));
       expect(RTCStatsType.mediaSource.value, equals('media-source'));
       expect(RTCStatsType.peerConnection.value, equals('peer-connection'));
       expect(RTCStatsType.dataChannel.value, equals('data-channel'));
@@ -89,11 +90,13 @@ void main() {
     });
 
     test('filters out null parts', () {
-      expect(generateStatsId('transport', [null, '1', null, '2']), equals('transport_1_2'));
+      expect(generateStatsId('transport', [null, '1', null, '2']),
+          equals('transport_1_2'));
     });
 
     test('converts parts to strings', () {
-      expect(generateStatsId('transport', [123, 'abc']), equals('transport_123_abc'));
+      expect(generateStatsId('transport', [123, 'abc']),
+          equals('transport_123_abc'));
     });
   });
 

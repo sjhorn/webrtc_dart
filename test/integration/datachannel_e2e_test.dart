@@ -232,18 +232,26 @@ void main() {
 
       print('✓ Both DataChannels are open!');
 
-      // Set up message receivers
+      // Set up message receivers with Completers to wait for delivery
       final peer1Messages = <String>[];
       final peer2Messages = <String>[];
+      final peer1ReceivedMessage = Completer<void>();
+      final peer2ReceivedMessage = Completer<void>();
 
       channel1.onMessage.listen((message) {
         print('Peer 1 received: "$message"');
         peer1Messages.add(message.toString());
+        if (!peer1ReceivedMessage.isCompleted) {
+          peer1ReceivedMessage.complete();
+        }
       });
 
       channel2.onMessage.listen((message) {
         print('Peer 2 received: "$message"');
         peer2Messages.add(message.toString());
+        if (!peer2ReceivedMessage.isCompleted) {
+          peer2ReceivedMessage.complete();
+        }
       });
 
       // Exchange messages
@@ -252,13 +260,23 @@ void main() {
       print('Peer 1 sending: "Hello from Peer 1!"');
       await channel1.sendString('Hello from Peer 1!');
 
-      await Future.delayed(Duration(milliseconds: 100));
-
       print('Peer 2 sending: "Hello from Peer 2!"');
       await channel2.sendString('Hello from Peer 2!');
 
-      // Wait for messages to be delivered
-      await Future.delayed(Duration(milliseconds: 200));
+      // Wait for messages to be delivered using Completers with timeout
+      print('Waiting for message delivery...');
+      try {
+        await Future.wait([
+          peer1ReceivedMessage.future,
+          peer2ReceivedMessage.future,
+        ]).timeout(Duration(seconds: 5));
+        print('Both messages delivered successfully');
+      } catch (e) {
+        print('Timeout waiting for messages: $e');
+        print('Peer 1 received: $peer1Messages');
+        print('Peer 2 received: $peer2Messages');
+        // Don't rethrow - let the assertions below handle failure
+      }
 
       // Verify messages were received
       print('\n--- Verification ---');

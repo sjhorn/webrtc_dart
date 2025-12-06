@@ -2,6 +2,22 @@
 
 All notable changes to this project will be documented in this file.
 
+## 0.22.4
+
+### Added
+
+- Test coverage improvements: 2171 tests, 80% code coverage
+- New test files for DTLS, stats, and media components:
+  - DTLS handshake message tests (finished, alert, random, client_key_exchange)
+  - Extended master secret extension tests
+  - Transport and certificate stats tests
+  - Media parameters tests (RTCRtpEncodingParameters, RTCRtpSendParameters)
+  - Processor interface tests (CallbackProcessor, AVProcessor mixin)
+
+### Changed
+
+- Updated README with accurate test count and coverage metrics
+
 ## 0.22.3
 
 ### Changed

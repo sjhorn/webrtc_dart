@@ -107,5 +107,109 @@ void main() {
 
       expect(() => RtpPacket.parse(data), throwsFormatException);
     });
+
+    test('handles extension header', () {
+      final packet = RtpPacket(
+        payloadType: 96,
+        sequenceNumber: 1,
+        timestamp: 1000,
+        ssrc: 0x11111111,
+        extension: true,
+        extensionHeader: RtpExtension(
+          profile: 0xBEDE,
+          data: Uint8List.fromList([1, 2, 3, 4, 5, 6, 7, 8]),
+        ),
+        payload: Uint8List(10),
+      );
+
+      final serialized = packet.serialize();
+      final parsed = RtpPacket.parse(serialized);
+
+      expect(parsed.extension, true);
+      expect(parsed.extensionHeader, isNotNull);
+      expect(parsed.extensionHeader!.profile, 0xBEDE);
+      expect(parsed.extensionHeader!.data.length, 8);
+    });
+
+    test('rejects truncated CSRC list', () {
+      final data = Uint8List.fromList([
+        0x82, // V=2, CC=2
+        0x60,
+        0x00, 0x01,
+        0x00, 0x00, 0x00, 0x00,
+        0x00, 0x00, 0x00, 0x00,
+        0x11, 0x11, 0x11, 0x11, // Only 1 CSRC
+      ]);
+
+      expect(() => RtpPacket.parse(data), throwsFormatException);
+    });
+
+    test('rejects truncated extension header', () {
+      final data = Uint8List.fromList([
+        0x90, // V=2, X=1
+        0x60,
+        0x00, 0x01,
+        0x00, 0x00, 0x00, 0x00,
+        0x00, 0x00, 0x00, 0x00,
+        0xBE, 0xDE, // profile only
+      ]);
+
+      expect(() => RtpPacket.parse(data), throwsFormatException);
+    });
+
+    test('rejects truncated extension data', () {
+      final data = Uint8List.fromList([
+        0x90, // V=2, X=1
+        0x60,
+        0x00, 0x01,
+        0x00, 0x00, 0x00, 0x00,
+        0x00, 0x00, 0x00, 0x00,
+        0xBE, 0xDE,
+        0x00, 0x02, // 8 bytes expected
+        1, 2, 3, 4, // only 4 bytes
+      ]);
+
+      expect(() => RtpPacket.parse(data), throwsFormatException);
+    });
+
+    test('rejects invalid padding length', () {
+      final data = Uint8List.fromList([
+        0xA0, // V=2, P=1
+        0x60,
+        0x00, 0x01,
+        0x00, 0x00, 0x00, 0x00,
+        0x00, 0x00, 0x00, 0x00,
+        0x00, // padding length = 0
+      ]);
+
+      expect(() => RtpPacket.parse(data), throwsFormatException);
+    });
+
+    test('toString returns readable format', () {
+      final packet = RtpPacket(
+        payloadType: 96,
+        sequenceNumber: 100,
+        timestamp: 5000,
+        ssrc: 0x12345678,
+        payload: Uint8List(50),
+      );
+
+      final str = packet.toString();
+      expect(str, contains('RtpPacket'));
+      expect(str, contains('pt=96'));
+      expect(str, contains('seq=100'));
+    });
+  });
+
+  group('RtpExtension', () {
+    test('construction', () {
+      final ext = RtpExtension(
+        profile: 0xBEDE,
+        data: Uint8List.fromList([1, 2, 3, 4]),
+      );
+
+      expect(ext.profile, 0xBEDE);
+      expect(ext.data.length, 4);
+    });
   });
 }

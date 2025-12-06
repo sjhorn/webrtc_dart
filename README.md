@@ -21,7 +21,7 @@ Add to your `pubspec.yaml`:
 
 ```yaml
 dependencies:
-  webrtc_dart: ^0.22.2
+  webrtc_dart: ^0.22.4
 ```
 
 Then run:
@@ -326,7 +326,7 @@ lib/src/
 
 ## Test Coverage
 
-**1658 tests passing** covering all implemented components.
+**2171 tests passing** with **80% code coverage**.
 
 ```bash
 # Run all tests

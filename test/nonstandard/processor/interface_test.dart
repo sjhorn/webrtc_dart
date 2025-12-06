@@ -171,4 +171,107 @@ void main() {
       expect(processor, isA<SimpleProcessorCallback<int, String>>());
     });
   });
+
+  group('SimpleProcessorCallbackMixin', () {
+    test('mixin provides callback functionality', () {
+      final processor = MixinProcessor();
+      final received = <String>[];
+
+      processor.pipe(received.add);
+      processor.input(42);
+
+      expect(received, equals(['mixin:42']));
+    });
+
+    test('mixin destroy clears callback and calls destructor', () {
+      final processor = MixinProcessor();
+      var destructorCalled = false;
+      final received = <String>[];
+
+      processor.pipe(received.add, () => destructorCalled = true);
+      processor.input(1);
+
+      expect(received, equals(['mixin:1']));
+      expect(destructorCalled, isFalse);
+
+      processor.destroy();
+      expect(destructorCalled, isTrue);
+
+      // After destroy, no more outputs
+      processor.input(2);
+      expect(received, equals(['mixin:1']));
+    });
+
+    test('mixin pipe returns self for chaining', () {
+      final processor = MixinProcessor();
+      final result = processor.pipe((_) {});
+      expect(result, same(processor));
+    });
+  });
+
+  group('AVProcessor interface', () {
+    test('processAudioInput handles audio data', () {
+      final processor = TestAVProcessor();
+      processor.processAudioInput(100);
+      processor.processAudioInput(200);
+
+      expect(processor.audioInputs, equals([100, 200]));
+    });
+
+    test('processVideoInput handles video data', () {
+      final processor = TestAVProcessor();
+      processor.processVideoInput(300);
+      processor.processVideoInput(400);
+
+      expect(processor.videoInputs, equals([300, 400]));
+    });
+
+    test('toJson returns processor state', () {
+      final processor = TestAVProcessor();
+      processor.processAudioInput(1);
+      processor.processVideoInput(2);
+
+      final json = processor.toJson();
+      expect(json['audioCount'], equals(1));
+      expect(json['videoCount'], equals(1));
+    });
+  });
+}
+
+// Test implementation using SimpleProcessorCallbackMixin
+class MixinProcessor extends Processor<int, String>
+    with SimpleProcessorCallbackMixin<int, String> {
+  @override
+  List<String> processInput(int input) {
+    return ['mixin:$input'];
+  }
+
+  @override
+  Map<String, dynamic> toJson() {
+    return {'type': 'mixin'};
+  }
+}
+
+// Test implementation of AVProcessor
+class TestAVProcessor implements AVProcessor<int> {
+  final audioInputs = <int>[];
+  final videoInputs = <int>[];
+
+  @override
+  void processAudioInput(int input) {
+    audioInputs.add(input);
+  }
+
+  @override
+  void processVideoInput(int input) {
+    videoInputs.add(input);
+  }
+
+  @override
+  Map<String, dynamic> toJson() {
+    return {
+      'audioCount': audioInputs.length,
+      'videoCount': videoInputs.length,
+    };
+  }
 }

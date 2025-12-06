@@ -10,6 +10,15 @@ test/
 # Exclude benchmark
 benchmark/
 
+# Exclude build artifacts
+build/
+
+# Exclude coverage reports
+coverage/
+
+# Exclude internal documentation
+doc/
+
 # Exclude development documentation
 docs/
 AGENTS.md

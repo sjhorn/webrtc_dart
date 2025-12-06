@@ -44,7 +44,7 @@ This is a pure Dart port of the [werift-webrtc](https://github.com/shinyoshiaki/
 
 Automated Playwright test suite in `interop/automated/`
 
-See **TODO.md** for remaining items and **ROADMAP.md** for detailed implementation status.
+See **ROADMAP.md** for detailed implementation history and future work.
 
 ---
 
@@ -263,8 +263,13 @@ Each layer should be validated independently before building on top of it.
 
 ---
 
+## Dart Package Conventions
+
+- **example/example.md**: Required by Dart package conventions for pub.dev Example tab. Keep this file with a simple, runnable example.
+
+---
+
 ## References
 
 - TypeScript source: `./werift-webrtc`
-- TODO tracking: See `TODO.md`
 - Roadmap: See `ROADMAP.md`

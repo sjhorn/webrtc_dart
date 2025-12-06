@@ -3,9 +3,9 @@ description: >-
   Pure Dart WebRTC implementation. DataChannels, media streaming, ICE/DTLS/SCTP/RTP.
   Port of werift-webrtc. No native dependencies - works on any Dart platform.
 version: 0.22.2
-repository: https://github.com/parity-asia/webrtc_dart
-homepage: https://github.com/parity-asia/webrtc_dart
-documentation: https://github.com/parity-asia/webrtc_dart#readme
+repository: https://github.com/sjhorn/webrtc_dart
+homepage: https://github.com/sjhorn/webrtc_dart
+documentation: https://github.com/sjhorn/webrtc_dart#readme
 
 topics:
   - webrtc

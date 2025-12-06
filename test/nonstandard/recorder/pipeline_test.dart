@@ -326,13 +326,15 @@ void main() {
 
   group('DepacketizerCodec', () {
     test('includes all supported codecs', () {
-      expect(DepacketizerCodec.values, containsAll([
-        DepacketizerCodec.vp8,
-        DepacketizerCodec.vp9,
-        DepacketizerCodec.h264,
-        DepacketizerCodec.av1,
-        DepacketizerCodec.opus,
-      ]));
+      expect(
+          DepacketizerCodec.values,
+          containsAll([
+            DepacketizerCodec.vp8,
+            DepacketizerCodec.vp9,
+            DepacketizerCodec.h264,
+            DepacketizerCodec.av1,
+            DepacketizerCodec.opus,
+          ]));
     });
   });
 }

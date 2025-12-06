@@ -11,7 +11,8 @@ void main() {
         final outputs = <WebmOutput>[];
         final processor = WebmProcessor(
           tracks: [
-            WebmTrack(trackNumber: 1, kind: TrackKind.video, codec: WebmCodec.vp8),
+            WebmTrack(
+                trackNumber: 1, kind: TrackKind.video, codec: WebmCodec.vp8),
           ],
           onOutput: outputs.add,
         );
@@ -32,7 +33,8 @@ void main() {
         final outputs = <WebmOutput>[];
         final processor = WebmProcessor(
           tracks: [
-            WebmTrack(trackNumber: 1, kind: TrackKind.video, codec: WebmCodec.vp8),
+            WebmTrack(
+                trackNumber: 1, kind: TrackKind.video, codec: WebmCodec.vp8),
           ],
           onOutput: outputs.add,
         );
@@ -49,7 +51,8 @@ void main() {
         final outputs = <WebmOutput>[];
         final processor = WebmProcessor(
           tracks: [
-            WebmTrack(trackNumber: 1, kind: TrackKind.video, codec: WebmCodec.vp8),
+            WebmTrack(
+                trackNumber: 1, kind: TrackKind.video, codec: WebmCodec.vp8),
           ],
           onOutput: outputs.add,
         );
@@ -73,7 +76,8 @@ void main() {
         final outputs = <WebmOutput>[];
         final processor = WebmProcessor(
           tracks: [
-            WebmTrack(trackNumber: 1, kind: TrackKind.video, codec: WebmCodec.vp8),
+            WebmTrack(
+                trackNumber: 1, kind: TrackKind.video, codec: WebmCodec.vp8),
           ],
           onOutput: outputs.add,
         );
@@ -104,7 +108,8 @@ void main() {
           trackNumber: 1,
         ));
 
-        final clusterCount = outputs.where((o) => o.kind == WebmOutputKind.cluster).length;
+        final clusterCount =
+            outputs.where((o) => o.kind == WebmOutputKind.cluster).length;
         expect(clusterCount, equals(2));
       });
 
@@ -112,8 +117,10 @@ void main() {
         final outputs = <WebmOutput>[];
         final processor = WebmProcessor(
           tracks: [
-            WebmTrack(trackNumber: 1, kind: TrackKind.video, codec: WebmCodec.vp8),
-            WebmTrack(trackNumber: 2, kind: TrackKind.audio, codec: WebmCodec.opus),
+            WebmTrack(
+                trackNumber: 1, kind: TrackKind.video, codec: WebmCodec.vp8),
+            WebmTrack(
+                trackNumber: 2, kind: TrackKind.audio, codec: WebmCodec.opus),
           ],
           onOutput: outputs.add,
         );
@@ -134,7 +141,8 @@ void main() {
           trackNumber: 2,
         ));
 
-        final blockCount = outputs.where((o) => o.kind == WebmOutputKind.block).length;
+        final blockCount =
+            outputs.where((o) => o.kind == WebmOutputKind.block).length;
         expect(blockCount, equals(2));
       });
 
@@ -142,7 +150,8 @@ void main() {
         final outputs = <WebmOutput>[];
         final processor = WebmProcessor(
           tracks: [
-            WebmTrack(trackNumber: 1, kind: TrackKind.video, codec: WebmCodec.vp8),
+            WebmTrack(
+                trackNumber: 1, kind: TrackKind.video, codec: WebmCodec.vp8),
           ],
           onOutput: outputs.add,
         );
@@ -166,7 +175,8 @@ void main() {
         final outputs = <WebmOutput>[];
         final processor = WebmProcessor(
           tracks: [
-            WebmTrack(trackNumber: 1, kind: TrackKind.video, codec: WebmCodec.vp8),
+            WebmTrack(
+                trackNumber: 1, kind: TrackKind.video, codec: WebmCodec.vp8),
           ],
           onOutput: outputs.add,
         );
@@ -198,7 +208,8 @@ void main() {
         final outputs = <WebmOutput>[];
         final processor = WebmProcessor(
           tracks: [
-            WebmTrack(trackNumber: 1, kind: TrackKind.video, codec: WebmCodec.vp8),
+            WebmTrack(
+                trackNumber: 1, kind: TrackKind.video, codec: WebmCodec.vp8),
           ],
           onOutput: outputs.add,
         );
@@ -222,7 +233,8 @@ void main() {
         final outputs = <WebmOutput>[];
         final processor = WebmProcessor(
           tracks: [
-            WebmTrack(trackNumber: 1, kind: TrackKind.audio, codec: WebmCodec.opus),
+            WebmTrack(
+                trackNumber: 1, kind: TrackKind.audio, codec: WebmCodec.opus),
           ],
           onOutput: outputs.add,
         );
@@ -244,7 +256,8 @@ void main() {
         final outputs = <WebmOutput>[];
         final processor = WebmProcessor(
           tracks: [
-            WebmTrack(trackNumber: 1, kind: TrackKind.video, codec: WebmCodec.vp8),
+            WebmTrack(
+                trackNumber: 1, kind: TrackKind.video, codec: WebmCodec.vp8),
           ],
           onOutput: outputs.add,
         );
@@ -260,9 +273,11 @@ void main() {
         processor.stop();
 
         expect(outputs.any((o) => o.kind == WebmOutputKind.cuePoints), isTrue);
-        expect(outputs.any((o) => o.kind == WebmOutputKind.endOfStream), isTrue);
+        expect(
+            outputs.any((o) => o.kind == WebmOutputKind.endOfStream), isTrue);
 
-        final eos = outputs.firstWhere((o) => o.kind == WebmOutputKind.endOfStream);
+        final eos =
+            outputs.firstWhere((o) => o.kind == WebmOutputKind.endOfStream);
         expect(eos.endOfStream, isNotNull);
         expect(eos.endOfStream!.header, isNotNull);
         expect(eos.endOfStream!.durationElement, isNotNull);
@@ -272,7 +287,8 @@ void main() {
         final outputs = <WebmOutput>[];
         final processor = WebmProcessor(
           tracks: [
-            WebmTrack(trackNumber: 1, kind: TrackKind.video, codec: WebmCodec.vp8),
+            WebmTrack(
+                trackNumber: 1, kind: TrackKind.video, codec: WebmCodec.vp8),
           ],
           onOutput: outputs.add,
         );
@@ -289,7 +305,8 @@ void main() {
         final outputs = <WebmOutput>[];
         final processor = WebmProcessor(
           tracks: [
-            WebmTrack(trackNumber: 1, kind: TrackKind.video, codec: WebmCodec.vp8),
+            WebmTrack(
+                trackNumber: 1, kind: TrackKind.video, codec: WebmCodec.vp8),
           ],
           onOutput: outputs.add,
         );
@@ -306,7 +323,8 @@ void main() {
         final outputs = <WebmOutput>[];
         final processor = WebmProcessor(
           tracks: [
-            WebmTrack(trackNumber: 1, kind: TrackKind.video, codec: WebmCodec.vp8),
+            WebmTrack(
+                trackNumber: 1, kind: TrackKind.video, codec: WebmCodec.vp8),
           ],
           onOutput: outputs.add,
         );
@@ -331,8 +349,10 @@ void main() {
         final outputs = <WebmOutput>[];
         final processor = WebmProcessor(
           tracks: [
-            WebmTrack(trackNumber: 1, kind: TrackKind.video, codec: WebmCodec.vp8),
-            WebmTrack(trackNumber: 2, kind: TrackKind.audio, codec: WebmCodec.opus),
+            WebmTrack(
+                trackNumber: 1, kind: TrackKind.video, codec: WebmCodec.vp8),
+            WebmTrack(
+                trackNumber: 2, kind: TrackKind.audio, codec: WebmCodec.opus),
           ],
           onOutput: outputs.add,
         );
@@ -350,7 +370,8 @@ void main() {
         final outputs = <WebmOutput>[];
         final processor = WebmProcessor(
           tracks: [
-            WebmTrack(trackNumber: 1, kind: TrackKind.video, codec: WebmCodec.vp8),
+            WebmTrack(
+                trackNumber: 1, kind: TrackKind.video, codec: WebmCodec.vp8),
           ],
           onOutput: outputs.add,
         );
@@ -368,7 +389,8 @@ void main() {
         final outputs = <WebmOutput>[];
         final processor = WebmProcessor(
           tracks: [
-            WebmTrack(trackNumber: 1, kind: TrackKind.video, codec: WebmCodec.vp8),
+            WebmTrack(
+                trackNumber: 1, kind: TrackKind.video, codec: WebmCodec.vp8),
           ],
           onOutput: outputs.add,
         );
@@ -384,7 +406,8 @@ void main() {
           ));
         }
 
-        final blockCount = outputs.where((o) => o.kind == WebmOutputKind.block).length;
+        final blockCount =
+            outputs.where((o) => o.kind == WebmOutputKind.block).length;
         expect(blockCount, equals(10));
       });
 
@@ -392,7 +415,8 @@ void main() {
         final outputs = <WebmOutput>[];
         final processor = WebmProcessor(
           tracks: [
-            WebmTrack(trackNumber: 1, kind: TrackKind.video, codec: WebmCodec.vp8),
+            WebmTrack(
+                trackNumber: 1, kind: TrackKind.video, codec: WebmCodec.vp8),
           ],
           onOutput: outputs.add,
         );
@@ -415,7 +439,8 @@ void main() {
           trackNumber: 1,
         ));
 
-        final clusterCount = outputs.where((o) => o.kind == WebmOutputKind.cluster).length;
+        final clusterCount =
+            outputs.where((o) => o.kind == WebmOutputKind.cluster).length;
         expect(clusterCount, equals(2));
       });
     });
@@ -425,7 +450,8 @@ void main() {
         final outputs = <WebmOutput>[];
         final processor = WebmProcessor(
           tracks: [
-            WebmTrack(trackNumber: 1, kind: TrackKind.video, codec: WebmCodec.vp8),
+            WebmTrack(
+                trackNumber: 1, kind: TrackKind.video, codec: WebmCodec.vp8),
           ],
           onOutput: outputs.add,
           options: WebmProcessorOptions(strictTimestamp: true),
@@ -459,7 +485,8 @@ void main() {
         ));
 
         // Should only have 2 blocks (third frame rejected due to strict mode)
-        final blockCount = outputs.where((o) => o.kind == WebmOutputKind.block).length;
+        final blockCount =
+            outputs.where((o) => o.kind == WebmOutputKind.block).length;
         expect(blockCount, equals(2));
       });
 
@@ -467,7 +494,8 @@ void main() {
         final outputs = <WebmOutput>[];
         final processor = WebmProcessor(
           tracks: [
-            WebmTrack(trackNumber: 1, kind: TrackKind.video, codec: WebmCodec.vp8),
+            WebmTrack(
+                trackNumber: 1, kind: TrackKind.video, codec: WebmCodec.vp8),
           ],
           onOutput: outputs.add,
           options: WebmProcessorOptions(strictTimestamp: false),
@@ -500,7 +528,8 @@ void main() {
         ));
 
         // Should have 3 blocks (strict=false allows out-of-order within cluster)
-        final blockCount = outputs.where((o) => o.kind == WebmOutputKind.block).length;
+        final blockCount =
+            outputs.where((o) => o.kind == WebmOutputKind.block).length;
         expect(blockCount, equals(3));
       });
     });
@@ -510,7 +539,8 @@ void main() {
         final outputs = <WebmOutput>[];
         final processor = WebmProcessor(
           tracks: [
-            WebmTrack(trackNumber: 1, kind: TrackKind.video, codec: WebmCodec.vp8),
+            WebmTrack(
+                trackNumber: 1, kind: TrackKind.video, codec: WebmCodec.vp8),
           ],
           onOutput: outputs.add,
         );
@@ -533,7 +563,8 @@ void main() {
 
         processor.stop();
 
-        final eos = outputs.firstWhere((o) => o.kind == WebmOutputKind.endOfStream);
+        final eos =
+            outputs.firstWhere((o) => o.kind == WebmOutputKind.endOfStream);
         expect(eos.endOfStream!.durationMs, equals(5000));
       });
 
@@ -541,7 +572,8 @@ void main() {
         final outputs = <WebmOutput>[];
         final processor = WebmProcessor(
           tracks: [
-            WebmTrack(trackNumber: 1, kind: TrackKind.video, codec: WebmCodec.vp8),
+            WebmTrack(
+                trackNumber: 1, kind: TrackKind.video, codec: WebmCodec.vp8),
           ],
           onOutput: outputs.add,
           options: WebmProcessorOptions(durationMs: 10000),
@@ -560,8 +592,14 @@ void main() {
         final outputs = <WebmOutput>[];
         final processor = WebmProcessor(
           tracks: [
-            WebmTrack(trackNumber: 1, kind: TrackKind.video, codec: WebmCodec.vp8, width: 640, height: 480),
-            WebmTrack(trackNumber: 2, kind: TrackKind.audio, codec: WebmCodec.opus),
+            WebmTrack(
+                trackNumber: 1,
+                kind: TrackKind.video,
+                codec: WebmCodec.vp8,
+                width: 640,
+                height: 480),
+            WebmTrack(
+                trackNumber: 2, kind: TrackKind.audio, codec: WebmCodec.opus),
           ],
           onOutput: outputs.add,
         );
@@ -592,10 +630,12 @@ void main() {
         expect(outputs.any((o) => o.kind == WebmOutputKind.cluster), isTrue);
         expect(outputs.any((o) => o.kind == WebmOutputKind.block), isTrue);
         expect(outputs.any((o) => o.kind == WebmOutputKind.cuePoints), isTrue);
-        expect(outputs.any((o) => o.kind == WebmOutputKind.endOfStream), isTrue);
+        expect(
+            outputs.any((o) => o.kind == WebmOutputKind.endOfStream), isTrue);
 
         // Should have blocks for both tracks
-        final blockCount = outputs.where((o) => o.kind == WebmOutputKind.block).length;
+        final blockCount =
+            outputs.where((o) => o.kind == WebmOutputKind.block).length;
         expect(blockCount, equals(10)); // 5 video + 5 audio
       });
 
@@ -603,7 +643,8 @@ void main() {
         final chunks = <Uint8List>[];
         final processor = WebmProcessor(
           tracks: [
-            WebmTrack(trackNumber: 1, kind: TrackKind.video, codec: WebmCodec.vp8),
+            WebmTrack(
+                trackNumber: 1, kind: TrackKind.video, codec: WebmCodec.vp8),
           ],
           onOutput: (output) {
             if (output.data != null) {
@@ -631,7 +672,8 @@ void main() {
         processor.stop();
 
         // Assemble file
-        final totalSize = chunks.fold<int>(0, (sum, chunk) => sum + chunk.length);
+        final totalSize =
+            chunks.fold<int>(0, (sum, chunk) => sum + chunk.length);
         final file = Uint8List(totalSize);
         var offset = 0;
         for (final chunk in chunks) {

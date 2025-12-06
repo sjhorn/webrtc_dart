@@ -62,8 +62,8 @@ void main() {
 
     group('RtpHeaderExtension', () {
       test('parse simple extmap', () {
-        final ext = RtpHeaderExtension.parse(
-            '1 urn:ietf:params:rtp-hdrext:sdes:mid');
+        final ext =
+            RtpHeaderExtension.parse('1 urn:ietf:params:rtp-hdrext:sdes:mid');
         expect(ext.id, equals(1));
         expect(ext.uri, equals('urn:ietf:params:rtp-hdrext:sdes:mid'));
         expect(ext.direction, isNull);
@@ -73,8 +73,8 @@ void main() {
         final ext = RtpHeaderExtension.parse(
             '2/sendonly urn:ietf:params:rtp-hdrext:sdes:rtp-stream-id');
         expect(ext.id, equals(2));
-        expect(ext.uri,
-            equals('urn:ietf:params:rtp-hdrext:sdes:rtp-stream-id'));
+        expect(
+            ext.uri, equals('urn:ietf:params:rtp-hdrext:sdes:rtp-stream-id'));
         expect(ext.direction, equals('sendonly'));
       });
 
@@ -83,8 +83,8 @@ void main() {
           id: 1,
           uri: 'urn:ietf:params:rtp-hdrext:sdes:mid',
         );
-        expect(ext.serialize(),
-            equals('1 urn:ietf:params:rtp-hdrext:sdes:mid'));
+        expect(
+            ext.serialize(), equals('1 urn:ietf:params:rtp-hdrext:sdes:mid'));
       });
 
       test('serialize with direction', () {
@@ -161,7 +161,8 @@ a=extmap:3 http://www.ietf.org/id/draft-holmer-rmcat-transport-wide-cc-extension
         final extensions = media.getHeaderExtensions();
         expect(extensions.length, equals(3));
         expect(extensions[0].id, equals(1));
-        expect(extensions[0].uri, equals('urn:ietf:params:rtp-hdrext:sdes:mid'));
+        expect(
+            extensions[0].uri, equals('urn:ietf:params:rtp-hdrext:sdes:mid'));
         expect(extensions[1].id, equals(2));
         expect(extensions[2].id, equals(3));
       });
@@ -201,16 +202,28 @@ a=inactive
 ''';
 
         expect(
-            SdpMessage.parse(sdpSendRecv).mediaDescriptions.first.getDirection(),
+            SdpMessage.parse(sdpSendRecv)
+                .mediaDescriptions
+                .first
+                .getDirection(),
             equals(MediaDirection.sendrecv));
         expect(
-            SdpMessage.parse(sdpSendOnly).mediaDescriptions.first.getDirection(),
+            SdpMessage.parse(sdpSendOnly)
+                .mediaDescriptions
+                .first
+                .getDirection(),
             equals(MediaDirection.sendonly));
         expect(
-            SdpMessage.parse(sdpRecvOnly).mediaDescriptions.first.getDirection(),
+            SdpMessage.parse(sdpRecvOnly)
+                .mediaDescriptions
+                .first
+                .getDirection(),
             equals(MediaDirection.recvonly));
         expect(
-            SdpMessage.parse(sdpInactive).mediaDescriptions.first.getDirection(),
+            SdpMessage.parse(sdpInactive)
+                .mediaDescriptions
+                .first
+                .getDirection(),
             equals(MediaDirection.inactive));
       });
 
@@ -302,7 +315,8 @@ a=simulcast:send high;low
         // Header extensions
         final extensions = media.getHeaderExtensions();
         expect(extensions.length, equals(4));
-        expect(extensions[0].uri, equals('urn:ietf:params:rtp-hdrext:sdes:mid'));
+        expect(
+            extensions[0].uri, equals('urn:ietf:params:rtp-hdrext:sdes:mid'));
         expect(extensions[1].uri,
             equals('urn:ietf:params:rtp-hdrext:sdes:rtp-stream-id'));
 

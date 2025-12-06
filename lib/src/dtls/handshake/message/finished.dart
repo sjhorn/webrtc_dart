@@ -20,7 +20,8 @@ class Finished {
   /// Create a Finished message with verify data
   factory Finished.create(Uint8List verifyData) {
     if (verifyData.length != 12) {
-      throw ArgumentError('Finished verify_data must be 12 bytes, got ${verifyData.length}');
+      throw ArgumentError(
+          'Finished verify_data must be 12 bytes, got ${verifyData.length}');
     }
     return Finished(verifyData: verifyData);
   }

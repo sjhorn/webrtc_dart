@@ -95,10 +95,12 @@ class CipherContext {
   bool get isDecryptionReady => canDecrypt;
 
   /// Get client write cipher
-  AEADCipherSuite? get clientWriteCipher => isClient ? localCipher : remoteCipher;
+  AEADCipherSuite? get clientWriteCipher =>
+      isClient ? localCipher : remoteCipher;
 
   /// Get server write cipher
-  AEADCipherSuite? get serverWriteCipher => isClient ? remoteCipher : localCipher;
+  AEADCipherSuite? get serverWriteCipher =>
+      isClient ? remoteCipher : localCipher;
 
   /// Get client write IV (implicit nonce)
   Uint8List? get clientWriteIV => encryptionKeys?.clientNonce;

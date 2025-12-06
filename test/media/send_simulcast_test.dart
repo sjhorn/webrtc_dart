@@ -104,7 +104,8 @@ void main() {
       expect(params.encodings.length, equals(2));
       expect(params.encodings[0].rid, equals('high'));
       expect(params.encodings[1].rid, equals('low'));
-      expect(params.degradationPreference, equals(DegradationPreference.balanced));
+      expect(
+          params.degradationPreference, equals(DegradationPreference.balanced));
     });
 
     test('copyWith preserves transactionId', () {
@@ -118,7 +119,8 @@ void main() {
       );
 
       expect(modified.transactionId, equals('tx_456'));
-      expect(modified.degradationPreference, equals(DegradationPreference.maintainFramerate));
+      expect(modified.degradationPreference,
+          equals(DegradationPreference.maintainFramerate));
     });
   });
 
@@ -151,8 +153,10 @@ void main() {
         codec: createVp8Codec(payloadType: 96),
         sendEncodings: [
           RTCRtpEncodingParameters(rid: 'high', maxBitrate: 2500000),
-          RTCRtpEncodingParameters(rid: 'mid', maxBitrate: 500000, scaleResolutionDownBy: 2.0),
-          RTCRtpEncodingParameters(rid: 'low', maxBitrate: 150000, scaleResolutionDownBy: 4.0),
+          RTCRtpEncodingParameters(
+              rid: 'mid', maxBitrate: 500000, scaleResolutionDownBy: 2.0),
+          RTCRtpEncodingParameters(
+              rid: 'low', maxBitrate: 150000, scaleResolutionDownBy: 4.0),
         ],
       );
 
@@ -195,8 +199,10 @@ void main() {
         rtpSession: rtpSession,
         codec: createVp8Codec(payloadType: 96),
         sendEncodings: [
-          RTCRtpEncodingParameters(rid: 'high', active: true, maxBitrate: 2500000),
-          RTCRtpEncodingParameters(rid: 'low', active: true, maxBitrate: 500000),
+          RTCRtpEncodingParameters(
+              rid: 'high', active: true, maxBitrate: 2500000),
+          RTCRtpEncodingParameters(
+              rid: 'low', active: true, maxBitrate: 500000),
         ],
       );
 
@@ -273,7 +279,8 @@ void main() {
       final wrongParams = RTCRtpSendParameters(
         transactionId: params.transactionId,
         encodings: [
-          RTCRtpEncodingParameters(rid: 'changed', active: params.encodings[0].active),
+          RTCRtpEncodingParameters(
+              rid: 'changed', active: params.encodings[0].active),
         ],
       );
 
@@ -447,9 +454,12 @@ void main() {
         rtpSession: rtpSession,
         codec: createVp8Codec(payloadType: 96),
         sendEncodings: [
-          RTCRtpEncodingParameters(rid: 'high', maxBitrate: 2500000, active: true),
-          RTCRtpEncodingParameters(rid: 'mid', maxBitrate: 500000, active: true),
-          RTCRtpEncodingParameters(rid: 'low', maxBitrate: 150000, active: true),
+          RTCRtpEncodingParameters(
+              rid: 'high', maxBitrate: 2500000, active: true),
+          RTCRtpEncodingParameters(
+              rid: 'mid', maxBitrate: 500000, active: true),
+          RTCRtpEncodingParameters(
+              rid: 'low', maxBitrate: 150000, active: true),
         ],
       );
 
@@ -483,9 +493,12 @@ void main() {
         rtpSession: rtpSession,
         codec: createVp8Codec(payloadType: 96),
         sendEncodings: [
-          RTCRtpEncodingParameters(rid: 'high', scaleResolutionDownBy: 1.0, active: true),
-          RTCRtpEncodingParameters(rid: 'mid', scaleResolutionDownBy: 2.0, active: true),
-          RTCRtpEncodingParameters(rid: 'low', scaleResolutionDownBy: 4.0, active: true),
+          RTCRtpEncodingParameters(
+              rid: 'high', scaleResolutionDownBy: 1.0, active: true),
+          RTCRtpEncodingParameters(
+              rid: 'mid', scaleResolutionDownBy: 2.0, active: true),
+          RTCRtpEncodingParameters(
+              rid: 'low', scaleResolutionDownBy: 4.0, active: true),
         ],
       );
 
@@ -556,8 +569,10 @@ void main() {
         sendTrack: track,
         sendEncodings: [
           RTCRtpEncodingParameters(rid: 'high', maxBitrate: 2500000),
-          RTCRtpEncodingParameters(rid: 'mid', maxBitrate: 500000, scaleResolutionDownBy: 2.0),
-          RTCRtpEncodingParameters(rid: 'low', maxBitrate: 150000, scaleResolutionDownBy: 4.0),
+          RTCRtpEncodingParameters(
+              rid: 'mid', maxBitrate: 500000, scaleResolutionDownBy: 2.0),
+          RTCRtpEncodingParameters(
+              rid: 'low', maxBitrate: 150000, scaleResolutionDownBy: 4.0),
         ],
       );
 
@@ -580,9 +595,12 @@ void main() {
   group('DegradationPreference', () {
     test('has all expected values', () {
       expect(DegradationPreference.values.length, equals(3));
-      expect(DegradationPreference.values, contains(DegradationPreference.maintainFramerate));
-      expect(DegradationPreference.values, contains(DegradationPreference.maintainResolution));
-      expect(DegradationPreference.values, contains(DegradationPreference.balanced));
+      expect(DegradationPreference.values,
+          contains(DegradationPreference.maintainFramerate));
+      expect(DegradationPreference.values,
+          contains(DegradationPreference.maintainResolution));
+      expect(DegradationPreference.values,
+          contains(DegradationPreference.balanced));
     });
   });
 

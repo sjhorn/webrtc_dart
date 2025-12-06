@@ -66,7 +66,8 @@ void main() async {
 
   // Handle incoming tracks on receiver
   receiver.onTrack.listen((transceiver) {
-    print('[Receiver] Received track: kind=${transceiver.kind}, mid=${transceiver.mid}');
+    print(
+        '[Receiver] Received track: kind=${transceiver.kind}, mid=${transceiver.mid}');
   });
 
   // Perform offer/answer exchange

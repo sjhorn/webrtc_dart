@@ -204,7 +204,8 @@ class WebmRecorder {
       _writeData(output.data!);
     }
 
-    if (output.kind == WebmOutputKind.endOfStream && output.endOfStream != null) {
+    if (output.kind == WebmOutputKind.endOfStream &&
+        output.endOfStream != null) {
       // Could update header with final duration here if needed
     }
   }
@@ -266,7 +267,8 @@ class WebmRecorder {
   /// Add a generic media frame
   void addFrame(MediaFrame frame) {
     if (frame.kind == MediaFrameKind.video) {
-      addVideoFrame(frame.data, isKeyframe: frame.isKeyframe, timestampMs: frame.timestampMs);
+      addVideoFrame(frame.data,
+          isKeyframe: frame.isKeyframe, timestampMs: frame.timestampMs);
     } else {
       addAudioFrame(frame.data, timestampMs: frame.timestampMs);
     }
@@ -305,7 +307,8 @@ class WebmRecorder {
     // Get buffer data if recording to memory
     Uint8List? bufferData;
     if (_buffer.isNotEmpty) {
-      final totalLength = _buffer.fold<int>(0, (sum, chunk) => sum + chunk.length);
+      final totalLength =
+          _buffer.fold<int>(0, (sum, chunk) => sum + chunk.length);
       bufferData = Uint8List(totalLength);
       var offset = 0;
       for (final chunk in _buffer) {

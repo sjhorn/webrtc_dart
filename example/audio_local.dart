@@ -30,7 +30,8 @@ void main() async {
 
   // Listen for received tracks
   pc1.onTrack.listen((transceiver) {
-    print('[PC1] Received remote track: ${transceiver.receiver.track.id}, mid: ${transceiver.mid}');
+    print(
+        '[PC1] Received remote track: ${transceiver.receiver.track.id}, mid: ${transceiver.mid}');
     final remoteTrack = transceiver.receiver.track;
     if (remoteTrack is AudioStreamTrack) {
       remoteTrack.onAudioFrame.listen((frame) {
@@ -41,7 +42,8 @@ void main() async {
   });
 
   pc2.onTrack.listen((transceiver) {
-    print('[PC2] Received remote track: ${transceiver.receiver.track.id}, mid: ${transceiver.mid}');
+    print(
+        '[PC2] Received remote track: ${transceiver.receiver.track.id}, mid: ${transceiver.mid}');
     final remoteTrack = transceiver.receiver.track;
     if (remoteTrack is AudioStreamTrack) {
       remoteTrack.onAudioFrame.listen((frame) {

@@ -59,17 +59,20 @@ void main() {
     });
 
     test('analyzePacket returns comfortNoise for 1-byte packet', () {
-      final result = OpusPacketAnalyzer.analyzePacket(Uint8List.fromList([0xF8]));
+      final result =
+          OpusPacketAnalyzer.analyzePacket(Uint8List.fromList([0xF8]));
       expect(result, equals(OpusDtxPacketType.comfortNoise));
     });
 
     test('analyzePacket returns comfortNoise for 2-byte packet', () {
-      final result = OpusPacketAnalyzer.analyzePacket(Uint8List.fromList([0xF8, 0x00]));
+      final result =
+          OpusPacketAnalyzer.analyzePacket(Uint8List.fromList([0xF8, 0x00]));
       expect(result, equals(OpusDtxPacketType.comfortNoise));
     });
 
     test('analyzePacket returns comfortNoise for 3-byte packet', () {
-      final result = OpusPacketAnalyzer.analyzePacket(Uint8List.fromList([0xF8, 0x00, 0x00]));
+      final result = OpusPacketAnalyzer.analyzePacket(
+          Uint8List.fromList([0xF8, 0x00, 0x00]));
       expect(result, equals(OpusDtxPacketType.comfortNoise));
     });
 
@@ -81,8 +84,10 @@ void main() {
 
     test('isDtxPacket returns true for DTX packets', () {
       expect(OpusPacketAnalyzer.isDtxPacket(Uint8List(0)), isTrue);
-      expect(OpusPacketAnalyzer.isDtxPacket(Uint8List.fromList([0xF8])), isTrue);
-      expect(OpusPacketAnalyzer.isDtxPacket(Uint8List.fromList([0xF8, 0x00])), isTrue);
+      expect(
+          OpusPacketAnalyzer.isDtxPacket(Uint8List.fromList([0xF8])), isTrue);
+      expect(OpusPacketAnalyzer.isDtxPacket(Uint8List.fromList([0xF8, 0x00])),
+          isTrue);
     });
 
     test('isDtxPacket returns false for speech packets', () {
@@ -95,7 +100,8 @@ void main() {
     });
 
     test('parseTocByte parses valid packet', () {
-      final toc = OpusPacketAnalyzer.parseTocByte(Uint8List.fromList([0xE0, 0x00]));
+      final toc =
+          OpusPacketAnalyzer.parseTocByte(Uint8List.fromList([0xE0, 0x00]));
       expect(toc, isNotNull);
       expect(toc!.config, equals(28));
     });
@@ -112,7 +118,8 @@ void main() {
     });
 
     test('fromSdpFmtp parses basic parameters', () {
-      final params = OpusDtxParameters.fromSdpFmtp('minptime=10;useinbandfec=1');
+      final params =
+          OpusDtxParameters.fromSdpFmtp('minptime=10;useinbandfec=1');
       expect(params.minPtime, equals(10));
       expect(params.useInbandFec, isTrue);
       expect(params.useDtx, isFalse);
@@ -297,7 +304,8 @@ void main() {
       expect(result1[0].type, equals(OpusDtxPacketType.comfortNoise));
 
       // Large packet = speech
-      final result2 = processor.processPacket(1960, Uint8List.fromList(List.filled(50, 0xAB)));
+      final result2 = processor.processPacket(
+          1960, Uint8List.fromList(List.filled(50, 0xAB)));
       expect(result2[0].type, equals(OpusDtxPacketType.speech));
     });
 
@@ -426,13 +434,15 @@ void main() {
     });
 
     test('tracks multiple DTX periods', () {
-      final silence1 = DtxAudioFrame(timestamp: 1000, type: OpusDtxPacketType.silence);
+      final silence1 =
+          DtxAudioFrame(timestamp: 1000, type: OpusDtxPacketType.silence);
       final speech1 = DtxAudioFrame(
         timestamp: 2000,
         data: Uint8List(10),
         type: OpusDtxPacketType.speech,
       );
-      final silence2 = DtxAudioFrame(timestamp: 3000, type: OpusDtxPacketType.silence);
+      final silence2 =
+          DtxAudioFrame(timestamp: 3000, type: OpusDtxPacketType.silence);
       final speech2 = DtxAudioFrame(
         timestamp: 4000,
         data: Uint8List(10),
@@ -448,7 +458,8 @@ void main() {
     });
 
     test('tracks DTX duration', () {
-      final silence = DtxAudioFrame(timestamp: 1000, type: OpusDtxPacketType.silence);
+      final silence =
+          DtxAudioFrame(timestamp: 1000, type: OpusDtxPacketType.silence);
       final speech = DtxAudioFrame(
         timestamp: 2000,
         data: Uint8List(10),
@@ -462,7 +473,8 @@ void main() {
     });
 
     test('reset clears all state', () {
-      final silence = DtxAudioFrame(timestamp: 1000, type: OpusDtxPacketType.silence);
+      final silence =
+          DtxAudioFrame(timestamp: 1000, type: OpusDtxPacketType.silence);
       tracker.updateState(silence);
 
       tracker.reset();
@@ -473,7 +485,8 @@ void main() {
     });
 
     test('toJson returns correct state', () {
-      final silence = DtxAudioFrame(timestamp: 1000, type: OpusDtxPacketType.silence);
+      final silence =
+          DtxAudioFrame(timestamp: 1000, type: OpusDtxPacketType.silence);
       tracker.updateState(silence);
 
       final json = tracker.toJson();

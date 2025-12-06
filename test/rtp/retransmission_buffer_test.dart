@@ -14,7 +14,8 @@ void main() {
     group('initialization', () {
       test('creates buffer with default size', () {
         final buffer = RetransmissionBuffer();
-        expect(buffer.bufferSize, equals(RetransmissionBuffer.defaultBufferSize));
+        expect(
+            buffer.bufferSize, equals(RetransmissionBuffer.defaultBufferSize));
         expect(buffer.packetCount, equals(0));
       });
 
@@ -57,7 +58,8 @@ void main() {
         }
       });
 
-      test('stores packets at correct index based on sequence number modulo', () {
+      test('stores packets at correct index based on sequence number modulo',
+          () {
         final buffer = RetransmissionBuffer(bufferSize: 16);
 
         // Store packet at seq 5

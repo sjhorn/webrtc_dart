@@ -131,9 +131,9 @@ void main() {
       expect(vp9.lBit, equals(1));
       expect(vp9.fBit, equals(1));
       expect(vp9.tid, equals(5)); // bits 0-2
-      expect(vp9.u, equals(0));   // bit 3
+      expect(vp9.u, equals(0)); // bit 3
       expect(vp9.sid, equals(2)); // bits 4-6
-      expect(vp9.d, equals(1));   // bit 7
+      expect(vp9.d, equals(1)); // bit 7
       expect(vp9.tl0PicIdx, isNull); // Not present in flexible mode
       expect(vp9.payload, equals([0xEE]));
     });

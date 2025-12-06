@@ -131,10 +131,8 @@ class DcepOpenMessage {
     buffer.setUint16(10, protocolBytes.length);
 
     result.setRange(12, 12 + labelBytes.length, labelBytes);
-    result.setRange(
-        12 + labelBytes.length,
-        12 + labelBytes.length + protocolBytes.length,
-        protocolBytes);
+    result.setRange(12 + labelBytes.length,
+        12 + labelBytes.length + protocolBytes.length, protocolBytes);
 
     return result;
   }
@@ -168,7 +166,8 @@ class DcepOpenMessage {
     }
 
     final labelBytes = data.sublist(12, 12 + labelLength);
-    final protocolBytes = data.sublist(12 + labelLength, 12 + labelLength + protocolLength);
+    final protocolBytes =
+        data.sublist(12 + labelLength, 12 + labelLength + protocolLength);
 
     final label = String.fromCharCodes(labelBytes);
     final protocol = String.fromCharCodes(protocolBytes);

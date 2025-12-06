@@ -92,7 +92,8 @@ class RedEncoder {
     // Add redundant blocks
     for (final redundant in redundantPayloads) {
       // Calculate timestamp offset from primary
-      final timestampOffset = _uint32Add(primaryPayload.timestamp, -redundant.timestamp);
+      final timestampOffset =
+          _uint32Add(primaryPayload.timestamp, -redundant.timestamp);
 
       // Skip if offset is too large for 14 bits
       if (timestampOffset > _max14Uint) {

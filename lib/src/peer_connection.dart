@@ -544,9 +544,8 @@ class RtcPeerConnection {
         }
 
         // Add local SSRC if we have a transceiver for this media
-        final transceiver = _transceivers
-            .where((t) => t.mid == mid)
-            .firstOrNull;
+        final transceiver =
+            _transceivers.where((t) => t.mid == mid).firstOrNull;
         if (transceiver != null) {
           final ssrc = transceiver.sender.rtpSession.localSsrc;
           final cname = _iceConnection.localUsername;
@@ -701,8 +700,7 @@ class RtcPeerConnection {
 
       if (iceUfrag != null && icePwd != null) {
         // Detect remote ICE restart by checking if credentials changed
-        final isRemoteIceRestart =
-            _previousRemoteIceUfrag != null &&
+        final isRemoteIceRestart = _previousRemoteIceUfrag != null &&
             _previousRemoteIcePwd != null &&
             (_previousRemoteIceUfrag != iceUfrag ||
                 _previousRemoteIcePwd != icePwd);
@@ -794,9 +792,8 @@ class RtcPeerConnection {
       }
 
       // Check if we already have a transceiver for this MID
-      final existingTransceiver = _transceivers
-          .where((t) => t.mid == mid)
-          .firstOrNull;
+      final existingTransceiver =
+          _transceivers.where((t) => t.mid == mid).firstOrNull;
       if (existingTransceiver != null) {
         // Transceiver already exists (we created it when adding a local track)
         // This is a sendrecv transceiver - it sends our local track and receives the remote track
@@ -824,9 +821,8 @@ class RtcPeerConnection {
       }
 
       final codecName = codecInfo[0].toLowerCase();
-      final clockRate = codecInfo.length > 1
-          ? int.tryParse(codecInfo[1])
-          : null;
+      final clockRate =
+          codecInfo.length > 1 ? int.tryParse(codecInfo[1]) : null;
       final channels = codecInfo.length > 2 ? int.tryParse(codecInfo[2]) : null;
 
       // Get fmtp parameters if available
@@ -1273,7 +1269,8 @@ class RtcPeerConnection {
       final packet = RtpPacket.parse(data);
 
       // Use RtpRouter if we have registered handlers
-      if (_rtpRouter.registeredSsrcs.isNotEmpty || _rtpRouter.registeredRids.isNotEmpty) {
+      if (_rtpRouter.registeredSsrcs.isNotEmpty ||
+          _rtpRouter.registeredRids.isNotEmpty) {
         _rtpRouter.routeRtp(packet);
         return;
       }
@@ -1392,8 +1389,7 @@ class RtcPeerConnection {
     // Collect RTP stats from transceivers with track selector filtering
     for (final transceiver in _transceivers) {
       // Check if this transceiver matches the selector
-      final includeTransceiverStats =
-          selector == null ||
+      final includeTransceiverStats = selector == null ||
           transceiver.sender.track == selector ||
           transceiver.receiver.track == selector;
 

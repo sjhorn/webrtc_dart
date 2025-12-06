@@ -40,7 +40,8 @@ class CandidatePairStats {
       ..bytesReceived = bytesReceived ?? this.bytesReceived
       ..rtt = rtt ?? this.rtt
       ..totalRoundTripTime = totalRoundTripTime ?? this.totalRoundTripTime
-      ..roundTripTimeMeasurements = roundTripTimeMeasurements ?? this.roundTripTimeMeasurements;
+      ..roundTripTimeMeasurements =
+          roundTripTimeMeasurements ?? this.roundTripTimeMeasurements;
   }
 }
 

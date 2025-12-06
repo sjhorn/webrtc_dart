@@ -209,7 +209,8 @@ class RTCInboundRtpStreamStats extends RTCReceivedRtpStreamStats {
       if (keyFramesDecoded != null) 'keyFramesDecoded': keyFramesDecoded,
       if (totalSamplesReceived != null)
         'totalSamplesReceived': totalSamplesReceived,
-      if (headerBytesReceived != null) 'headerBytesReceived': headerBytesReceived,
+      if (headerBytesReceived != null)
+        'headerBytesReceived': headerBytesReceived,
       if (fecPacketsReceived != null) 'fecPacketsReceived': fecPacketsReceived,
       if (fecPacketsDiscarded != null)
         'fecPacketsDiscarded': fecPacketsDiscarded,

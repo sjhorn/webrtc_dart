@@ -89,7 +89,8 @@ class SrtpKeyDerivation {
     int keyDerivationRate = 0, // 0 means derive once
   }) {
     // Calculate index/key_derivation_rate
-    final indexOverKdr = keyDerivationRate == 0 ? 0 : index ~/ keyDerivationRate;
+    final indexOverKdr =
+        keyDerivationRate == 0 ? 0 : index ~/ keyDerivationRate;
 
     // Derive encryption key (same size as master key)
     final encryptionKey = deriveKey(

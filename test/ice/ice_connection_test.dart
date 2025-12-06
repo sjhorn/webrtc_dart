@@ -57,7 +57,8 @@ void main() {
       });
 
       await connection.gatherCandidates();
-      await Future.delayed(Duration(milliseconds: 10)); // Allow stream to process
+      await Future.delayed(
+          Duration(milliseconds: 10)); // Allow stream to process
 
       expect(states, contains(IceState.gathering));
       // After gathering, state remains 'gathering' until connect() is called

@@ -146,7 +146,8 @@ void main() async {
   print('Duration: $durationSeconds seconds');
   print('Video frames: $videoFrameCount');
   print('Audio frames: $audioFrameCount');
-  print('File size: ${mp4Data.length} bytes (${(mp4Data.length / 1024).toStringAsFixed(1)} KB)');
+  print(
+      'File size: ${mp4Data.length} bytes (${(mp4Data.length / 1024).toStringAsFixed(1)} KB)');
   print('Output file: $outputPath');
   print('');
 

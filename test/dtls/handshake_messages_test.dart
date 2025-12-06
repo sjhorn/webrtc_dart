@@ -122,7 +122,8 @@ void main() {
       expect(clientHello2.clientVersion, clientHello1.clientVersion);
       expect(clientHello2.sessionId, equals(clientHello1.sessionId));
       expect(clientHello2.cookie, equals(clientHello1.cookie));
-      expect(clientHello2.cipherSuites.length, clientHello1.cipherSuites.length);
+      expect(
+          clientHello2.cipherSuites.length, clientHello1.cipherSuites.length);
     });
 
     test('includes extensions', () {
@@ -148,7 +149,8 @@ void main() {
       );
 
       expect(serverHello.serverVersion, ProtocolVersion.dtls12);
-      expect(serverHello.cipherSuite, CipherSuite.tlsEcdheEcdsaWithAes128GcmSha256);
+      expect(serverHello.cipherSuite,
+          CipherSuite.tlsEcdheEcdsaWithAes128GcmSha256);
       expect(serverHello.compressionMethod, CompressionMethod.none);
     });
 
@@ -301,7 +303,8 @@ void main() {
 
     test('provides common alert shortcuts', () {
       expect(Alert.closeNotify.description, AlertDescription.closeNotify);
-      expect(Alert.handshakeFailure.description, AlertDescription.handshakeFailure);
+      expect(Alert.handshakeFailure.description,
+          AlertDescription.handshakeFailure);
       expect(Alert.badRecordMac.description, AlertDescription.badRecordMac);
     });
   });

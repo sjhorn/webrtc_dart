@@ -133,8 +133,8 @@ void main() {
 
       test('parse RID extension', () {
         // One-byte header: ID=2, L=3 (length=4), data='high'
-        final extData =
-            Uint8List.fromList([0x23, 0x68, 0x69, 0x67, 0x68, 0x00, 0x00, 0x00]);
+        final extData = Uint8List.fromList(
+            [0x23, 0x68, 0x69, 0x67, 0x68, 0x00, 0x00, 0x00]);
         final idToUri = {2: RtpExtensionUri.sdesRtpStreamId};
 
         final extensions = parseRtpExtensions(extData, idToUri);

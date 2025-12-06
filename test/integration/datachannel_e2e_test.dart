@@ -135,14 +135,16 @@ void main() {
 
       transport1.onStateChange.listen((state) {
         print('Transport 1 state: $state');
-        if (state == TransportState.connected && !transport1Connected.isCompleted) {
+        if (state == TransportState.connected &&
+            !transport1Connected.isCompleted) {
           transport1Connected.complete();
         }
       });
 
       transport2.onStateChange.listen((state) {
         print('Transport 2 state: $state');
-        if (state == TransportState.connected && !transport2Connected.isCompleted) {
+        if (state == TransportState.connected &&
+            !transport2Connected.isCompleted) {
           transport2Connected.complete();
         }
       });
@@ -260,8 +262,10 @@ void main() {
 
       // Verify messages were received
       print('\n--- Verification ---');
-      print('Peer 1 received ${peer1Messages.length} message(s): $peer1Messages');
-      print('Peer 2 received ${peer2Messages.length} message(s): $peer2Messages');
+      print(
+          'Peer 1 received ${peer1Messages.length} message(s): $peer1Messages');
+      print(
+          'Peer 2 received ${peer2Messages.length} message(s): $peer2Messages');
 
       expect(peer2Messages, contains('Hello from Peer 1!'));
       expect(peer1Messages, contains('Hello from Peer 2!'));

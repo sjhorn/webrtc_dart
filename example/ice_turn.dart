@@ -88,13 +88,15 @@ void main() async {
   // Set up ICE candidate exchange with logging
   pc1.onIceCandidate.listen((candidate) {
     candidatesFromPc1.add(candidate);
-    print('[PC1] Candidate: ${candidate.type} (${candidate.host}:${candidate.port})');
+    print(
+        '[PC1] Candidate: ${candidate.type} (${candidate.host}:${candidate.port})');
     pc2.addIceCandidate(candidate);
   });
 
   pc2.onIceCandidate.listen((candidate) {
     candidatesFromPc2.add(candidate);
-    print('[PC2] Candidate: ${candidate.type} (${candidate.host}:${candidate.port})');
+    print(
+        '[PC2] Candidate: ${candidate.type} (${candidate.host}:${candidate.port})');
     pc1.addIceCandidate(candidate);
   });
 

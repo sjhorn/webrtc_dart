@@ -263,9 +263,9 @@ void main() {
       final vp8 = Vp8RtpPayload.deserialize(packet);
 
       expect(vp8.size0, equals(7)); // bits 0-2
-      expect(vp8.hBit, equals(0));   // bit 3
-      expect(vp8.ver, equals(0));    // bits 4-6
-      expect(vp8.pBit, equals(1));   // bit 7
+      expect(vp8.hBit, equals(0)); // bit 3
+      expect(vp8.ver, equals(0)); // bits 4-6
+      expect(vp8.pBit, equals(1)); // bit 7
     });
 
     test('toString should include relevant fields', () {

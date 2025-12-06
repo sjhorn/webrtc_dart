@@ -44,7 +44,8 @@ void main() {
 
     test('isChannelData detection', () {
       // Valid ChannelData (starts with 0x40)
-      final channelDataBytes = Uint8List.fromList([0x40, 0x00, 0x00, 0x05, 1, 2, 3, 4, 5]);
+      final channelDataBytes =
+          Uint8List.fromList([0x40, 0x00, 0x00, 0x05, 1, 2, 3, 4, 5]);
       expect(ChannelData.isChannelData(channelDataBytes), isTrue);
 
       // STUN message (starts with 0x00 or 0x01)

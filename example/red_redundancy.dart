@@ -66,7 +66,8 @@ void main() async {
 
   // Handle incoming tracks on receiver
   receiver.onTrack.listen((transceiver) {
-    print('[Receiver] Received track: kind=${transceiver.kind}, mid=${transceiver.mid}');
+    print(
+        '[Receiver] Received track: kind=${transceiver.kind}, mid=${transceiver.mid}');
   });
 
   // Perform offer/answer exchange
@@ -117,7 +118,8 @@ void main() async {
   print('     enables loss recovery without RTT delay');
   print('');
   print('RED packet structure:');
-  print('  [Header] [Redundant Block N-2] [Redundant Block N-1] [Primary Block N]');
+  print(
+      '  [Header] [Redundant Block N-2] [Redundant Block N-1] [Primary Block N]');
   print('');
   print('SDP negotiation includes:');
   print('  - a=rtpmap:<PT> red/48000/2 (RED codec)');

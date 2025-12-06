@@ -74,7 +74,8 @@ class CertificateRequest {
     // 1 byte (cert types length) + cert types
     // + 2 bytes (sig algos length) + sig algos
     // + 2 bytes (authorities length) + authorities data
-    final totalLength = 1 + certTypesLength + 2 + sigAlgosLength + 2 + authoritiesDataLength;
+    final totalLength =
+        1 + certTypesLength + 2 + sigAlgosLength + 2 + authoritiesDataLength;
     final result = Uint8List(totalLength);
     var offset = 0;
 
@@ -145,7 +146,8 @@ class CertificateRequest {
       final hash = HashAlgorithm.fromValue(data[offset++]);
       final sig = SignatureAlgorithm.fromValue(data[offset++]);
       if (hash != null && sig != null) {
-        signatureAlgorithms.add(SignatureHashAlgorithm(hash: hash, signature: sig));
+        signatureAlgorithms
+            .add(SignatureHashAlgorithm(hash: hash, signature: sig));
       }
     }
 
@@ -195,8 +197,12 @@ class CertificateRequest {
     if (identical(this, other)) return true;
     if (other is! CertificateRequest) return false;
     if (certificateTypes.length != other.certificateTypes.length) return false;
-    if (signatureAlgorithms.length != other.signatureAlgorithms.length) return false;
-    if (certificateAuthorities.length != other.certificateAuthorities.length) return false;
+    if (signatureAlgorithms.length != other.signatureAlgorithms.length) {
+      return false;
+    }
+    if (certificateAuthorities.length != other.certificateAuthorities.length) {
+      return false;
+    }
     for (var i = 0; i < certificateTypes.length; i++) {
       if (certificateTypes[i] != other.certificateTypes[i]) return false;
     }

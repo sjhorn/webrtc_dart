@@ -45,11 +45,13 @@ void main() {
       dtlsContext.cookie = Uint8List.fromList([1, 2, 3, 4]);
 
       // Set up master secret for verify_data computation
-      dtlsContext.masterSecret = Uint8List.fromList(List.generate(48, (i) => i));
+      dtlsContext.masterSecret =
+          Uint8List.fromList(List.generate(48, (i) => i));
       dtlsContext.addHandshakeMessage(Uint8List.fromList([1, 2, 3, 4]));
 
       final cipherContext = CipherContext(isClient: true);
-      cipherContext.localPublicKey = Uint8List.fromList(List.generate(32, (i) => i));
+      cipherContext.localPublicKey =
+          Uint8List.fromList(List.generate(32, (i) => i));
 
       final recordLayer = DtlsRecordLayer(
         dtlsContext: dtlsContext,
@@ -103,7 +105,8 @@ void main() {
     test('generates ServerHello and key exchange messages', () async {
       final dtlsContext = DtlsContext();
       final cipherContext = CipherContext(isClient: false);
-      cipherContext.localPublicKey = Uint8List.fromList(List.generate(32, (i) => i));
+      cipherContext.localPublicKey =
+          Uint8List.fromList(List.generate(32, (i) => i));
       cipherContext.namedCurve = NamedCurve.x25519;
 
       final recordLayer = DtlsRecordLayer(
@@ -135,7 +138,8 @@ void main() {
       final dtlsContext = DtlsContext();
 
       // Set up master secret for verify_data computation
-      dtlsContext.masterSecret = Uint8List.fromList(List.generate(48, (i) => i));
+      dtlsContext.masterSecret =
+          Uint8List.fromList(List.generate(48, (i) => i));
       dtlsContext.addHandshakeMessage(Uint8List.fromList([1, 2, 3, 4]));
 
       final cipherContext = CipherContext(isClient: false);

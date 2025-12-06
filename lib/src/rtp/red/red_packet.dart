@@ -132,8 +132,8 @@ class RedHeader {
         final buf = Uint8List(4);
         buf[0] = (1 << 7) | (field.blockPT & 0x7F);
         buf[1] = (field.timestampOffset! >> 6) & 0xFF;
-        buf[2] =
-            ((field.timestampOffset! & 0x3F) << 2) | ((field.blockLength! >> 8) & 0x03);
+        buf[2] = ((field.timestampOffset! & 0x3F) << 2) |
+            ((field.blockLength! >> 8) & 0x03);
         buf[3] = field.blockLength! & 0xFF;
         chunks.add(buf);
       } else {

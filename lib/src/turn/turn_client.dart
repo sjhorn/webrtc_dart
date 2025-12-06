@@ -177,7 +177,6 @@ class TurnClient {
         Duration(minutes: 4),
         (_) => _refreshPermissions(),
       );
-
     } catch (e) {
       _state = TurnState.failed;
       rethrow;
@@ -191,7 +190,8 @@ class TurnClient {
       method: StunMethod.allocate,
       messageClass: StunClass.request,
     );
-    request.setAttribute(StunAttributeType.requestedTransport, transport.requestedTransport);
+    request.setAttribute(
+        StunAttributeType.requestedTransport, transport.requestedTransport);
     request.setAttribute(StunAttributeType.lifetime, lifetime);
 
     var response = await _sendRequest(request);
@@ -205,8 +205,10 @@ class TurnClient {
         // 438: Stale Nonce (nonce expired, need new one)
         if (code == 401 || (code == 438 && _realm != null)) {
           // Extract realm and nonce
-          final newRealm = response.getAttribute(StunAttributeType.realm) as String?;
-          final newNonce = response.getAttribute(StunAttributeType.nonce) as Uint8List?;
+          final newRealm =
+              response.getAttribute(StunAttributeType.realm) as String?;
+          final newNonce =
+              response.getAttribute(StunAttributeType.nonce) as Uint8List?;
 
           if (newNonce == null) {
             throw Exception('$code response missing nonce');
@@ -237,7 +239,8 @@ class TurnClient {
             method: StunMethod.allocate,
             messageClass: StunClass.request,
           );
-          request.setAttribute(StunAttributeType.requestedTransport, transport.requestedTransport);
+          request.setAttribute(StunAttributeType.requestedTransport,
+              transport.requestedTransport);
           request.setAttribute(StunAttributeType.lifetime, lifetime);
           request.setAttribute(StunAttributeType.username, username);
           request.setAttribute(StunAttributeType.realm, _realm);
@@ -261,12 +264,16 @@ class TurnClient {
     }
 
     // Extract allocation info
-    final relayedAddress = response.getAttribute(StunAttributeType.xorRelayedAddress) as Address?;
-    final mappedAddress = response.getAttribute(StunAttributeType.xorMappedAddress) as Address?;
-    final allocLifetime = response.getAttribute(StunAttributeType.lifetime) as int?;
+    final relayedAddress =
+        response.getAttribute(StunAttributeType.xorRelayedAddress) as Address?;
+    final mappedAddress =
+        response.getAttribute(StunAttributeType.xorMappedAddress) as Address?;
+    final allocLifetime =
+        response.getAttribute(StunAttributeType.lifetime) as int?;
 
     if (relayedAddress == null || allocLifetime == null) {
-      throw Exception('ALLOCATE response missing XOR-RELAYED-ADDRESS or LIFETIME');
+      throw Exception(
+          'ALLOCATE response missing XOR-RELAYED-ADDRESS or LIFETIME');
     }
 
     _allocation = TurnAllocation(
@@ -290,7 +297,8 @@ class TurnClient {
     final response = await _sendRequest(request);
 
     if (response.messageClass == StunClass.successResponse) {
-      final newLifetime = response.getAttribute(StunAttributeType.lifetime) as int?;
+      final newLifetime =
+          response.getAttribute(StunAttributeType.lifetime) as int?;
       if (newLifetime != null) {
         _allocation = TurnAllocation(
           relayedAddress: _allocation!.relayedAddress,
@@ -491,8 +499,10 @@ class TurnClient {
     // Handle Data indication
     if (message.method == StunMethod.data &&
         message.messageClass == StunClass.indication) {
-      final peerAddress = message.getAttribute(StunAttributeType.xorPeerAddress) as Address?;
-      final msgData = message.getAttribute(StunAttributeType.data) as Uint8List?;
+      final peerAddress =
+          message.getAttribute(StunAttributeType.xorPeerAddress) as Address?;
+      final msgData =
+          message.getAttribute(StunAttributeType.data) as Uint8List?;
       if (peerAddress != null && msgData != null) {
         _receiveController.add((peerAddress, msgData));
       }

@@ -61,8 +61,18 @@ void main() {
 
       test('packs and unpacks XOR-MAPPED-ADDRESS', () {
         final transactionId = Uint8List.fromList([
-          0x01, 0x02, 0x03, 0x04, 0x05, 0x06,
-          0x07, 0x08, 0x09, 0x0A, 0x0B, 0x0C,
+          0x01,
+          0x02,
+          0x03,
+          0x04,
+          0x05,
+          0x06,
+          0x07,
+          0x08,
+          0x09,
+          0x0A,
+          0x0B,
+          0x0C,
         ]);
         final address = ('10.0.0.1', 3478);
 
@@ -218,10 +228,14 @@ void main() {
       });
 
       test('fromValue returns correct enum', () {
-        expect(StunAttributeType.fromValue(0x0001), equals(StunAttributeType.mappedAddress));
-        expect(StunAttributeType.fromValue(0x0006), equals(StunAttributeType.username));
-        expect(StunAttributeType.fromValue(0x0020), equals(StunAttributeType.xorMappedAddress));
-        expect(StunAttributeType.fromValue(0x8028), equals(StunAttributeType.fingerprint));
+        expect(StunAttributeType.fromValue(0x0001),
+            equals(StunAttributeType.mappedAddress));
+        expect(StunAttributeType.fromValue(0x0006),
+            equals(StunAttributeType.username));
+        expect(StunAttributeType.fromValue(0x0020),
+            equals(StunAttributeType.xorMappedAddress));
+        expect(StunAttributeType.fromValue(0x8028),
+            equals(StunAttributeType.fingerprint));
         expect(StunAttributeType.fromValue(0xFFFF), isNull);
       });
     });
@@ -235,7 +249,11 @@ void main() {
           (StunAttributeType.priority, 98765, unpackUnsigned),
           (StunAttributeType.lifetime, 600, unpackUnsigned),
           (StunAttributeType.software, 'MySTUN/1.0', unpackString),
-          (StunAttributeType.iceControlling, BigInt.from(0x123456789ABC), unpackUnsigned64BigInt),
+          (
+            StunAttributeType.iceControlling,
+            BigInt.from(0x123456789ABC),
+            unpackUnsigned64BigInt
+          ),
         ];
 
         for (final (type, value, _) in testCases) {

@@ -69,7 +69,11 @@ class SdpMessage {
 
   /// Parse SDP string
   static SdpMessage parse(String sdp) {
-    final lines = sdp.split('\n').map((l) => l.trim()).where((l) => l.isNotEmpty).toList();
+    final lines = sdp
+        .split('\n')
+        .map((l) => l.trim())
+        .where((l) => l.isNotEmpty)
+        .toList();
 
     int version = 0;
     SdpOrigin? origin;

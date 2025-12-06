@@ -16,7 +16,8 @@ void main() {
 
       // Verify RTCP header
       expect(packet.packetType, equals(RtcpPacketType.transportFeedback));
-      expect(packet.reportCount, equals(GenericNack.fmt)); // fmt=1 for Generic NACK
+      expect(packet.reportCount,
+          equals(GenericNack.fmt)); // fmt=1 for Generic NACK
       expect(packet.ssrc, equals(0x12345678)); // Sender SSRC
 
       // Parse FCI payload
@@ -25,7 +26,7 @@ void main() {
 
       // Parse PID+BLP
       expect(view.getUint16(4), equals(1234)); // PID
-      expect(view.getUint16(6), equals(0));    // BLP (no additional lost packets)
+      expect(view.getUint16(6), equals(0)); // BLP (no additional lost packets)
     });
 
     test('should serialize NACK with consecutive lost packets', () {

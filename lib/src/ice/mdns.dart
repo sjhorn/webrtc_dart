@@ -364,7 +364,8 @@ class MdnsService {
       currentOffset++;
       if (currentOffset + length > data.length) break;
 
-      final part = String.fromCharCodes(data.sublist(currentOffset, currentOffset + length));
+      final part = String.fromCharCodes(
+          data.sublist(currentOffset, currentOffset + length));
       parts.add(part);
       currentOffset += length;
     }

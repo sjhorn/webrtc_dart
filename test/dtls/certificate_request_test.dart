@@ -28,14 +28,19 @@ void main() {
       final serialized = original.serialize();
       final parsed = CertificateRequest.parse(serialized);
 
-      expect(parsed.certificateTypes.length, equals(original.certificateTypes.length));
+      expect(parsed.certificateTypes.length,
+          equals(original.certificateTypes.length));
       expect(parsed.certificateTypes[0], equals(ClientCertificateType.rsaSign));
-      expect(parsed.certificateTypes[1], equals(ClientCertificateType.ecdsaSign));
-      expect(parsed.signatureAlgorithms.length, equals(original.signatureAlgorithms.length));
+      expect(
+          parsed.certificateTypes[1], equals(ClientCertificateType.ecdsaSign));
+      expect(parsed.signatureAlgorithms.length,
+          equals(original.signatureAlgorithms.length));
       expect(parsed.signatureAlgorithms[0].hash, equals(HashAlgorithm.sha256));
-      expect(parsed.signatureAlgorithms[0].signature, equals(SignatureAlgorithm.ecdsa));
+      expect(parsed.signatureAlgorithms[0].signature,
+          equals(SignatureAlgorithm.ecdsa));
       expect(parsed.signatureAlgorithms[1].hash, equals(HashAlgorithm.sha256));
-      expect(parsed.signatureAlgorithms[1].signature, equals(SignatureAlgorithm.rsa));
+      expect(parsed.signatureAlgorithms[1].signature,
+          equals(SignatureAlgorithm.rsa));
       expect(parsed.certificateAuthorities, isEmpty);
     });
 
@@ -59,22 +64,29 @@ void main() {
       // Verify certificate types
       expect(parsed.certificateTypes.length, equals(2));
       expect(parsed.certificateTypes[0], equals(ClientCertificateType.rsaSign));
-      expect(parsed.certificateTypes[1], equals(ClientCertificateType.ecdsaSign));
+      expect(
+          parsed.certificateTypes[1], equals(ClientCertificateType.ecdsaSign));
 
       // Verify signature algorithms (6 algorithms)
       expect(parsed.signatureAlgorithms.length, equals(6));
       expect(parsed.signatureAlgorithms[0].hash, equals(HashAlgorithm.sha256));
-      expect(parsed.signatureAlgorithms[0].signature, equals(SignatureAlgorithm.ecdsa));
+      expect(parsed.signatureAlgorithms[0].signature,
+          equals(SignatureAlgorithm.ecdsa));
       expect(parsed.signatureAlgorithms[1].hash, equals(HashAlgorithm.sha256));
-      expect(parsed.signatureAlgorithms[1].signature, equals(SignatureAlgorithm.rsa));
+      expect(parsed.signatureAlgorithms[1].signature,
+          equals(SignatureAlgorithm.rsa));
       expect(parsed.signatureAlgorithms[2].hash, equals(HashAlgorithm.sha384));
-      expect(parsed.signatureAlgorithms[2].signature, equals(SignatureAlgorithm.ecdsa));
+      expect(parsed.signatureAlgorithms[2].signature,
+          equals(SignatureAlgorithm.ecdsa));
       expect(parsed.signatureAlgorithms[3].hash, equals(HashAlgorithm.sha384));
-      expect(parsed.signatureAlgorithms[3].signature, equals(SignatureAlgorithm.rsa));
+      expect(parsed.signatureAlgorithms[3].signature,
+          equals(SignatureAlgorithm.rsa));
       expect(parsed.signatureAlgorithms[4].hash, equals(HashAlgorithm.sha512));
-      expect(parsed.signatureAlgorithms[4].signature, equals(SignatureAlgorithm.rsa));
+      expect(parsed.signatureAlgorithms[4].signature,
+          equals(SignatureAlgorithm.rsa));
       expect(parsed.signatureAlgorithms[5].hash, equals(HashAlgorithm.sha1));
-      expect(parsed.signatureAlgorithms[5].signature, equals(SignatureAlgorithm.rsa));
+      expect(parsed.signatureAlgorithms[5].signature,
+          equals(SignatureAlgorithm.rsa));
 
       // Verify authorities
       expect(parsed.certificateAuthorities, isEmpty);
@@ -91,14 +103,20 @@ void main() {
       // certificateTypes = [1, 64] (RSA_SIGN, ECDSA_SIGN)
       // signatures = [{hash: 4, sig: 1}, {hash: 4, sig: 3}] (SHA256+RSA, SHA256+ECDSA)
       expect(defaultReq.certificateTypes.length, equals(2));
-      expect(defaultReq.certificateTypes[0], equals(ClientCertificateType.rsaSign));
-      expect(defaultReq.certificateTypes[1], equals(ClientCertificateType.ecdsaSign));
+      expect(defaultReq.certificateTypes[0],
+          equals(ClientCertificateType.rsaSign));
+      expect(defaultReq.certificateTypes[1],
+          equals(ClientCertificateType.ecdsaSign));
 
       expect(defaultReq.signatureAlgorithms.length, equals(2));
-      expect(defaultReq.signatureAlgorithms[0].hash, equals(HashAlgorithm.sha256));
-      expect(defaultReq.signatureAlgorithms[0].signature, equals(SignatureAlgorithm.rsa));
-      expect(defaultReq.signatureAlgorithms[1].hash, equals(HashAlgorithm.sha256));
-      expect(defaultReq.signatureAlgorithms[1].signature, equals(SignatureAlgorithm.ecdsa));
+      expect(
+          defaultReq.signatureAlgorithms[0].hash, equals(HashAlgorithm.sha256));
+      expect(defaultReq.signatureAlgorithms[0].signature,
+          equals(SignatureAlgorithm.rsa));
+      expect(
+          defaultReq.signatureAlgorithms[1].hash, equals(HashAlgorithm.sha256));
+      expect(defaultReq.signatureAlgorithms[1].signature,
+          equals(SignatureAlgorithm.ecdsa));
 
       expect(defaultReq.certificateAuthorities, isEmpty);
     });
@@ -136,8 +154,10 @@ void main() {
     });
 
     test('ClientCertificateType fromValue', () {
-      expect(ClientCertificateType.fromValue(1), equals(ClientCertificateType.rsaSign));
-      expect(ClientCertificateType.fromValue(64), equals(ClientCertificateType.ecdsaSign));
+      expect(ClientCertificateType.fromValue(1),
+          equals(ClientCertificateType.rsaSign));
+      expect(ClientCertificateType.fromValue(64),
+          equals(ClientCertificateType.ecdsaSign));
       expect(ClientCertificateType.fromValue(999), isNull);
     });
 

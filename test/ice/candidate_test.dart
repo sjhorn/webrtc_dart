@@ -65,7 +65,8 @@ void main() {
       );
 
       final sdp = candidate.toSdp();
-      expect(sdp, equals('6815297761 1 udp 2130706431 192.168.1.1 54321 typ host'));
+      expect(sdp,
+          equals('6815297761 1 udp 2130706431 192.168.1.1 54321 typ host'));
     });
 
     test('converts candidate with optional attributes to SDP', () {
@@ -92,7 +93,8 @@ void main() {
     });
 
     test('round-trips SDP parsing and generation', () {
-      final originalSdp = '6815297761 1 udp 2130706431 192.168.1.1 54321 typ host '
+      final originalSdp =
+          '6815297761 1 udp 2130706431 192.168.1.1 54321 typ host '
           'generation 0 ufrag test';
       final candidate = Candidate.fromSdp(originalSdp);
       final regeneratedSdp = candidate.toSdp();

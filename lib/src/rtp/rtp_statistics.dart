@@ -178,7 +178,8 @@ class RtpSenderStatistics {
   /// Last SR send time (NTP format)
   int? lastSrSendTime;
 
-  RtpSenderStatistics({required this.ssrc, int? initialSequence, int? initialTimestamp}) {
+  RtpSenderStatistics(
+      {required this.ssrc, int? initialSequence, int? initialTimestamp}) {
     sequenceNumber = initialSequence ?? _generateRandomSequence();
     timestamp = initialTimestamp ?? _generateRandomTimestamp();
   }

@@ -180,7 +180,8 @@ void main() {
       expect(states, contains(PeerConnectionState.closed));
     });
 
-    test('creates data channel before SCTP is ready (returns ProxyDataChannel)', () async {
+    test('creates data channel before SCTP is ready (returns ProxyDataChannel)',
+        () async {
       final pc = RtcPeerConnection();
 
       // Wait for async initialization (certificate generation, transport setup)
@@ -217,8 +218,8 @@ void main() {
       await pc.setLocalDescription(offer);
       expect(pc.signalingState, SignalingState.haveLocalOffer);
 
-      await pc.setLocalDescription(
-          SessionDescription(type: 'rollback', sdp: ''));
+      await pc
+          .setLocalDescription(SessionDescription(type: 'rollback', sdp: ''));
 
       expect(pc.signalingState, SignalingState.stable);
       expect(pc.localDescription, isNull);
@@ -231,8 +232,8 @@ void main() {
       await pc.setRemoteDescription(offer);
       expect(pc.signalingState, SignalingState.haveRemoteOffer);
 
-      await pc.setRemoteDescription(
-          SessionDescription(type: 'rollback', sdp: ''));
+      await pc
+          .setRemoteDescription(SessionDescription(type: 'rollback', sdp: ''));
 
       expect(pc.signalingState, SignalingState.stable);
       expect(pc.remoteDescription, isNull);
@@ -321,7 +322,8 @@ void main() {
       final sdp = offer.parse();
 
       // Find video media section
-      final videoMedia = sdp.mediaDescriptions.where((m) => m.type == 'video').firstOrNull;
+      final videoMedia =
+          sdp.mediaDescriptions.where((m) => m.type == 'video').firstOrNull;
       expect(videoMedia, isNotNull, reason: 'Should have video media section');
 
       // Verify RTX rtpmap is present
@@ -337,7 +339,8 @@ void main() {
 
       // Verify ssrc-group FID is present
       final ssrcGroups = videoMedia.getSsrcGroups();
-      final fidGroup = ssrcGroups.where((g) => g.semantics == 'FID').firstOrNull;
+      final fidGroup =
+          ssrcGroups.where((g) => g.semantics == 'FID').firstOrNull;
       expect(fidGroup, isNotNull, reason: 'Should have ssrc-group FID');
       expect(fidGroup!.ssrcs.length, 2, reason: 'FID should have 2 SSRCs');
 
@@ -353,7 +356,8 @@ void main() {
       final offer = await pc.createOffer();
       final sdp = offer.parse();
 
-      final videoMedia = sdp.mediaDescriptions.where((m) => m.type == 'video').first;
+      final videoMedia =
+          sdp.mediaDescriptions.where((m) => m.type == 'video').first;
 
       // Get RTX codec info
       final rtxCodecs = videoMedia.getRtxCodecs();
@@ -364,7 +368,8 @@ void main() {
           reason: 'RTX should reference VP8 payload type 96');
 
       final rtxInfo = rtxCodecs[96]!;
-      expect(rtxInfo.rtxPayloadType, 97, reason: 'RTX payload type should be 97');
+      expect(rtxInfo.rtxPayloadType, 97,
+          reason: 'RTX payload type should be 97');
       expect(rtxInfo.associatedPayloadType, 96);
 
       await pc.close();
@@ -381,7 +386,8 @@ void main() {
       final sdp = offer.parse();
 
       // Find audio media section
-      final audioMedia = sdp.mediaDescriptions.where((m) => m.type == 'audio').firstOrNull;
+      final audioMedia =
+          sdp.mediaDescriptions.where((m) => m.type == 'audio').firstOrNull;
       expect(audioMedia, isNotNull);
 
       // Verify no RTX for audio
@@ -415,12 +421,15 @@ void main() {
       final answerSdp = answer.parse();
 
       // Find video media section in answer
-      final videoMedia = answerSdp.mediaDescriptions.where((m) => m.type == 'video').firstOrNull;
+      final videoMedia = answerSdp.mediaDescriptions
+          .where((m) => m.type == 'video')
+          .firstOrNull;
       expect(videoMedia, isNotNull);
 
       // Verify answer has ssrc-group FID for RTX
       final ssrcGroups = videoMedia!.getSsrcGroups();
-      final fidGroup = ssrcGroups.where((g) => g.semantics == 'FID').firstOrNull;
+      final fidGroup =
+          ssrcGroups.where((g) => g.semantics == 'FID').firstOrNull;
       expect(fidGroup, isNotNull, reason: 'Answer should have ssrc-group FID');
       expect(fidGroup!.ssrcs.length, 2);
 
@@ -437,7 +446,8 @@ void main() {
       final offer = await pc.createOffer();
       final sdp = offer.parse();
 
-      final videoMedia = sdp.mediaDescriptions.where((m) => m.type == 'video').first;
+      final videoMedia =
+          sdp.mediaDescriptions.where((m) => m.type == 'video').first;
 
       // Get SSRC mapping
       final rtxSsrcMapping = videoMedia.getRtxSsrcMapping();
@@ -461,13 +471,15 @@ void main() {
       // Create first offer
       final offer1 = await pc.createOffer();
       final sdp1 = offer1.parse();
-      final videoMedia1 = sdp1.mediaDescriptions.where((m) => m.type == 'video').first;
+      final videoMedia1 =
+          sdp1.mediaDescriptions.where((m) => m.type == 'video').first;
       final rtxMapping1 = videoMedia1.getRtxSsrcMapping();
 
       // Create second offer
       final offer2 = await pc.createOffer();
       final sdp2 = offer2.parse();
-      final videoMedia2 = sdp2.mediaDescriptions.where((m) => m.type == 'video').first;
+      final videoMedia2 =
+          sdp2.mediaDescriptions.where((m) => m.type == 'video').first;
       final rtxMapping2 = videoMedia2.getRtxSsrcMapping();
 
       // RTX SSRC should be preserved across offers

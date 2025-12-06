@@ -163,8 +163,8 @@ void main() {
     test('all pair states', () {
       expect(RTCStatsIceCandidatePairState.frozen.value, equals('frozen'));
       expect(RTCStatsIceCandidatePairState.waiting.value, equals('waiting'));
-      expect(
-          RTCStatsIceCandidatePairState.inProgress.value, equals('in-progress'));
+      expect(RTCStatsIceCandidatePairState.inProgress.value,
+          equals('in-progress'));
       expect(RTCStatsIceCandidatePairState.failed.value, equals('failed'));
       expect(
           RTCStatsIceCandidatePairState.succeeded.value, equals('succeeded'));

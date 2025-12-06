@@ -70,8 +70,9 @@ class DataChannelManager {
           : DataChannelType.partialReliableTimedUnordered;
       reliabilityParameter = maxPacketLifeTime;
     } else {
-      channelType =
-          ordered ? DataChannelType.reliable : DataChannelType.reliableUnordered;
+      channelType = ordered
+          ? DataChannelType.reliable
+          : DataChannelType.reliableUnordered;
       reliabilityParameter = 0;
     }
 

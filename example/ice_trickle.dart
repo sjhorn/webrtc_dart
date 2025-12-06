@@ -37,14 +37,16 @@ void main() async {
   // Monitor ICE gathering state
   pc1.onIceGatheringStateChange.listen((state) {
     print('[PC1] ICE gathering state: $state');
-    if (state == IceGatheringState.complete && !pc1GatheringComplete.isCompleted) {
+    if (state == IceGatheringState.complete &&
+        !pc1GatheringComplete.isCompleted) {
       pc1GatheringComplete.complete();
     }
   });
 
   pc2.onIceGatheringStateChange.listen((state) {
     print('[PC2] ICE gathering state: $state');
-    if (state == IceGatheringState.complete && !pc2GatheringComplete.isCompleted) {
+    if (state == IceGatheringState.complete &&
+        !pc2GatheringComplete.isCompleted) {
       pc2GatheringComplete.complete();
     }
   });
@@ -174,12 +176,15 @@ void main() async {
   print('PC2 final ICE state: ${pc2.iceConnectionState}');
 
   // Categorize candidates
-  final hostCandidates = candidatesFromPc1.where((c) => c.type == 'host').length +
-      candidatesFromPc2.where((c) => c.type == 'host').length;
-  final srflxCandidates = candidatesFromPc1.where((c) => c.type == 'srflx').length +
-      candidatesFromPc2.where((c) => c.type == 'srflx').length;
-  final relayCandidates = candidatesFromPc1.where((c) => c.type == 'relay').length +
-      candidatesFromPc2.where((c) => c.type == 'relay').length;
+  final hostCandidates =
+      candidatesFromPc1.where((c) => c.type == 'host').length +
+          candidatesFromPc2.where((c) => c.type == 'host').length;
+  final srflxCandidates =
+      candidatesFromPc1.where((c) => c.type == 'srflx').length +
+          candidatesFromPc2.where((c) => c.type == 'srflx').length;
+  final relayCandidates =
+      candidatesFromPc1.where((c) => c.type == 'relay').length +
+          candidatesFromPc2.where((c) => c.type == 'relay').length;
 
   print('');
   print('Candidate types:');

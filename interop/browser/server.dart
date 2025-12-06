@@ -61,7 +61,8 @@ void handleWebSocket(WebSocket socket) async {
 
         // Set up event handlers
         pc!.onIceCandidate.listen((candidate) {
-          print('[Dart] ICE candidate: ${candidate.type} ${candidate.host}:${candidate.port}');
+          print(
+              '[Dart] ICE candidate: ${candidate.type} ${candidate.host}:${candidate.port}');
           // Send candidate to browser
           socket.add(jsonEncode({
             'type': 'candidate',
@@ -73,7 +74,8 @@ void handleWebSocket(WebSocket socket) async {
 
         pc!.onIceConnectionStateChange.listen((state) {
           print('[Dart] ICE state: $state');
-          if (state == IceConnectionState.connected || state == IceConnectionState.completed) {
+          if (state == IceConnectionState.connected ||
+              state == IceConnectionState.completed) {
             print('[Dart] ICE CONNECTED - ready for DTLS');
           }
         });
@@ -119,7 +121,6 @@ void handleWebSocket(WebSocket socket) async {
           'sdp': answer.sdp,
         }));
         print('[Dart] Answer sent');
-
       } else if (type == 'candidate' && pc != null) {
         // Add ICE candidate from browser
         final candidateStr = data['candidate'] as String;
@@ -130,15 +131,14 @@ void handleWebSocket(WebSocket socket) async {
           }
           final candidate = Candidate.fromSdp(sdp);
           await pc!.addIceCandidate(candidate);
-          print('[Dart] Added remote ICE candidate: ${candidate.type} ${candidate.host}:${candidate.port}');
+          print(
+              '[Dart] Added remote ICE candidate: ${candidate.type} ${candidate.host}:${candidate.port}');
         }
-
       } else if (type == 'message' && dataChannel != null) {
         final text = data['text'] as String;
         dataChannel!.sendString(text);
         print('[Dart] Sent: $text');
       }
-
     } catch (e, st) {
       print('[Server] Error: $e');
       print(st);

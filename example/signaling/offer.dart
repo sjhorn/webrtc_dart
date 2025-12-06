@@ -52,7 +52,8 @@ void main(List<String> args) async {
   // Collect ICE candidates to send with offer
   final candidates = <Candidate>[];
   pc.onIceCandidate.listen((candidate) {
-    print('[PC] Generated ICE candidate: ${candidate.type} at ${candidate.host}:${candidate.port}');
+    print(
+        '[PC] Generated ICE candidate: ${candidate.type} at ${candidate.host}:${candidate.port}');
     candidates.add(candidate);
   });
 
@@ -105,7 +106,8 @@ void main(List<String> args) async {
   print('\nWaiting for answer...');
 
   socket.listen((data) async {
-    final message = jsonDecode(data is String ? data : utf8.decode(data as List<int>));
+    final message =
+        jsonDecode(data is String ? data : utf8.decode(data as List<int>));
     final type = message['type'];
 
     if (type == 'answer') {

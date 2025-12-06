@@ -413,7 +413,9 @@ void main() {
         final nack = GenericNack(
           senderSsrc: 0xAAAAAAAA,
           mediaSourceSsrc: 0x12345678,
-          lostSeqNumbers: [seqNumbers[2]], // Request retransmission of 3rd packet
+          lostSeqNumbers: [
+            seqNumbers[2]
+          ], // Request retransmission of 3rd packet
         );
 
         senderSentPackets.clear();

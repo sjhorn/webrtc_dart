@@ -226,7 +226,8 @@ void main() {
       await pc.close();
     });
 
-    test('multiple createOffer without iceRestart keeps same credentials', () async {
+    test('multiple createOffer without iceRestart keeps same credentials',
+        () async {
       final pc = RtcPeerConnection();
 
       // Wait for initialization

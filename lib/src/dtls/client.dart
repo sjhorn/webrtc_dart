@@ -43,24 +43,22 @@ class DtlsClient extends DtlsSocket {
     List<CipherSuite>? cipherSuites,
     List<NamedCurve>? supportedCurves,
     List<SrtpProtectionProfile>? srtpProfiles,
-  }) : cipherSuites =
-           cipherSuites ??
-           [
-             CipherSuite.tlsEcdheEcdsaWithAes128GcmSha256,
-             CipherSuite.tlsEcdheRsaWithAes128GcmSha256,
-           ],
-       supportedCurves =
-           supportedCurves ?? [NamedCurve.x25519, NamedCurve.secp256r1],
-       srtpProfiles =
-           srtpProfiles ??
-           [
-             SrtpProtectionProfile.srtpAeadAes128Gcm,
-             SrtpProtectionProfile.srtpAes128CmHmacSha1_80,
-           ],
-       super(
-         cipherContext: cipherContext ?? CipherContext(isClient: true),
-         initialState: DtlsSocketState.closed,
-       ) {
+  })  : cipherSuites = cipherSuites ??
+            [
+              CipherSuite.tlsEcdheEcdsaWithAes128GcmSha256,
+              CipherSuite.tlsEcdheRsaWithAes128GcmSha256,
+            ],
+        supportedCurves =
+            supportedCurves ?? [NamedCurve.x25519, NamedCurve.secp256r1],
+        srtpProfiles = srtpProfiles ??
+            [
+              SrtpProtectionProfile.srtpAeadAes128Gcm,
+              SrtpProtectionProfile.srtpAes128CmHmacSha1_80,
+            ],
+        super(
+          cipherContext: cipherContext ?? CipherContext(isClient: true),
+          initialState: DtlsSocketState.closed,
+        ) {
     // Initialize record layer
     _recordLayer = DtlsRecordLayer(
       dtlsContext: dtlsContext,

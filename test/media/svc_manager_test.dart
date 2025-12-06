@@ -68,7 +68,8 @@ void main() {
       expect(ScalabilityMode.l1t1.serialize(), equals('L1T1'));
       expect(ScalabilityMode.l2t3.serialize(), equals('L2T3'));
       expect(
-        const ScalabilityMode(spatialLayers: 2, temporalLayers: 2, keyMode: true)
+        const ScalabilityMode(
+                spatialLayers: 2, temporalLayers: 2, keyMode: true)
             .serialize(),
         equals('L2T2_KEY'),
       );
@@ -224,8 +225,7 @@ void main() {
       expect(filter.filter(createMockPayload(sid: 1, tid: 0)), isTrue);
 
       // Keyframe arrives, switch happens
-      expect(
-          filter.filter(createMockPayload(sid: 0, tid: 0, isKeyframe: true)),
+      expect(filter.filter(createMockPayload(sid: 0, tid: 0, isKeyframe: true)),
           isTrue);
       expect(filter.isWaitingForKeyframe, isFalse);
 
@@ -235,7 +235,8 @@ void main() {
 
     test('increasing spatial layer switches immediately', () {
       // Start with spatial layer 0 - use immediate to establish baseline
-      filter.setSelection(SvcLayerSelection(maxSpatialLayer: 0), immediate: true);
+      filter.setSelection(SvcLayerSelection(maxSpatialLayer: 0),
+          immediate: true);
       expect(filter.isWaitingForKeyframe, isFalse);
 
       // Request increase to spatial layer 1
@@ -274,7 +275,8 @@ void main() {
 
     test('tracks statistics', () {
       // Use immediate: true to bypass keyframe wait
-      filter.setSelection(SvcLayerSelection(maxSpatialLayer: 0), immediate: true);
+      filter.setSelection(SvcLayerSelection(maxSpatialLayer: 0),
+          immediate: true);
 
       filter.filter(createMockPayload(sid: 0, tid: 0));
       filter.filter(createMockPayload(sid: 0, tid: 1));

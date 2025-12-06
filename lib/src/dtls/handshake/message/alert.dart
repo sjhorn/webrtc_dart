@@ -37,28 +37,43 @@ class Alert {
 
   /// Common alerts
   static Alert get closeNotify => Alert.warning(AlertDescription.closeNotify);
-  static Alert get unexpectedMessage => Alert.fatal(AlertDescription.unexpectedMessage);
+  static Alert get unexpectedMessage =>
+      Alert.fatal(AlertDescription.unexpectedMessage);
   static Alert get badRecordMac => Alert.fatal(AlertDescription.badRecordMac);
-  static Alert get decryptionFailed => Alert.fatal(AlertDescription.decryptionFailed);
-  static Alert get recordOverflow => Alert.fatal(AlertDescription.recordOverflow);
-  static Alert get decompressFailed => Alert.fatal(AlertDescription.decompressFailed);
-  static Alert get handshakeFailure => Alert.fatal(AlertDescription.handshakeFailure);
-  static Alert get badCertificate => Alert.fatal(AlertDescription.badCertificate);
-  static Alert get unsupportedCertificate => Alert.fatal(AlertDescription.unsupportedCertificate);
-  static Alert get certificateRevoked => Alert.fatal(AlertDescription.certificateRevoked);
-  static Alert get certificateExpired => Alert.fatal(AlertDescription.certificateExpired);
-  static Alert get certificateUnknown => Alert.fatal(AlertDescription.certificateUnknown);
-  static Alert get illegalParameter => Alert.fatal(AlertDescription.illegalParameter);
+  static Alert get decryptionFailed =>
+      Alert.fatal(AlertDescription.decryptionFailed);
+  static Alert get recordOverflow =>
+      Alert.fatal(AlertDescription.recordOverflow);
+  static Alert get decompressFailed =>
+      Alert.fatal(AlertDescription.decompressFailed);
+  static Alert get handshakeFailure =>
+      Alert.fatal(AlertDescription.handshakeFailure);
+  static Alert get badCertificate =>
+      Alert.fatal(AlertDescription.badCertificate);
+  static Alert get unsupportedCertificate =>
+      Alert.fatal(AlertDescription.unsupportedCertificate);
+  static Alert get certificateRevoked =>
+      Alert.fatal(AlertDescription.certificateRevoked);
+  static Alert get certificateExpired =>
+      Alert.fatal(AlertDescription.certificateExpired);
+  static Alert get certificateUnknown =>
+      Alert.fatal(AlertDescription.certificateUnknown);
+  static Alert get illegalParameter =>
+      Alert.fatal(AlertDescription.illegalParameter);
   static Alert get unknownCa => Alert.fatal(AlertDescription.unknownCa);
   static Alert get accessDenied => Alert.fatal(AlertDescription.accessDenied);
   static Alert get decodeError => Alert.fatal(AlertDescription.decodeError);
   static Alert get decryptError => Alert.fatal(AlertDescription.decryptError);
-  static Alert get protocolVersion => Alert.fatal(AlertDescription.protocolVersion);
-  static Alert get insufficientSecurity => Alert.fatal(AlertDescription.insufficientSecurity);
+  static Alert get protocolVersion =>
+      Alert.fatal(AlertDescription.protocolVersion);
+  static Alert get insufficientSecurity =>
+      Alert.fatal(AlertDescription.insufficientSecurity);
   static Alert get internalError => Alert.fatal(AlertDescription.internalError);
   static Alert get userCanceled => Alert.warning(AlertDescription.userCanceled);
-  static Alert get noRenegotiation => Alert.warning(AlertDescription.noRenegotiation);
-  static Alert get unsupportedExtension => Alert.fatal(AlertDescription.unsupportedExtension);
+  static Alert get noRenegotiation =>
+      Alert.warning(AlertDescription.noRenegotiation);
+  static Alert get unsupportedExtension =>
+      Alert.fatal(AlertDescription.unsupportedExtension);
 
   /// Check if this is a fatal alert
   bool get isFatal => level == AlertLevel.fatal;

@@ -118,7 +118,8 @@ Future<void> main() async {
 
       print('   First call timestamp: $timestamp1');
       print('   Second call timestamp: $timestamp2');
-      print('   Time difference: ${(timestamp2 - timestamp1).toStringAsFixed(2)}ms');
+      print(
+          '   Time difference: ${(timestamp2 - timestamp1).toStringAsFixed(2)}ms');
     }
     print('');
 

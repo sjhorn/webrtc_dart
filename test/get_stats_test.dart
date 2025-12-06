@@ -37,9 +37,7 @@ void main() {
 
       final stats = await pc.getStats();
 
-      final pcStats = stats.values
-          .whereType<RTCPeerConnectionStats>()
-          .first;
+      final pcStats = stats.values.whereType<RTCPeerConnectionStats>().first;
 
       // Data channel tracking is now implemented
       expect(pcStats.dataChannelsOpened, equals(0));

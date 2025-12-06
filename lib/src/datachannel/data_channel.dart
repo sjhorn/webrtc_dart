@@ -357,7 +357,9 @@ class ProxyDataChannel {
           ? DataChannelType.partialReliableTimed
           : DataChannelType.partialReliableTimedUnordered;
     }
-    return _ordered ? DataChannelType.reliable : DataChannelType.reliableUnordered;
+    return _ordered
+        ? DataChannelType.reliable
+        : DataChannelType.reliableUnordered;
   }
 
   bool get reliable => _realChannel?.reliable ?? channelType.isReliable;

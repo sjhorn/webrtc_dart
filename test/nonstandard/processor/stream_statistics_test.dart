@@ -59,7 +59,8 @@ void main() {
 
       stats.add(_createPacket(sequenceNumber: 100, timestamp: 0));
       stats.add(_createPacket(sequenceNumber: 102, timestamp: 6000));
-      stats.add(_createPacket(sequenceNumber: 101, timestamp: 3000)); // Out of order
+      stats.add(
+          _createPacket(sequenceNumber: 101, timestamp: 3000)); // Out of order
 
       expect(stats.packetsReceived, equals(3));
       expect(stats.maxSeq, equals(102)); // Still 102

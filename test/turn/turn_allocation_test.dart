@@ -10,7 +10,10 @@ void main() {
       );
 
       expect(allocation.createdAt, isNotNull);
-      expect(allocation.createdAt.isBefore(DateTime.now().add(Duration(seconds: 1))), isTrue);
+      expect(
+          allocation.createdAt
+              .isBefore(DateTime.now().add(Duration(seconds: 1))),
+          isTrue);
     });
 
     test('calculates expiry correctly', () {
@@ -80,7 +83,8 @@ void main() {
 
       expect(allocation.lifetime, 600);
       expect(allocation.remainingLifetime, lessThanOrEqualTo(600));
-      expect(allocation.remainingLifetime, greaterThan(595)); // Allow some processing time
+      expect(allocation.remainingLifetime,
+          greaterThan(595)); // Allow some processing time
       expect(allocation.isExpired, isFalse);
     });
   });

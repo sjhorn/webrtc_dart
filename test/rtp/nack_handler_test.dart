@@ -150,7 +150,8 @@ void main() {
 
     test('should handle sequence number wraparound', () async {
       handler.addPacket(createPacket(0xFFFE, 0xAABBCCDD));
-      handler.addPacket(createPacket(0x0001, 0xAABBCCDD)); // Gap: 0xFFFF, 0x0000
+      handler
+          .addPacket(createPacket(0x0001, 0xAABBCCDD)); // Gap: 0xFFFF, 0x0000
 
       expect(handler.lostPacketCount, equals(2));
       expect(handler.lostSeqNumbers, containsAll([0xFFFF, 0x0000]));
@@ -163,7 +164,8 @@ void main() {
 
     test('should recover packets across wraparound', () {
       handler.addPacket(createPacket(0xFFFE, 0xAABBCCDD));
-      handler.addPacket(createPacket(0x0001, 0xAABBCCDD)); // Missing: 0xFFFF, 0x0000
+      handler.addPacket(
+          createPacket(0x0001, 0xAABBCCDD)); // Missing: 0xFFFF, 0x0000
 
       expect(handler.lostPacketCount, equals(2));
 

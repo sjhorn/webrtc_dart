@@ -165,7 +165,8 @@ void main() {
       // Binary view: ZYWNNNRR where R=reserved
       // W=1 (binary 01) in bits 2-3 -> byte = 0b00010000 = 0x10
       final header = 0x10; // W=1
-      final obuData = Uint8List.fromList([0x02, 0x11, 0x22]); // sequence header OBU
+      final obuData =
+          Uint8List.fromList([0x02, 0x11, 0x22]); // sequence header OBU
       final buf = Uint8List.fromList([header, ...obuData]);
 
       final payload = Av1RtpPayload.deserialize(buf);
@@ -243,8 +244,10 @@ void main() {
 
       expect(payload.wField, 2);
       expect(payload.obuOrFragment.length, 2);
-      expect(payload.obuOrFragment[0].data, equals(Uint8List.fromList([0x02, 0x11, 0x22])));
-      expect(payload.obuOrFragment[1].data, equals(Uint8List.fromList([0x0C, 0xAA, 0xBB])));
+      expect(payload.obuOrFragment[0].data,
+          equals(Uint8List.fromList([0x02, 0x11, 0x22])));
+      expect(payload.obuOrFragment[1].data,
+          equals(Uint8List.fromList([0x0C, 0xAA, 0xBB])));
     });
 
     test('deserialize empty buffer', () {

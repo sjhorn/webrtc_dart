@@ -13,10 +13,12 @@ void main() {
     });
 
     test('ContentType.fromValue() works correctly', () {
-      expect(record.ContentType.fromValue(20), record.ContentType.changeCipherSpec);
+      expect(record.ContentType.fromValue(20),
+          record.ContentType.changeCipherSpec);
       expect(record.ContentType.fromValue(21), record.ContentType.alert);
       expect(record.ContentType.fromValue(22), record.ContentType.handshake);
-      expect(record.ContentType.fromValue(23), record.ContentType.applicationData);
+      expect(
+          record.ContentType.fromValue(23), record.ContentType.applicationData);
       expect(record.ContentType.fromValue(99), isNull);
     });
 
@@ -110,9 +112,12 @@ void main() {
     });
 
     test('HandshakeType.fromValue() works correctly', () {
-      expect(handshake.HandshakeType.fromValue(1), handshake.HandshakeType.clientHello);
-      expect(handshake.HandshakeType.fromValue(2), handshake.HandshakeType.serverHello);
-      expect(handshake.HandshakeType.fromValue(20), handshake.HandshakeType.finished);
+      expect(handshake.HandshakeType.fromValue(1),
+          handshake.HandshakeType.clientHello);
+      expect(handshake.HandshakeType.fromValue(2),
+          handshake.HandshakeType.serverHello);
+      expect(handshake.HandshakeType.fromValue(20),
+          handshake.HandshakeType.finished);
       expect(handshake.HandshakeType.fromValue(99), isNull);
     });
 
@@ -134,9 +139,12 @@ void main() {
     });
 
     test('ExtensionType.fromValue() works correctly', () {
-      expect(handshake.ExtensionType.fromValue(0), handshake.ExtensionType.serverName);
-      expect(handshake.ExtensionType.fromValue(14), handshake.ExtensionType.useSrtp);
-      expect(handshake.ExtensionType.fromValue(65281), handshake.ExtensionType.renegotiationInfo);
+      expect(handshake.ExtensionType.fromValue(0),
+          handshake.ExtensionType.serverName);
+      expect(handshake.ExtensionType.fromValue(14),
+          handshake.ExtensionType.useSrtp);
+      expect(handshake.ExtensionType.fromValue(65281),
+          handshake.ExtensionType.renegotiationInfo);
       expect(handshake.ExtensionType.fromValue(99999), isNull);
     });
 
@@ -242,7 +250,8 @@ void main() {
       expect(rsaSha256.toScheme(), handshake.SignatureScheme.rsaPkcs1Sha256);
 
       const ecdsaSha256 = cipher.SignatureHash(hash: 4, signature: 3);
-      expect(ecdsaSha256.toScheme(), handshake.SignatureScheme.ecdsaSecp256r1Sha256);
+      expect(ecdsaSha256.toScheme(),
+          handshake.SignatureScheme.ecdsaSecp256r1Sha256);
 
       const unknown = cipher.SignatureHash(hash: 5, signature: 1);
       expect(unknown.toScheme(), isNull);
@@ -266,11 +275,13 @@ void main() {
       expect(cipher.supportedSignatureAlgorithms.length, 2);
       expect(
         cipher.supportedSignatureAlgorithms,
-        contains(const cipher.SignatureHash(hash: 4, signature: 1)), // SHA256 + RSA
+        contains(
+            const cipher.SignatureHash(hash: 4, signature: 1)), // SHA256 + RSA
       );
       expect(
         cipher.supportedSignatureAlgorithms,
-        contains(const cipher.SignatureHash(hash: 4, signature: 3)), // SHA256 + ECDSA
+        contains(const cipher.SignatureHash(
+            hash: 4, signature: 3)), // SHA256 + ECDSA
       );
     });
 
@@ -342,7 +353,8 @@ void main() {
     test('supportedNamedCurves contains all curves', () {
       expect(cipher.supportedNamedCurves.length, 2);
       expect(cipher.supportedNamedCurves, contains(cipher.NamedCurve.x25519));
-      expect(cipher.supportedNamedCurves, contains(cipher.NamedCurve.secp256r1));
+      expect(
+          cipher.supportedNamedCurves, contains(cipher.NamedCurve.secp256r1));
     });
   });
 }

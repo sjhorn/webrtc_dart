@@ -28,7 +28,8 @@ class StreamDtlsTransport implements DtlsTransport {
     required void Function(Uint8List data) sendCallback,
     StreamController<Uint8List>? receiveController,
   })  : _sendCallback = sendCallback,
-        _receiveController = receiveController ?? StreamController<Uint8List>.broadcast(),
+        _receiveController =
+            receiveController ?? StreamController<Uint8List>.broadcast(),
         _isOpen = true;
 
   @override
@@ -65,20 +66,23 @@ class StreamDtlsTransport implements DtlsTransport {
 /// Wraps a UDP socket for DTLS communication
 class UdpDtlsTransport implements DtlsTransport {
   final StreamController<Uint8List> _receiveController;
-  final Future<void> Function(Uint8List data, String address, int port) _sendCallback;
+  final Future<void> Function(Uint8List data, String address, int port)
+      _sendCallback;
   final String _remoteAddress;
   final int _remotePort;
   bool _isOpen;
 
   UdpDtlsTransport({
-    required Future<void> Function(Uint8List data, String address, int port) sendCallback,
+    required Future<void> Function(Uint8List data, String address, int port)
+        sendCallback,
     required String remoteAddress,
     required int remotePort,
     StreamController<Uint8List>? receiveController,
   })  : _sendCallback = sendCallback,
         _remoteAddress = remoteAddress,
         _remotePort = remotePort,
-        _receiveController = receiveController ?? StreamController<Uint8List>.broadcast(),
+        _receiveController =
+            receiveController ?? StreamController<Uint8List>.broadcast(),
         _isOpen = true;
 
   @override

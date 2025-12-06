@@ -46,7 +46,8 @@ void main() {
       });
 
       await connection.gatherCandidates();
-      await Future.delayed(Duration(milliseconds: 50)); // Allow stream to process
+      await Future.delayed(
+          Duration(milliseconds: 50)); // Allow stream to process
 
       // Should have emitted candidates
       expect(candidates.length, equals(connection.localCandidates.length));

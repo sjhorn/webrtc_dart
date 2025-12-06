@@ -101,7 +101,9 @@ Future<String?> getDefaultAddress({bool ipv6 = false}) async {
       // Connect to Google's DNS (doesn't send packets, just determines route)
       socket.send(
         [],
-        ipv6 ? InternetAddress('2001:4860:4860::8888') : InternetAddress('8.8.8.8'),
+        ipv6
+            ? InternetAddress('2001:4860:4860::8888')
+            : InternetAddress('8.8.8.8'),
         53,
       );
 

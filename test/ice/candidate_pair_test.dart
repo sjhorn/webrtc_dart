@@ -262,7 +262,8 @@ void main() {
         type: 'srflx',
       );
 
-      final highPriority = candidatePairPriority(highPriorityLocal, remote, true);
+      final highPriority =
+          candidatePairPriority(highPriorityLocal, remote, true);
       final lowPriority = candidatePairPriority(lowPriorityLocal, remote, true);
 
       expect(highPriority, greaterThan(lowPriority));

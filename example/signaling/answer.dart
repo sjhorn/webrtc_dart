@@ -51,7 +51,8 @@ void main(List<String> args) async {
   // Collect ICE candidates
   final candidates = <Candidate>[];
   pc.onIceCandidate.listen((candidate) {
-    print('[PC] Generated ICE candidate: ${candidate.type} at ${candidate.host}:${candidate.port}');
+    print(
+        '[PC] Generated ICE candidate: ${candidate.type} at ${candidate.host}:${candidate.port}');
     candidates.add(candidate);
   });
 
@@ -79,7 +80,8 @@ void main(List<String> args) async {
 
   // Handle signaling messages
   socket.listen((data) async {
-    final message = jsonDecode(data is String ? data : utf8.decode(data as List<int>));
+    final message =
+        jsonDecode(data is String ? data : utf8.decode(data as List<int>));
     final type = message['type'];
 
     if (type == 'offer') {
@@ -110,11 +112,13 @@ void main(List<String> args) async {
       final answerMessage = jsonEncode({
         'type': 'answer',
         'sdp': answer.sdp,
-        'candidates':
-            candidates.map((c) => {'candidate': c.toSdp(), 'sdpMid': '0'}).toList(),
+        'candidates': candidates
+            .map((c) => {'candidate': c.toSdp(), 'sdpMid': '0'})
+            .toList(),
       });
       socket.add(answerMessage);
-      print('Sent answer to signaling server (${candidates.length} candidates)\n');
+      print(
+          'Sent answer to signaling server (${candidates.length} candidates)\n');
     }
   });
 

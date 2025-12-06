@@ -945,7 +945,8 @@ class SctpForwardTsnChunk extends SctpChunk {
   }
 
   @override
-  String toString() => 'FORWARD-TSN(tsn=$newCumulativeTsn, streams=${streams.length})';
+  String toString() =>
+      'FORWARD-TSN(tsn=$newCumulativeTsn, streams=${streams.length})';
 }
 
 /// Forward TSN Stream info

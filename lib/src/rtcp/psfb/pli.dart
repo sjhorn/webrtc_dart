@@ -45,7 +45,8 @@ class PictureLossIndication {
   /// Deserialize PLI from bytes
   static PictureLossIndication deserialize(Uint8List data) {
     if (data.length < 8) {
-      throw ArgumentError('PLI data too short: ${data.length} bytes, expected 8');
+      throw ArgumentError(
+          'PLI data too short: ${data.length} bytes, expected 8');
     }
 
     final buffer = ByteData.view(data.buffer, data.offsetInBytes);

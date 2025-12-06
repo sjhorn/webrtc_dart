@@ -89,9 +89,8 @@ Future<Uint8List> aesGcmEncrypt({
   required Uint8List additionalData,
 }) async {
   // Select algorithm based on key length
-  final algorithm = key.length == 16
-      ? AesGcm.with128bits()
-      : AesGcm.with256bits();
+  final algorithm =
+      key.length == 16 ? AesGcm.with128bits() : AesGcm.with256bits();
 
   final secretKey = SecretKey(key);
   final secretBox = await algorithm.encrypt(
@@ -102,7 +101,8 @@ Future<Uint8List> aesGcmEncrypt({
   );
 
   // Concatenate ciphertext and MAC
-  final result = Uint8List(secretBox.cipherText.length + secretBox.mac.bytes.length);
+  final result =
+      Uint8List(secretBox.cipherText.length + secretBox.mac.bytes.length);
   result.setAll(0, secretBox.cipherText);
   result.setAll(secretBox.cipherText.length, secretBox.mac.bytes);
 
@@ -122,9 +122,8 @@ Future<Uint8List> aesGcmDecrypt({
   }
 
   // Select algorithm based on key length
-  final algorithm = key.length == 16
-      ? AesGcm.with128bits()
-      : AesGcm.with256bits();
+  final algorithm =
+      key.length == 16 ? AesGcm.with128bits() : AesGcm.with256bits();
 
   // Split ciphertext and MAC
   final actualCiphertext = ciphertext.sublist(0, ciphertext.length - macLength);

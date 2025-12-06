@@ -73,8 +73,7 @@ class RtpSourceStream {
     }
 
     // Filter by payload type if specified
-    if (options.payloadType != null &&
-        options.payloadType != rtp.payloadType) {
+    if (options.payloadType != null && options.payloadType != rtp.payloadType) {
       // Optionally clear the packet
       if (options.clearInvalidPtPacket) {
         // In Dart we just don't emit it

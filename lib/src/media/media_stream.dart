@@ -15,13 +15,13 @@ class MediaStream {
   final _trackAddedController = StreamController<MediaStreamTrack>.broadcast();
 
   /// Track removed event stream
-  final _trackRemovedController = StreamController<MediaStreamTrack>.broadcast();
+  final _trackRemovedController =
+      StreamController<MediaStreamTrack>.broadcast();
 
   /// Active state change stream
   final _activeController = StreamController<bool>.broadcast();
 
-  MediaStream({String? id})
-      : id = id ?? _generateId();
+  MediaStream({String? id}) : id = id ?? _generateId();
 
   /// Create stream from tracks
   MediaStream.fromTracks(List<MediaStreamTrack> tracks, {String? id})

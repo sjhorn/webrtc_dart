@@ -64,7 +64,8 @@ class ServerHello {
     for (final extension in extensions) {
       extensionBytes.add(extension.serialize());
     }
-    final extensionsLength = extensionBytes.fold<int>(0, (sum, b) => sum + b.length);
+    final extensionsLength =
+        extensionBytes.fold<int>(0, (sum, b) => sum + b.length);
 
     if (extensionsLength > 0) {
       totalLength += 2 + extensionsLength; // extensions length + data
@@ -144,15 +145,18 @@ class ServerHello {
     offset += 2;
     final cipherSuite = CipherSuite.fromValue(cipherSuiteValue);
     if (cipherSuite == null) {
-      throw FormatException('Unknown cipher suite: 0x${cipherSuiteValue.toRadixString(16)}');
+      throw FormatException(
+          'Unknown cipher suite: 0x${cipherSuiteValue.toRadixString(16)}');
     }
 
     // Compression method
     final compressionMethodValue = buffer.getUint8(offset);
     offset++;
-    final compressionMethod = CompressionMethod.fromValue(compressionMethodValue);
+    final compressionMethod =
+        CompressionMethod.fromValue(compressionMethodValue);
     if (compressionMethod == null) {
-      throw FormatException('Unknown compression method: $compressionMethodValue');
+      throw FormatException(
+          'Unknown compression method: $compressionMethodValue');
     }
 
     // Extensions (optional)
@@ -176,7 +180,8 @@ class ServerHello {
 
   /// Check if extended master secret extension is present
   bool get hasExtendedMasterSecret {
-    return extensions.any((ext) => ext.type == ExtensionType.extendedMasterSecret);
+    return extensions
+        .any((ext) => ext.type == ExtensionType.extendedMasterSecret);
   }
 
   @override

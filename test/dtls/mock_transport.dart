@@ -43,7 +43,8 @@ class MockTransport implements DtlsTransport {
 
     // Simulate packet loss
     if (packetLossRate > 0 &&
-        (DateTime.now().microsecondsSinceEpoch % 100) < (packetLossRate * 100)) {
+        (DateTime.now().microsecondsSinceEpoch % 100) <
+            (packetLossRate * 100)) {
       return; // Drop packet
     }
 

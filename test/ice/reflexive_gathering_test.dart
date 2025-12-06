@@ -3,7 +3,8 @@ import 'package:webrtc_dart/src/ice/ice_connection.dart';
 
 void main() {
   group('Reflexive Candidate Gathering', () {
-    test('gathering without STUN server only creates host candidates', () async {
+    test('gathering without STUN server only creates host candidates',
+        () async {
       final connection = IceConnectionImpl(
         iceControlling: true,
         options: IceOptions(), // No STUN server
@@ -28,7 +29,8 @@ void main() {
         ),
       );
 
-      expect(connection.options.stunServer, equals(('stun.l.google.com', 19302)));
+      expect(
+          connection.options.stunServer, equals(('stun.l.google.com', 19302)));
 
       connection.close();
     });
@@ -47,11 +49,13 @@ void main() {
         await connection.gatherCandidates();
 
         // Should have at least host candidates
-        final hostCandidates = connection.localCandidates.where((c) => c.type == 'host');
+        final hostCandidates =
+            connection.localCandidates.where((c) => c.type == 'host');
         expect(hostCandidates, isNotEmpty);
 
         // May have reflexive candidates if network allows
-        final srflxCandidates = connection.localCandidates.where((c) => c.type == 'srflx');
+        final srflxCandidates =
+            connection.localCandidates.where((c) => c.type == 'srflx');
 
         // If we got reflexive candidates, verify their properties
         for (final srflx in srflxCandidates) {
@@ -86,18 +90,20 @@ void main() {
       try {
         await connection.gatherCandidates();
 
-        final srflxCandidates = connection.localCandidates.where((c) => c.type == 'srflx');
-        final hostCandidates = connection.localCandidates.where((c) => c.type == 'host');
+        final srflxCandidates =
+            connection.localCandidates.where((c) => c.type == 'srflx');
+        final hostCandidates =
+            connection.localCandidates.where((c) => c.type == 'host');
 
         // If we got reflexive candidates, verify they point to host candidates
         for (final srflx in srflxCandidates) {
           // Find the related host candidate
           final relatedHost = hostCandidates.where((h) =>
-            h.host == srflx.relatedAddress && h.port == srflx.relatedPort
-          );
+              h.host == srflx.relatedAddress && h.port == srflx.relatedPort);
 
           expect(relatedHost, isNotEmpty,
-            reason: 'Reflexive candidate should have a matching host candidate');
+              reason:
+                  'Reflexive candidate should have a matching host candidate');
         }
       } catch (e) {
         // Network issues are acceptable
@@ -118,19 +124,20 @@ void main() {
       try {
         await connection.gatherCandidates();
 
-        final srflxCandidates = connection.localCandidates.where((c) => c.type == 'srflx');
+        final srflxCandidates =
+            connection.localCandidates.where((c) => c.type == 'srflx');
 
         // Reflexive candidates should reuse the host candidate's socket
         // This is verified by checking that the related port matches a host candidate
         for (final srflx in srflxCandidates) {
           final hostWithSamePort = connection.localCandidates.where((c) =>
-            c.type == 'host' &&
-            c.host == srflx.relatedAddress &&
-            c.port == srflx.relatedPort
-          );
+              c.type == 'host' &&
+              c.host == srflx.relatedAddress &&
+              c.port == srflx.relatedPort);
 
           expect(hostWithSamePort, isNotEmpty,
-            reason: 'Reflexive candidate should share socket with host candidate');
+              reason:
+                  'Reflexive candidate should share socket with host candidate');
         }
       } catch (e) {
         // Network issues are acceptable
@@ -140,7 +147,8 @@ void main() {
       }
     }, timeout: Timeout(Duration(seconds: 10)));
 
-    test('gathering with invalid STUN server falls back to host only', () async {
+    test('gathering with invalid STUN server falls back to host only',
+        () async {
       final connection = IceConnectionImpl(
         iceControlling: true,
         options: IceOptions(
@@ -154,7 +162,8 @@ void main() {
       expect(connection.localCandidatesEnd, isTrue);
 
       // Should have at least host candidates
-      final hostCandidates = connection.localCandidates.where((c) => c.type == 'host');
+      final hostCandidates =
+          connection.localCandidates.where((c) => c.type == 'host');
       expect(hostCandidates, isNotEmpty);
 
       await connection.close();
@@ -171,7 +180,8 @@ void main() {
       try {
         await connection.gatherCandidates();
 
-        final srflxCandidates = connection.localCandidates.where((c) => c.type == 'srflx');
+        final srflxCandidates =
+            connection.localCandidates.where((c) => c.type == 'srflx');
 
         for (final srflx in srflxCandidates) {
           final sdp = srflx.toSdp();

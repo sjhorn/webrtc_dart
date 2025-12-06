@@ -90,7 +90,8 @@ class SctpPacket {
     final sourcePort = buffer.getUint16(0);
     final destinationPort = buffer.getUint16(2);
     final verificationTag = buffer.getUint32(4);
-    final checksum = buffer.getUint32(8, Endian.little); // Little-endian per RFC 4960
+    final checksum =
+        buffer.getUint32(8, Endian.little); // Little-endian per RFC 4960
 
     // Verify checksum
     final calculatedChecksum = _calculateChecksum(data);
@@ -120,7 +121,8 @@ class SctpPacket {
       chunks.add(chunk);
 
       // Move to next chunk (with padding)
-      final paddedLength = (chunkLength + 3) & ~3; // Round up to 4-byte boundary
+      final paddedLength =
+          (chunkLength + 3) & ~3; // Round up to 4-byte boundary
       offset += paddedLength;
     }
 

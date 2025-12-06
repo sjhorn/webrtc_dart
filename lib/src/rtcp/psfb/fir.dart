@@ -108,7 +108,8 @@ class FullIntraRequest {
   /// Deserialize FIR from bytes
   static FullIntraRequest deserialize(Uint8List data) {
     if (data.length < 8) {
-      throw ArgumentError('FIR data too short: ${data.length} bytes, expected at least 8');
+      throw ArgumentError(
+          'FIR data too short: ${data.length} bytes, expected at least 8');
     }
 
     if ((data.length - 8) % 8 != 0) {
@@ -153,7 +154,8 @@ class FullIntraRequest {
           _listEquals(entries, other.entries);
 
   @override
-  int get hashCode => Object.hash(senderSsrc, mediaSsrc, Object.hashAll(entries));
+  int get hashCode =>
+      Object.hash(senderSsrc, mediaSsrc, Object.hashAll(entries));
 
   /// Helper to compare lists
   static bool _listEquals<T>(List<T> a, List<T> b) {

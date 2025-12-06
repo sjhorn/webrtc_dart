@@ -22,7 +22,8 @@ void main() {
       await connection.close();
     });
 
-    test('candidate pairs are created when remote candidates are added', () async {
+    test('candidate pairs are created when remote candidates are added',
+        () async {
       final connection = IceConnectionImpl(iceControlling: true);
 
       await connection.gatherCandidates();

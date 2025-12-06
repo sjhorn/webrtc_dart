@@ -162,8 +162,10 @@ void main() async {
   // Summary
   print('');
   print('--- Summary ---');
-  print('ICE states observed on PC1: ${iceStates1.map((s) => s.name).join(" -> ")}');
-  print('ICE states observed on PC2: ${iceStates2.map((s) => s.name).join(" -> ")}');
+  print(
+      'ICE states observed on PC1: ${iceStates1.map((s) => s.name).join(" -> ")}');
+  print(
+      'ICE states observed on PC2: ${iceStates2.map((s) => s.name).join(" -> ")}');
 
   final success = pc1.iceConnectionState == IceConnectionState.connected ||
       pc1.iceConnectionState == IceConnectionState.completed;

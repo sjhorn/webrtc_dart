@@ -102,7 +102,8 @@ void main() {
 
       // Now send RTP
       final results = processor.processInput(NtpTimeInput(
-        rtp: _createRtpPacket(sequenceNumber: 100, timestamp: 9000), // 100ms at 90kHz
+        rtp: _createRtpPacket(
+            sequenceNumber: 100, timestamp: 9000), // 100ms at 90kHz
       ));
 
       expect(results.length, equals(1));

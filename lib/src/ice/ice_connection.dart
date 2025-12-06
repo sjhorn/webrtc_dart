@@ -51,7 +51,10 @@ enum IceRole {
 /// Generate random string for ICE credentials
 String randomString(int length) {
   final bytes = randomBytes(length);
-  return bytes.map((b) => b.toRadixString(16).padLeft(2, '0')).join().substring(0, length);
+  return bytes
+      .map((b) => b.toRadixString(16).padLeft(2, '0'))
+      .join()
+      .substring(0, length);
 }
 
 /// ICE connection options
@@ -466,7 +469,8 @@ class IceConnectionImpl implements IceConnection {
     final stunAddress = stunAddresses.first;
 
     // Create a copy to avoid concurrent modification
-    final hostCandidates = _localCandidates.where((c) => c.type == 'host').toList();
+    final hostCandidates =
+        _localCandidates.where((c) => c.type == 'host').toList();
 
     // Try to get reflexive candidates for each host candidate
     for (final hostCandidate in hostCandidates) {
@@ -488,7 +492,8 @@ class IceConnectionImpl implements IceConnection {
 
         // Extract mapped address from response
         if (response.messageClass == StunClass.successResponse) {
-          final xorMapped = response.getAttribute(StunAttributeType.xorMappedAddress);
+          final xorMapped =
+              response.getAttribute(StunAttributeType.xorMappedAddress);
           final mapped = response.getAttribute(StunAttributeType.mappedAddress);
 
           final address = xorMapped ?? mapped;
@@ -496,7 +501,8 @@ class IceConnectionImpl implements IceConnection {
             final (mappedHost, mappedPort) = address as (String, int);
 
             // Create server reflexive candidate
-            final foundation = candidateFoundation('srflx', 'udp', hostCandidate.host);
+            final foundation =
+                candidateFoundation('srflx', 'udp', hostCandidate.host);
             final srflxCandidate = Candidate(
               foundation: foundation,
               component: 1,
@@ -567,7 +573,8 @@ class IceConnectionImpl implements IceConnection {
       final (relayHost, relayPort) = allocation.relayedAddress;
 
       // Get base candidate (use first host candidate)
-      final baseCandidates = _localCandidates.where((c) => c.type == 'host').toList();
+      final baseCandidates =
+          _localCandidates.where((c) => c.type == 'host').toList();
       if (baseCandidates.isEmpty) return;
 
       final baseCandidate = baseCandidates.first;
@@ -609,7 +616,6 @@ class IceConnectionImpl implements IceConnection {
       }
       // Sort pairs by priority
       _checkList.sort((a, b) => b.priority.compareTo(a.priority));
-
     } catch (e) {
       // Failed to get relay candidate, continue without it
       _turnClient = null;
@@ -632,7 +638,8 @@ class IceConnectionImpl implements IceConnection {
         foundation: foundation,
         component: 1, // RTP component
         transport: 'tcp',
-        priority: candidatePriority('host', transportPreference: 6), // TCP has lower preference
+        priority: candidatePriority('host',
+            transportPreference: 6), // TCP has lower preference
         host: tcpHost.address,
         port: tcpHost.port,
         type: 'host',
@@ -706,7 +713,8 @@ class IceConnectionImpl implements IceConnection {
     }
 
     // Non-STUN data - deliver to application layer
-    print('[ICE] Delivering ${data.length} bytes of TURN-relayed data to application');
+    print(
+        '[ICE] Delivering ${data.length} bytes of TURN-relayed data to application');
     _dataController.add(data);
   }
 
@@ -829,7 +837,8 @@ class IceConnectionImpl implements IceConnection {
 
     // Non-STUN data - deliver to application layer
     // This would be DTLS data in a real WebRTC connection
-    print('[ICE] Delivering ${data.length} bytes of non-STUN data to application');
+    print(
+        '[ICE] Delivering ${data.length} bytes of non-STUN data to application');
     _dataController.add(data);
   }
 
@@ -838,11 +847,13 @@ class IceConnectionImpl implements IceConnection {
     try {
       final message = parseStunMessage(data);
       if (message == null) {
-        print('[ICE] Failed to parse STUN message from ${address.address}:$port');
+        print(
+            '[ICE] Failed to parse STUN message from ${address.address}:$port');
         return; // Invalid STUN message
       }
 
-      print('[ICE] Received STUN ${message.messageClass} from ${address.address}:$port');
+      print(
+          '[ICE] Received STUN ${message.messageClass} from ${address.address}:$port');
 
       // Check if this is a response to a pending transaction
       if (message.messageClass == StunClass.successResponse ||
@@ -866,7 +877,8 @@ class IceConnectionImpl implements IceConnection {
   }
 
   /// Handle incoming STUN binding request
-  void _handleStunRequest(StunMessage request, InternetAddress address, int port) {
+  void _handleStunRequest(
+      StunMessage request, InternetAddress address, int port) {
     // Create a success response
     final response = StunMessage(
       method: request.method,
@@ -875,7 +887,8 @@ class IceConnectionImpl implements IceConnection {
     );
 
     // Add XOR-MAPPED-ADDRESS with the source address/port
-    print('[ICE] Creating response with XOR-MAPPED-ADDRESS: (${address.address}, $port)');
+    print(
+        '[ICE] Creating response with XOR-MAPPED-ADDRESS: (${address.address}, $port)');
     response.setAttribute(
       StunAttributeType.xorMappedAddress,
       (address.address, port),
@@ -953,7 +966,8 @@ class IceConnectionImpl implements IceConnection {
     // No matching pair found - create peer reflexive candidate (RFC 5245 Section 7.2.1.3)
     // This handles the case where remote candidate was added with mDNS hostname (.local)
     // but binding request arrives from actual IP address
-    print('[ICE] Creating peer reflexive candidate for $remoteHost:$remotePort');
+    print(
+        '[ICE] Creating peer reflexive candidate for $remoteHost:$remotePort');
 
     // Create peer reflexive remote candidate
     final prflxCandidate = Candidate(
@@ -971,7 +985,8 @@ class IceConnectionImpl implements IceConnection {
 
     // Create pairs with all local candidates
     for (final localCandidate in _localCandidates) {
-      final pairId = '${localCandidate.foundation}-${prflxCandidate.foundation}';
+      final pairId =
+          '${localCandidate.foundation}-${prflxCandidate.foundation}';
       final pair = CandidatePair(
         id: pairId,
         localCandidate: localCandidate,
@@ -981,7 +996,8 @@ class IceConnectionImpl implements IceConnection {
       _checkList.add(pair);
 
       // Mark this new pair as succeeded immediately
-      print('[ICE] Triggered check succeeded for prflx $remoteHost:$remotePort');
+      print(
+          '[ICE] Triggered check succeeded for prflx $remoteHost:$remotePort');
       pair.updateState(CandidatePairState.succeeded);
 
       // First successful pair transitions to connected
@@ -1009,7 +1025,8 @@ class IceConnectionImpl implements IceConnection {
 
     // Check for STUN magic cookie (0x2112A442) at offset 4
     if (data.length >= 8) {
-      final magicCookie = (data[4] << 24) | (data[5] << 16) | (data[6] << 8) | data[7];
+      final magicCookie =
+          (data[4] << 24) | (data[5] << 16) | (data[6] << 8) | data[7];
       return magicCookie == 0x2112A442;
     }
 
@@ -1024,7 +1041,8 @@ class IceConnectionImpl implements IceConnection {
       final localCandidate = pair.localCandidate;
       final remoteCandidate = pair.remoteCandidate;
 
-      print('[ICE] Checking ${localCandidate.host}:${localCandidate.port} -> ${remoteCandidate.host}:${remoteCandidate.port} (controlling: $_iceControlling)');
+      print(
+          '[ICE] Checking ${localCandidate.host}:${localCandidate.port} -> ${remoteCandidate.host}:${remoteCandidate.port} (controlling: $_iceControlling)');
 
       // For relay candidates, we need TURN client
       final isRelay = localCandidate.type == 'relay';
@@ -1037,7 +1055,8 @@ class IceConnectionImpl implements IceConnection {
       if (!isRelay) {
         socket = _sockets[localCandidate.foundation];
         if (socket == null) {
-          print('[ICE] ERROR: Socket not found for foundation ${localCandidate.foundation}');
+          print(
+              '[ICE] ERROR: Socket not found for foundation ${localCandidate.foundation}');
           print('[ICE] Available sockets: ${_sockets.keys.toList()}');
           return false;
         }
@@ -1087,7 +1106,8 @@ class IceConnectionImpl implements IceConnection {
 
       // Send request - via TURN for relay candidates, direct for others
       final requestBytes = request.toBytes();
-      print('[ICE] Sending STUN request (${requestBytes.length} bytes) to ${remoteCandidate.host}:${remoteCandidate.port}');
+      print(
+          '[ICE] Sending STUN request (${requestBytes.length} bytes) to ${remoteCandidate.host}:${remoteCandidate.port}');
       if (isRelay) {
         final peerAddress = (remoteCandidate.host, remoteCandidate.port);
         await _turnClient!.sendData(peerAddress, requestBytes);

@@ -189,7 +189,8 @@ class Vp9RtpPayload {
 
       // Parse SS header
       final ssByte = buf[offset];
-      vp9.nS = (ssByte >> 5) & 0x07; // Bits 5-7: N_S (number of spatial layers - 1)
+      vp9.nS =
+          (ssByte >> 5) & 0x07; // Bits 5-7: N_S (number of spatial layers - 1)
       vp9.y = (ssByte >> 4) & 0x01; // Bit 4: Y (resolution present)
       vp9.g = (ssByte >> 3) & 0x01; // Bit 3: G (picture groups present)
       offset++;
@@ -255,9 +256,7 @@ class Vp9RtpPayload {
   /// Must be intra-predicted (pBit=0), start of frame (bBit=1),
   /// and base spatial layer (sid=0) or no layer info (lBit=0)
   bool get isKeyframe {
-    return pBit == 0 &&
-        bBit == 1 &&
-        (lBit == 0 || (sid != null && sid == 0));
+    return pBit == 0 && bBit == 1 && (lBit == 0 || (sid != null && sid == 0));
   }
 
   /// Check if this is the start of a partition

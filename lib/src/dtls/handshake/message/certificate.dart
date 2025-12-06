@@ -67,7 +67,8 @@ class Certificate {
   /// Parse from bytes
   static Certificate parse(Uint8List data) {
     if (data.length < 3) {
-      throw FormatException('Certificate message too short: ${data.length} bytes');
+      throw FormatException(
+          'Certificate message too short: ${data.length} bytes');
     }
 
     final buffer = ByteData.sublistView(data);

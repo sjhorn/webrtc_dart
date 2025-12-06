@@ -356,8 +356,10 @@ class LipSyncProcessor {
       'currentTimestamp': _currentTimestamp,
       'lastCommittedTime': _lastCommittedTime,
       'stopped': _stopped,
-      'audioBufferedFrames': _audioBuffer.fold<int>(0, (sum, b) => sum + b.length),
-      'videoBufferedFrames': _videoBuffer.fold<int>(0, (sum, b) => sum + b.length),
+      'audioBufferedFrames':
+          _audioBuffer.fold<int>(0, (sum, b) => sum + b.length),
+      'videoBufferedFrames':
+          _videoBuffer.fold<int>(0, (sum, b) => sum + b.length),
       'audioFramesReceived': _audioFramesReceived,
       'videoFramesReceived': _videoFramesReceived,
       'audioFramesOutput': _audioFramesOutput,

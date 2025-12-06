@@ -20,7 +20,6 @@ import '../../srtp/rtp_packet.dart';
 import '../../srtp/rtcp_packet.dart';
 import 'pipeline.dart';
 
-
 /// Track info for recording
 class RecordingTrack {
   /// Track kind ('audio' or 'video')
@@ -457,7 +456,8 @@ class MediaRecorder {
         'started': _started,
         'stopped': _stopped,
         'trackCount': tracks.length,
-        'pipelines': _pipelines.map((k, v) => MapEntry(k.toString(), v.toJson())),
+        'pipelines':
+            _pipelines.map((k, v) => MapEntry(k.toString(), v.toJson())),
         'lipsync': _lipsync?.toJson(),
       };
 }
@@ -554,7 +554,8 @@ class SimpleWebmRecorder {
   }
 
   /// Add a video frame
-  void addVideoFrame(Uint8List data, {required bool isKeyframe, required int timestampMs}) {
+  void addVideoFrame(Uint8List data,
+      {required bool isKeyframe, required int timestampMs}) {
     if (!_started || _stopped || !hasVideo) return;
 
     _processor?.processVideoFrame(WebmFrame(

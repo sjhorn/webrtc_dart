@@ -11,7 +11,9 @@ import 'package:webrtc_dart/webrtc_dart.dart';
 void main() async {
   // Create a new peer connection
   final pc = RtcPeerConnection(RtcConfiguration(
-    iceServers: [IceServer(urls: ['stun:stun.l.google.com:19302'])],
+    iceServers: [
+      IceServer(urls: ['stun:stun.l.google.com:19302'])
+    ],
   ));
 
   // Wait for transport initialization (DTLS certificate generation)

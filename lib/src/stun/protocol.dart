@@ -159,7 +159,8 @@ class StunClient {
 
       if (response.messageClass == StunClass.successResponse) {
         // Extract XOR-MAPPED-ADDRESS or MAPPED-ADDRESS
-        final xorMapped = response.getAttribute(StunAttributeType.xorMappedAddress);
+        final xorMapped =
+            response.getAttribute(StunAttributeType.xorMappedAddress);
         final mapped = response.getAttribute(StunAttributeType.mappedAddress);
 
         final address = xorMapped ?? mapped;

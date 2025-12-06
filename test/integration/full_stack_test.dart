@@ -76,7 +76,8 @@ void main() {
       // Create integrated transports
       final transport1 = IntegratedTransport(
         iceConnection: ice1,
-        serverCertificate: cert1, // Controlling peer acts as DTLS client, but we provide cert just in case
+        serverCertificate:
+            cert1, // Controlling peer acts as DTLS client, but we provide cert just in case
       );
 
       final transport2 = IntegratedTransport(

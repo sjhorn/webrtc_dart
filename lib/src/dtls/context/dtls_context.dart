@@ -102,7 +102,8 @@ class DtlsContext {
   /// Get all handshake messages concatenated for hash computation
   /// Used for PRF verify_data computation
   Uint8List getAllHandshakeMessages() {
-    final totalLength = handshakeMessages.fold<int>(0, (sum, msg) => sum + msg.length);
+    final totalLength =
+        handshakeMessages.fold<int>(0, (sum, msg) => sum + msg.length);
     final result = Uint8List(totalLength);
     var offset = 0;
 

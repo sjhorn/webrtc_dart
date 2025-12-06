@@ -210,7 +210,8 @@ void main() {
 
     test('receiver addTrackForRid adds simulcast track', () {
       final primaryTrack = VideoStreamTrack(id: 'video1', label: 'Video');
-      final highTrack = VideoStreamTrack(id: 'video_high', label: 'High', rid: 'high');
+      final highTrack =
+          VideoStreamTrack(id: 'video_high', label: 'High', rid: 'high');
 
       final receiver = RtpReceiver(
         track: primaryTrack,
@@ -239,8 +240,10 @@ void main() {
 
     test('receiver stop stops all tracks', () {
       final primaryTrack = VideoStreamTrack(id: 'video1', label: 'Video');
-      final highTrack = VideoStreamTrack(id: 'video_high', label: 'High', rid: 'high');
-      final lowTrack = VideoStreamTrack(id: 'video_low', label: 'Low', rid: 'low');
+      final highTrack =
+          VideoStreamTrack(id: 'video_high', label: 'High', rid: 'high');
+      final lowTrack =
+          VideoStreamTrack(id: 'video_low', label: 'Low', rid: 'low');
 
       final receiver = RtpReceiver(
         track: primaryTrack,

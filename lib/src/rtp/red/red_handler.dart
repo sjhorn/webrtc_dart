@@ -37,7 +37,8 @@ class RedHandler {
       // Calculate sequence number for this block
       // Redundant blocks have earlier sequence numbers
       final sequenceOffset = numBlocks - (i + 1);
-      final sequenceNumber = _uint16Add(basePacket.sequenceNumber, -sequenceOffset);
+      final sequenceNumber =
+          _uint16Add(basePacket.sequenceNumber, -sequenceOffset);
 
       // Calculate timestamp
       int timestamp;

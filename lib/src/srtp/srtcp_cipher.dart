@@ -65,7 +65,8 @@ class SrtcpCipher {
     // Index includes E-flag in MSB
     final indexWithEFlag = index | srtcpEFlagBit; // Set E-flag (encrypted)
 
-    final result = Uint8List(header.length + encrypted.length + srtcpIndexLength);
+    final result =
+        Uint8List(header.length + encrypted.length + srtcpIndexLength);
     var offset = 0;
 
     // Copy header
@@ -79,7 +80,8 @@ class SrtcpCipher {
     // Append SRTCP index with E-flag
     final indexBuffer = ByteData(srtcpIndexLength);
     indexBuffer.setUint32(0, indexWithEFlag);
-    result.setRange(offset, offset + srtcpIndexLength, indexBuffer.buffer.asUint8List());
+    result.setRange(
+        offset, offset + srtcpIndexLength, indexBuffer.buffer.asUint8List());
 
     return result;
   }
@@ -87,8 +89,10 @@ class SrtcpCipher {
   /// Decrypt SRTCP packet
   /// Returns decrypted RTCP packet
   Future<RtcpPacket> decrypt(Uint8List srtcpPacket) async {
-    if (srtcpPacket.length < RtcpPacket.headerSize + SrtpAuthTagSize.tag128 + srtcpIndexLength) {
-      throw FormatException('SRTCP packet too short: ${srtcpPacket.length} bytes');
+    if (srtcpPacket.length <
+        RtcpPacket.headerSize + SrtpAuthTagSize.tag128 + srtcpIndexLength) {
+      throw FormatException(
+          'SRTCP packet too short: ${srtcpPacket.length} bytes');
     }
 
     // Extract SRTCP index from end of packet
@@ -114,7 +118,8 @@ class SrtcpCipher {
 
     // Extract encrypted data (everything between header and index, including auth tag)
     final encryptedEnd = indexStart;
-    final encryptedData = srtcpPacket.sublist(RtcpPacket.headerSize, encryptedEnd);
+    final encryptedData =
+        srtcpPacket.sublist(RtcpPacket.headerSize, encryptedEnd);
 
     // Derive session keys
     final sessionKey = _deriveSessionKey(ssrc, index);
@@ -140,7 +145,8 @@ class SrtcpCipher {
 
     // Decrypt
     try {
-      var outOff = gcm.processBytes(encryptedData, 0, encryptedData.length, plaintext, 0);
+      var outOff = gcm.processBytes(
+          encryptedData, 0, encryptedData.length, plaintext, 0);
       outOff += gcm.doFinal(plaintext, outOff);
 
       // Reconstruct full RTCP packet
@@ -157,7 +163,8 @@ class SrtcpCipher {
   /// Get and increment SRTCP index for an SSRC
   int _getAndIncrementIndex(int ssrc) {
     final current = _indexMap[ssrc] ?? 0;
-    _indexMap[ssrc] = (current + 1) & 0x7FFFFFFF; // Keep 31 bits (E-flag is separate)
+    _indexMap[ssrc] =
+        (current + 1) & 0x7FFFFFFF; // Keep 31 bits (E-flag is separate)
     return current;
   }
 

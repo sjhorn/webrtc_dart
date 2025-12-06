@@ -89,9 +89,7 @@ class RtcpPacket {
     var offset = 0;
 
     // Byte 0: V(2), P(1), RC(5)
-    int byte0 = (version << 6) |
-        (padding ? 1 << 5 : 0) |
-        (reportCount & 0x1F);
+    int byte0 = (version << 6) | (padding ? 1 << 5 : 0) | (reportCount & 0x1F);
     buffer.setUint8(offset++, byte0);
 
     // Byte 1: Packet Type
@@ -157,7 +155,8 @@ class RtcpPacket {
     // Calculate actual packet size
     final packetSize = (length + 1) * 4;
     if (data.length < packetSize) {
-      throw FormatException('RTCP packet truncated: expected $packetSize, got ${data.length}');
+      throw FormatException(
+          'RTCP packet truncated: expected $packetSize, got ${data.length}');
     }
 
     // Payload and padding

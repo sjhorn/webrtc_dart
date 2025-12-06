@@ -56,8 +56,8 @@ Future<CertificateKeyPair> generateSelfSignedCertificate({
   keyGen.init(ParametersWithRandom(params, random));
   final keyPair = keyGen.generateKeyPair();
 
-  final privateKey = keyPair.privateKey as ECPrivateKey;
-  final publicKey = keyPair.publicKey as ECPublicKey;
+  final privateKey = keyPair.privateKey;
+  final publicKey = keyPair.publicKey;
 
   // Create a minimal self-signed certificate
   // For production, you'd want to use a proper ASN.1 library
@@ -276,10 +276,13 @@ class _Asn1Builder {
       bytes = value;
     } else if (value is String) {
       bytes = Uint8List.fromList(
-        BigInt.parse(value, radix: 16).toRadixString(16).padLeft(
-          (value.length / 2).ceil() * 2, '0').codeUnits.map((c) {
-            return int.parse(String.fromCharCode(c), radix: 16);
-          }).toList(),
+        BigInt.parse(value, radix: 16)
+            .toRadixString(16)
+            .padLeft((value.length / 2).ceil() * 2, '0')
+            .codeUnits
+            .map((c) {
+          return int.parse(String.fromCharCode(c), radix: 16);
+        }).toList(),
       );
     } else {
       bytes = Uint8List.fromList([value as int]);

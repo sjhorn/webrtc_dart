@@ -2,6 +2,20 @@
 
 All notable changes to this project will be documented in this file.
 
+## 0.22.3
+
+### Changed
+
+- Upgrade pointycastle from 3.9.1 to 4.0.0
+- Apply dart format to all source files
+- Add example/example.md for pub.dev Example tab
+- Add quickstart examples matching README inline code
+
+### Fixed
+
+- Remove unnecessary casts for pointycastle 4.0.0 compatibility
+- Fix curly brace style in certificate_request.dart
+
 ## 0.22.2
 
 Initial release - complete Dart port of werift-webrtc v0.22.2.

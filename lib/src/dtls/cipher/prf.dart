@@ -54,7 +54,8 @@ Uint8List prfMasterSecret(
   Uint8List serverRandom,
 ) {
   final label = Uint8List.fromList('master secret'.codeUnits);
-  final seed = Uint8List(label.length + clientRandom.length + serverRandom.length);
+  final seed =
+      Uint8List(label.length + clientRandom.length + serverRandom.length);
   seed.setRange(0, label.length, label);
   seed.setRange(label.length, label.length + clientRandom.length, clientRandom);
   seed.setRange(

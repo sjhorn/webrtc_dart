@@ -11,7 +11,8 @@ Uint8List packAddress(Address value) {
   final (address, port) = value;
 
   final addr = InternetAddress(address);
-  final protocol = addr.type == InternetAddressType.IPv4 ? ipv4Protocol : ipv6Protocol;
+  final protocol =
+      addr.type == InternetAddressType.IPv4 ? ipv4Protocol : ipv6Protocol;
 
   final buffer = ByteData(4);
   buffer.setUint8(0, 0);
@@ -49,7 +50,8 @@ Address unpackAddress(Uint8List data) {
       if (addressBytes.length != 16) {
         throw ArgumentError('STUN address has invalid length for IPv6');
       }
-      final addr = InternetAddress.fromRawAddress(addressBytes, type: InternetAddressType.IPv6);
+      final addr = InternetAddress.fromRawAddress(addressBytes,
+          type: InternetAddressType.IPv6);
       return (addr.address, port);
 
     default:

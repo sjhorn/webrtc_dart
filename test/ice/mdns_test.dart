@@ -10,7 +10,8 @@ void main() {
       expect(hostname.endsWith('.local'), isTrue);
 
       // Extract UUID part
-      final uuidPart = hostname.substring(0, hostname.length - 6); // Remove '.local'
+      final uuidPart =
+          hostname.substring(0, hostname.length - 6); // Remove '.local'
 
       // UUID format: 8-4-4-4-12 hex chars
       final uuidRegex = RegExp(
@@ -296,7 +297,8 @@ void main() {
       final service = MdnsService();
 
       service.registerWithHostname('a.b.c.d.e.f.local', '2.2.2.2');
-      expect(service.getRegisteredAddress('a.b.c.d.e.f.local'), equals('2.2.2.2'));
+      expect(
+          service.getRegisteredAddress('a.b.c.d.e.f.local'), equals('2.2.2.2'));
     });
   });
 }

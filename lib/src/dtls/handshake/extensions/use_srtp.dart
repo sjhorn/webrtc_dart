@@ -93,7 +93,8 @@ class UseSrtpExtension extends Extension {
     final mkiLength = buffer.getUint8(offset);
     offset++;
 
-    final mki = mkiLength > 0 ? data.sublist(offset, offset + mkiLength) : Uint8List(0);
+    final mki =
+        mkiLength > 0 ? data.sublist(offset, offset + mkiLength) : Uint8List(0);
 
     return UseSrtpExtension(profiles: profiles, mki: mki);
   }

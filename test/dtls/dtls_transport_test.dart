@@ -29,14 +29,16 @@ void main() {
       final dtls1 = DtlsTransportStub();
       final dtls2 = DtlsTransportStub();
 
-      expect(dtls1.localFingerprint.value, isNot(equals(dtls2.localFingerprint.value)));
+      expect(dtls1.localFingerprint.value,
+          isNot(equals(dtls2.localFingerprint.value)));
     });
 
     test('sets remote fingerprint', () {
       final dtls = DtlsTransportStub();
       final remoteFingerprint = CertificateFingerprint(
         algorithm: 'sha-256',
-        value: 'AA:BB:CC:DD:EE:FF:00:11:22:33:44:55:66:77:88:99:AA:BB:CC:DD:EE:FF:00:11:22:33:44:55:66:77:88:99',
+        value:
+            'AA:BB:CC:DD:EE:FF:00:11:22:33:44:55:66:77:88:99:AA:BB:CC:DD:EE:FF:00:11:22:33:44:55:66:77:88:99',
       );
 
       expect(dtls.remoteFingerprint, isNull);

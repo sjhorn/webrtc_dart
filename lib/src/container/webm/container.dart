@@ -222,8 +222,8 @@ class WebmContainer {
     final elementId = Uint8List.fromList([0xa3]);
 
     // Track number as VINT
-    final trackVint =
-        vintEncode(numberToByteArray(trackNumber, getEbmlByteLength(trackNumber)));
+    final trackVint = vintEncode(
+        numberToByteArray(trackNumber, getEbmlByteLength(trackNumber)));
 
     // Relative timestamp as signed 16-bit big-endian
     final timestampBytes = Uint8List(2);
@@ -249,11 +249,12 @@ class WebmContainer {
     blockData.setAll(offset, frame);
 
     // Content size as VINT
-    final contentSize =
-        vintEncode(numberToByteArray(blockData.length, getEbmlByteLength(blockData.length)));
+    final contentSize = vintEncode(numberToByteArray(
+        blockData.length, getEbmlByteLength(blockData.length)));
 
     // Full SimpleBlock: elementId + contentSize + blockData
-    final result = Uint8List(elementId.length + contentSize.length + blockData.length);
+    final result =
+        Uint8List(elementId.length + contentSize.length + blockData.length);
     offset = 0;
     result.setAll(offset, elementId);
     offset += elementId.length;

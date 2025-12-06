@@ -61,7 +61,8 @@ void main() async {
   // Set up ICE state change monitoring
   pcOffer.onIceConnectionStateChange.listen((state) {
     print('[Offer] ICE state: $state');
-    if (state == IceConnectionState.completed || state == IceConnectionState.connected) {
+    if (state == IceConnectionState.completed ||
+        state == IceConnectionState.connected) {
       offerIceComplete = true;
       if (answerIceComplete && !iceCompleted.isCompleted) {
         iceCompleted.complete();
@@ -71,7 +72,8 @@ void main() async {
 
   pcAnswer.onIceConnectionStateChange.listen((state) {
     print('[Answer] ICE state: $state');
-    if (state == IceConnectionState.completed || state == IceConnectionState.connected) {
+    if (state == IceConnectionState.completed ||
+        state == IceConnectionState.connected) {
       answerIceComplete = true;
       if (offerIceComplete && !iceCompleted.isCompleted) {
         iceCompleted.complete();
@@ -81,14 +83,16 @@ void main() async {
 
   // Set up ICE candidate exchange
   pcOffer.onIceCandidate.listen((candidate) async {
-    print('[Offer] Generated ICE candidate: ${candidate.type} at ${candidate.host}:${candidate.port}');
+    print(
+        '[Offer] Generated ICE candidate: ${candidate.type} at ${candidate.host}:${candidate.port}');
     print('[Offer] Adding candidate to Answer');
     await pcAnswer.addIceCandidate(candidate);
     print('[Offer] Candidate added');
   });
 
   pcAnswer.onIceCandidate.listen((candidate) async {
-    print('[Answer] Generated ICE candidate: ${candidate.type} at ${candidate.host}:${candidate.port}');
+    print(
+        '[Answer] Generated ICE candidate: ${candidate.type} at ${candidate.host}:${candidate.port}');
     print('[Answer] Adding candidate to Offer');
     await pcOffer.addIceCandidate(candidate);
     print('[Answer] Candidate added');
@@ -96,10 +100,13 @@ void main() async {
 
   // Handle incoming datachannel on answering side
   pcAnswer.onDataChannel.listen((channel) {
-    print('[Answer DC] Received datachannel: ${channel.label}, state=${channel.state}');
+    print(
+        '[Answer DC] Received datachannel: ${channel.label}, state=${channel.state}');
 
     channel.onMessage.listen((message) {
-      final text = message is String ? message : 'binary(${(message as Uint8List).length})';
+      final text = message is String
+          ? message
+          : 'binary(${(message as Uint8List).length})';
       print('[Answer DC] Received: $text');
       answerMessages.add(text);
     });
@@ -176,7 +183,9 @@ void main() async {
   });
 
   dc.onMessage.listen((message) {
-    final text = message is String ? message : 'binary(${(message as Uint8List).length})';
+    final text = message is String
+        ? message
+        : 'binary(${(message as Uint8List).length})';
     print('[Offer DC] Received: $text');
     offerMessages.add(text);
   });

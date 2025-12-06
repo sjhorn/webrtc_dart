@@ -80,7 +80,8 @@ void main() {
     });
 
     test('parses fmtp with space-separated parameters', () {
-      final info = SdpMediaRtxExtension.parseFmtp('111 minptime=10 useinbandfec=1');
+      final info =
+          SdpMediaRtxExtension.parseFmtp('111 minptime=10 useinbandfec=1');
       expect(info, isNotNull);
       expect(info!.payloadType, equals(111));
       expect(info.parameters['minptime'], equals('10'));
@@ -249,7 +250,8 @@ void main() {
     });
 
     test('creates ssrc msid', () {
-      final attr = RtxSdpBuilder.createSsrcMsid(12345678, 'stream-id', 'track-id');
+      final attr =
+          RtxSdpBuilder.createSsrcMsid(12345678, 'stream-id', 'track-id');
       expect(attr.key, equals('ssrc'));
       expect(attr.value, equals('12345678 msid:stream-id track-id'));
     });
@@ -364,8 +366,8 @@ a=mid:0
 
       final rtxCodecs = media.getRtxCodecs();
       expect(rtxCodecs.length, equals(3));
-      expect(rtxCodecs[96]!.rtxPayloadType, equals(97));  // VP8 -> RTX
-      expect(rtxCodecs[98]!.rtxPayloadType, equals(99));  // VP9 -> RTX
+      expect(rtxCodecs[96]!.rtxPayloadType, equals(97)); // VP8 -> RTX
+      expect(rtxCodecs[98]!.rtxPayloadType, equals(99)); // VP9 -> RTX
       expect(rtxCodecs[100]!.rtxPayloadType, equals(101)); // H264 -> RTX
     });
 

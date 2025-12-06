@@ -78,7 +78,8 @@ class ClientHello {
     for (final extension in extensions) {
       extensionBytes.add(extension.serialize());
     }
-    final extensionsLength = extensionBytes.fold<int>(0, (sum, b) => sum + b.length);
+    final extensionsLength =
+        extensionBytes.fold<int>(0, (sum, b) => sum + b.length);
 
     if (extensionsLength > 0) {
       totalLength += 2 + extensionsLength; // extensions length + data
@@ -223,7 +224,8 @@ class ClientHello {
 
   /// Check if extended master secret extension is present
   bool get hasExtendedMasterSecret {
-    return extensions.any((ext) => ext.type == ExtensionType.extendedMasterSecret);
+    return extensions
+        .any((ext) => ext.type == ExtensionType.extendedMasterSecret);
   }
 
   @override

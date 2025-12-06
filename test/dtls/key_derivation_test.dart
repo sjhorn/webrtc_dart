@@ -9,9 +9,12 @@ void main() {
   group('KeyDerivation', () {
     test('deriveMasterSecret with standard mode', () {
       final dtlsContext = DtlsContext();
-      dtlsContext.preMasterSecret = Uint8List.fromList(List.generate(32, (i) => i));
-      dtlsContext.localRandom = Uint8List.fromList(List.generate(32, (i) => i + 10));
-      dtlsContext.remoteRandom = Uint8List.fromList(List.generate(32, (i) => i + 20));
+      dtlsContext.preMasterSecret =
+          Uint8List.fromList(List.generate(32, (i) => i));
+      dtlsContext.localRandom =
+          Uint8List.fromList(List.generate(32, (i) => i + 10));
+      dtlsContext.remoteRandom =
+          Uint8List.fromList(List.generate(32, (i) => i + 20));
 
       final cipherContext = CipherContext(isClient: true);
 
@@ -22,14 +25,18 @@ void main() {
       );
 
       expect(masterSecret.length, 48);
-      expect(dtlsContext.masterSecret, isNull); // deriveMasterSecret doesn't store it
+      expect(dtlsContext.masterSecret,
+          isNull); // deriveMasterSecret doesn't store it
     });
 
     test('deriveMasterSecret with extended master secret', () {
       final dtlsContext = DtlsContext();
-      dtlsContext.preMasterSecret = Uint8List.fromList(List.generate(32, (i) => i));
-      dtlsContext.localRandom = Uint8List.fromList(List.generate(32, (i) => i + 10));
-      dtlsContext.remoteRandom = Uint8List.fromList(List.generate(32, (i) => i + 20));
+      dtlsContext.preMasterSecret =
+          Uint8List.fromList(List.generate(32, (i) => i));
+      dtlsContext.localRandom =
+          Uint8List.fromList(List.generate(32, (i) => i + 10));
+      dtlsContext.remoteRandom =
+          Uint8List.fromList(List.generate(32, (i) => i + 20));
 
       final cipherContext = CipherContext(isClient: true);
 
@@ -54,7 +61,8 @@ void main() {
       final cipherContext = CipherContext(isClient: true);
 
       expect(
-        () => KeyDerivation.deriveMasterSecret(dtlsContext, cipherContext, false),
+        () =>
+            KeyDerivation.deriveMasterSecret(dtlsContext, cipherContext, false),
         throwsStateError,
       );
     });
@@ -66,21 +74,26 @@ void main() {
       final cipherContext = CipherContext(isClient: true);
 
       expect(
-        () => KeyDerivation.deriveMasterSecret(dtlsContext, cipherContext, false),
+        () =>
+            KeyDerivation.deriveMasterSecret(dtlsContext, cipherContext, false),
         throwsStateError,
       );
     });
 
     test('deriveEncryptionKeys for AES-128-GCM', () {
       final dtlsContext = DtlsContext();
-      dtlsContext.masterSecret = Uint8List.fromList(List.generate(48, (i) => i));
-      dtlsContext.localRandom = Uint8List.fromList(List.generate(32, (i) => i + 10));
-      dtlsContext.remoteRandom = Uint8List.fromList(List.generate(32, (i) => i + 20));
+      dtlsContext.masterSecret =
+          Uint8List.fromList(List.generate(48, (i) => i));
+      dtlsContext.localRandom =
+          Uint8List.fromList(List.generate(32, (i) => i + 10));
+      dtlsContext.remoteRandom =
+          Uint8List.fromList(List.generate(32, (i) => i + 20));
 
       final cipherContext = CipherContext(isClient: true);
       cipherContext.cipherSuite = CipherSuite.tlsEcdheEcdsaWithAes128GcmSha256;
 
-      final keys = KeyDerivation.deriveEncryptionKeys(dtlsContext, cipherContext);
+      final keys =
+          KeyDerivation.deriveEncryptionKeys(dtlsContext, cipherContext);
 
       expect(keys.clientWriteKey.length, 16); // AES-128 = 16 bytes
       expect(keys.serverWriteKey.length, 16);
@@ -90,14 +103,18 @@ void main() {
 
     test('deriveEncryptionKeys for different cipher suite', () {
       final dtlsContext = DtlsContext();
-      dtlsContext.masterSecret = Uint8List.fromList(List.generate(48, (i) => i));
-      dtlsContext.localRandom = Uint8List.fromList(List.generate(32, (i) => i + 10));
-      dtlsContext.remoteRandom = Uint8List.fromList(List.generate(32, (i) => i + 20));
+      dtlsContext.masterSecret =
+          Uint8List.fromList(List.generate(48, (i) => i));
+      dtlsContext.localRandom =
+          Uint8List.fromList(List.generate(32, (i) => i + 10));
+      dtlsContext.remoteRandom =
+          Uint8List.fromList(List.generate(32, (i) => i + 20));
 
       final cipherContext = CipherContext(isClient: false);
       cipherContext.cipherSuite = CipherSuite.tlsEcdheRsaWithAes128GcmSha256;
 
-      final keys = KeyDerivation.deriveEncryptionKeys(dtlsContext, cipherContext);
+      final keys =
+          KeyDerivation.deriveEncryptionKeys(dtlsContext, cipherContext);
 
       expect(keys.clientWriteKey.length, 16); // AES-128 = 16 bytes
       expect(keys.serverWriteKey.length, 16);
@@ -129,7 +146,8 @@ void main() {
 
     test('computeVerifyData for client', () {
       final dtlsContext = DtlsContext();
-      dtlsContext.masterSecret = Uint8List.fromList(List.generate(48, (i) => i));
+      dtlsContext.masterSecret =
+          Uint8List.fromList(List.generate(48, (i) => i));
 
       // Add some handshake messages
       dtlsContext.addHandshakeMessage(Uint8List.fromList([1, 2, 3, 4]));
@@ -142,7 +160,8 @@ void main() {
 
     test('computeVerifyData for server', () {
       final dtlsContext = DtlsContext();
-      dtlsContext.masterSecret = Uint8List.fromList(List.generate(48, (i) => i));
+      dtlsContext.masterSecret =
+          Uint8List.fromList(List.generate(48, (i) => i));
 
       dtlsContext.addHandshakeMessage(Uint8List.fromList([1, 2, 3, 4]));
       dtlsContext.addHandshakeMessage(Uint8List.fromList([5, 6, 7, 8]));
@@ -164,13 +183,15 @@ void main() {
 
     test('verifyFinishedMessage with matching data', () {
       final dtlsContext = DtlsContext();
-      dtlsContext.masterSecret = Uint8List.fromList(List.generate(48, (i) => i));
+      dtlsContext.masterSecret =
+          Uint8List.fromList(List.generate(48, (i) => i));
 
       dtlsContext.addHandshakeMessage(Uint8List.fromList([1, 2, 3, 4]));
       dtlsContext.addHandshakeMessage(Uint8List.fromList([5, 6, 7, 8]));
 
       // Compute expected verify data
-      final expectedVerifyData = KeyDerivation.computeVerifyData(dtlsContext, true);
+      final expectedVerifyData =
+          KeyDerivation.computeVerifyData(dtlsContext, true);
 
       // Verify it matches
       final isValid = KeyDerivation.verifyFinishedMessage(
@@ -184,13 +205,15 @@ void main() {
 
     test('verifyFinishedMessage with non-matching data', () {
       final dtlsContext = DtlsContext();
-      dtlsContext.masterSecret = Uint8List.fromList(List.generate(48, (i) => i));
+      dtlsContext.masterSecret =
+          Uint8List.fromList(List.generate(48, (i) => i));
 
       dtlsContext.addHandshakeMessage(Uint8List.fromList([1, 2, 3, 4]));
       dtlsContext.addHandshakeMessage(Uint8List.fromList([5, 6, 7, 8]));
 
       // Use wrong verify data
-      final wrongVerifyData = Uint8List.fromList([0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]);
+      final wrongVerifyData =
+          Uint8List.fromList([0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]);
 
       final isValid = KeyDerivation.verifyFinishedMessage(
         dtlsContext,
@@ -203,7 +226,8 @@ void main() {
 
     test('verifyFinishedMessage with wrong length', () {
       final dtlsContext = DtlsContext();
-      dtlsContext.masterSecret = Uint8List.fromList(List.generate(48, (i) => i));
+      dtlsContext.masterSecret =
+          Uint8List.fromList(List.generate(48, (i) => i));
 
       dtlsContext.addHandshakeMessage(Uint8List.fromList([1, 2, 3, 4]));
 
@@ -221,9 +245,12 @@ void main() {
 
     test('exportSrtpKeys generates correct length', () {
       final dtlsContext = DtlsContext();
-      dtlsContext.masterSecret = Uint8List.fromList(List.generate(48, (i) => i));
-      dtlsContext.localRandom = Uint8List.fromList(List.generate(32, (i) => i + 10));
-      dtlsContext.remoteRandom = Uint8List.fromList(List.generate(32, (i) => i + 20));
+      dtlsContext.masterSecret =
+          Uint8List.fromList(List.generate(48, (i) => i));
+      dtlsContext.localRandom =
+          Uint8List.fromList(List.generate(32, (i) => i + 10));
+      dtlsContext.remoteRandom =
+          Uint8List.fromList(List.generate(32, (i) => i + 20));
 
       // SRTP typically needs: client_key (16) + server_key (16) + client_salt (14) + server_salt (14) = 60 bytes
       final srtpKeys = KeyDerivation.exportSrtpKeys(dtlsContext, 60, true);

@@ -315,7 +315,8 @@ class BitStream {
     } else {
       bitsConsumed = math.min(8, bits);
       _bitsPending = 8 - bitsConsumed;
-      uint8Array[_position++] = (value >> (bits - bitsConsumed)) << _bitsPending;
+      uint8Array[_position++] =
+          (value >> (bits - bitsConsumed)) << _bitsPending;
     }
 
     bits -= bitsConsumed;

@@ -132,7 +132,8 @@ void main() {
       expect(h264.fragment, equals([0xAA, 0xBB, 0xCC, 0xDD]));
     });
 
-    test('should parse FU-A end fragment and reassemble NAL unit (S=0, E=1)', () {
+    test('should parse FU-A end fragment and reassemble NAL unit (S=0, E=1)',
+        () {
       // Previous fragment data
       final previousFragment = Uint8List.fromList([0xAA, 0xBB, 0xCC, 0xDD]);
 
@@ -159,7 +160,8 @@ void main() {
       expect(h264.payload.length, equals(11)); // 4 + 7
       expect(h264.payload.sublist(0, 4), equals([0x00, 0x00, 0x00, 0x01]));
       expect(h264.payload[4], equals(0x41)); // Reconstructed NAL header
-      expect(h264.payload.sublist(5), equals([0xAA, 0xBB, 0xCC, 0xDD, 0xEE, 0xFF]));
+      expect(h264.payload.sublist(5),
+          equals([0xAA, 0xBB, 0xCC, 0xDD, 0xEE, 0xFF]));
 
       // Fragment should be cleared
       expect(h264.fragment, isNull);

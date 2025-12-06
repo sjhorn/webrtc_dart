@@ -56,8 +56,7 @@ abstract class SimpleProcessorCallback<Input, Output> {
 ///
 /// Provides a simple way to convert batch-style processors to
 /// callback-style processing.
-mixin SimpleProcessorCallbackMixin<Input, Output>
-    on Processor<Input, Output>
+mixin SimpleProcessorCallbackMixin<Input, Output> on Processor<Input, Output>
     implements SimpleProcessorCallback<Input, Output> {
   void Function(Output output)? _callback;
   void Function()? _destructor;
@@ -92,7 +91,9 @@ mixin SimpleProcessorCallbackMixin<Input, Output>
 /// Extend this class to create processors that can be used in
 /// both batch and callback-style pipelines.
 abstract class CallbackProcessor<Input, Output>
-    implements Processor<Input, Output>, SimpleProcessorCallback<Input, Output> {
+    implements
+        Processor<Input, Output>,
+        SimpleProcessorCallback<Input, Output> {
   void Function(Output output)? _callback;
   void Function()? _destructor;
 

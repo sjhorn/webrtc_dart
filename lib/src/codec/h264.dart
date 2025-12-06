@@ -104,9 +104,8 @@ class H264RtpPayload {
       // If end bit is set, reassemble complete NAL unit
       if (h264.e == 1) {
         // Reconstruct NAL header from FU indicator and FU header
-        final nalHeader = (h264.f << 7) |
-            (h264.nri << 5) |
-            h264.nalUnitPayloadType;
+        final nalHeader =
+            (h264.f << 7) | (h264.nri << 5) | h264.nalUnitPayloadType;
 
         // Create complete NAL unit: NAL header + fragment data
         final nalu = Uint8List(1 + h264.fragment!.length)

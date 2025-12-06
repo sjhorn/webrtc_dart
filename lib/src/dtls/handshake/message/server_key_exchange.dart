@@ -81,9 +81,11 @@ class ServerKeyExchange {
   }
 
   /// Parse from bytes
-  static ServerKeyExchange parse(Uint8List data, {bool hasTls12Signature = true}) {
+  static ServerKeyExchange parse(Uint8List data,
+      {bool hasTls12Signature = true}) {
     if (data.length < 4) {
-      throw FormatException('ServerKeyExchange too short: ${data.length} bytes');
+      throw FormatException(
+          'ServerKeyExchange too short: ${data.length} bytes');
     }
 
     final buffer = ByteData.sublistView(data);

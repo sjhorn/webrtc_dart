@@ -52,7 +52,8 @@ class HelloVerifyRequest {
   /// Parse from bytes
   static HelloVerifyRequest parse(Uint8List data) {
     if (data.length < 3) {
-      throw FormatException('HelloVerifyRequest too short: ${data.length} bytes');
+      throw FormatException(
+          'HelloVerifyRequest too short: ${data.length} bytes');
     }
 
     final buffer = ByteData.sublistView(data);

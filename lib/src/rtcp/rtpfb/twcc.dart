@@ -468,8 +468,7 @@ class TransportWideCC {
     final packetStatusCount = view.getUint16(10);
 
     // Reference time is 24-bit, fbPktCount is 8-bit
-    final referenceTime =
-        (data[12] << 16) | (data[13] << 8) | data[14];
+    final referenceTime = (data[12] << 16) | (data[13] << 8) | data[14];
     final fbPktCount = data[15];
 
     final packetChunks = <dynamic>[];
@@ -489,8 +488,8 @@ class TransportWideCC {
         );
         packetChunks.add(chunk);
 
-        final packetNumberToProcess = (packetStatusCount - processedPacketNum)
-            .clamp(0, chunk.runLength);
+        final packetNumberToProcess =
+            (packetStatusCount - processedPacketNum).clamp(0, chunk.runLength);
 
         if (chunk.packetStatus == PacketStatus.receivedSmallDelta ||
             chunk.packetStatus == PacketStatus.receivedLargeDelta) {

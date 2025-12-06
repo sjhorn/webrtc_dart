@@ -40,7 +40,8 @@ class ClientKeyExchange {
   /// Parse from bytes
   static ClientKeyExchange parse(Uint8List data) {
     if (data.isEmpty) {
-      throw FormatException('ClientKeyExchange too short: ${data.length} bytes');
+      throw FormatException(
+          'ClientKeyExchange too short: ${data.length} bytes');
     }
 
     final buffer = ByteData.sublistView(data);

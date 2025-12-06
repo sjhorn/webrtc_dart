@@ -83,11 +83,13 @@ void main() async {
 
   // Handle incoming tracks
   pcOffer.onTrack.listen((transceiver) {
-    print('[Offer] Received track: kind=${transceiver.kind}, mid=${transceiver.mid}');
+    print(
+        '[Offer] Received track: kind=${transceiver.kind}, mid=${transceiver.mid}');
   });
 
   pcAnswer.onTrack.listen((transceiver) {
-    print('[Answer] Received track: kind=${transceiver.kind}, mid=${transceiver.mid}');
+    print(
+        '[Answer] Received track: kind=${transceiver.kind}, mid=${transceiver.mid}');
   });
 
   // Create audio and video tracks for offer side
@@ -114,8 +116,10 @@ void main() async {
 
   // Print SDP summary
   final offerLines = offer.sdp.split('\n');
-  final audioLine = offerLines.firstWhere((l) => l.startsWith('m=audio'), orElse: () => '');
-  final videoLine = offerLines.firstWhere((l) => l.startsWith('m=video'), orElse: () => '');
+  final audioLine =
+      offerLines.firstWhere((l) => l.startsWith('m=audio'), orElse: () => '');
+  final videoLine =
+      offerLines.firstWhere((l) => l.startsWith('m=video'), orElse: () => '');
   if (audioLine.isNotEmpty) print('   Audio: $audioLine');
   if (videoLine.isNotEmpty) print('   Video: $videoLine');
 

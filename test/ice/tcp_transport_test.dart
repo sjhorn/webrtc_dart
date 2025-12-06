@@ -14,10 +14,13 @@ void main() {
     });
 
     test('parses from string correctly', () {
-      expect(IceTcpTypeExtension.fromString('active'), equals(IceTcpType.active));
-      expect(IceTcpTypeExtension.fromString('passive'), equals(IceTcpType.passive));
+      expect(
+          IceTcpTypeExtension.fromString('active'), equals(IceTcpType.active));
+      expect(IceTcpTypeExtension.fromString('passive'),
+          equals(IceTcpType.passive));
       expect(IceTcpTypeExtension.fromString('so'), equals(IceTcpType.so));
-      expect(IceTcpTypeExtension.fromString('ACTIVE'), equals(IceTcpType.active));
+      expect(
+          IceTcpTypeExtension.fromString('ACTIVE'), equals(IceTcpType.active));
       expect(IceTcpTypeExtension.fromString('unknown'), isNull);
       expect(IceTcpTypeExtension.fromString(null), isNull);
     });
@@ -53,7 +56,8 @@ void main() {
         localTcpType: IceTcpType.active,
       );
 
-      expect(() => connection.bind(InternetAddress.loopbackIPv4), throwsStateError);
+      expect(() => connection.bind(InternetAddress.loopbackIPv4),
+          throwsStateError);
     });
 
     test('throws on send when not connected', () {
@@ -68,7 +72,8 @@ void main() {
 
     test('active connection connects to passive', () async {
       // Create passive side (server)
-      final serverSocket = await ServerSocket.bind(InternetAddress.loopbackIPv4, 0);
+      final serverSocket =
+          await ServerSocket.bind(InternetAddress.loopbackIPv4, 0);
       final serverPort = serverSocket.port;
 
       // Track incoming connection
@@ -86,7 +91,8 @@ void main() {
 
       // Track state changes - must subscribe before connecting
       final stateChanges = <TcpConnectionState>[];
-      final subscription = activeConnection.onStateChange.listen(stateChanges.add);
+      final subscription =
+          activeConnection.onStateChange.listen(stateChanges.add);
 
       // Connect
       await activeConnection.connect();
@@ -113,7 +119,8 @@ void main() {
 
     test('sends and receives STUN-framed messages', () async {
       // Create server
-      final serverSocket = await ServerSocket.bind(InternetAddress.loopbackIPv4, 0);
+      final serverSocket =
+          await ServerSocket.bind(InternetAddress.loopbackIPv4, 0);
       final serverPort = serverSocket.port;
 
       final receivedMessages = <Uint8List>[];
@@ -128,7 +135,8 @@ void main() {
           while (buffer.length >= 2) {
             final length = (buffer[0] << 8) | buffer[1];
             if (buffer.length < 2 + length) break;
-            receivedMessages.add(Uint8List.fromList(buffer.sublist(2, 2 + length)));
+            receivedMessages
+                .add(Uint8List.fromList(buffer.sublist(2, 2 + length)));
             buffer.removeRange(0, 2 + length);
           }
         });
@@ -161,7 +169,8 @@ void main() {
 
     test('receives STUN-framed messages', () async {
       // Create server
-      final serverSocket = await ServerSocket.bind(InternetAddress.loopbackIPv4, 0);
+      final serverSocket =
+          await ServerSocket.bind(InternetAddress.loopbackIPv4, 0);
       final serverPort = serverSocket.port;
 
       Socket? clientSocket;
@@ -207,7 +216,8 @@ void main() {
 
     test('handles fragmented messages', () async {
       // Create server
-      final serverSocket = await ServerSocket.bind(InternetAddress.loopbackIPv4, 0);
+      final serverSocket =
+          await ServerSocket.bind(InternetAddress.loopbackIPv4, 0);
       final serverPort = serverSocket.port;
 
       Socket? clientSocket;
@@ -258,7 +268,8 @@ void main() {
 
     test('emits closed state when connection closes', () async {
       // Create server
-      final serverSocket = await ServerSocket.bind(InternetAddress.loopbackIPv4, 0);
+      final serverSocket =
+          await ServerSocket.bind(InternetAddress.loopbackIPv4, 0);
       final serverPort = serverSocket.port;
 
       Socket? clientSocket;
@@ -316,12 +327,14 @@ void main() {
       server.onConnection.listen(connections.add);
 
       // Connect to server
-      final socket = await Socket.connect(InternetAddress.loopbackIPv4, server.port!);
+      final socket =
+          await Socket.connect(InternetAddress.loopbackIPv4, server.port!);
       await Future.delayed(Duration(milliseconds: 50));
 
       expect(connections.length, equals(1));
       expect(connections[0].isConnected, isTrue);
-      expect(connections[0].remoteAddress.address, equals(socket.address.address));
+      expect(
+          connections[0].remoteAddress.address, equals(socket.address.address));
 
       // Cleanup
       await socket.close();
@@ -336,10 +349,12 @@ void main() {
       await server.start();
 
       // Connect to server
-      final socket = await Socket.connect(InternetAddress.loopbackIPv4, server.port!);
+      final socket =
+          await Socket.connect(InternetAddress.loopbackIPv4, server.port!);
       await Future.delayed(Duration(milliseconds: 50));
 
-      final connection = server.getConnection(socket.address.address, socket.port);
+      final connection =
+          server.getConnection(socket.address.address, socket.port);
       expect(connection, isNotNull);
       expect(connection!.isConnected, isTrue);
 

@@ -66,8 +66,10 @@ void main() {
             equals(Uint8List.fromList([0x18, 0x53, 0x80, 0x67])));
 
         // Should have unknown size marker after ID
-        expect(segment.sublist(4, 12),
-            equals(Uint8List.fromList([0x01, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff])));
+        expect(
+            segment.sublist(4, 12),
+            equals(Uint8List.fromList(
+                [0x01, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff])));
       });
 
       test('creates segment with audio track', () {
@@ -135,7 +137,8 @@ void main() {
         final segmentWithoutDuration = container.createSegment();
 
         // Segment with duration should be slightly larger
-        expect(segmentWithDuration.length, greaterThan(segmentWithoutDuration.length));
+        expect(segmentWithDuration.length,
+            greaterThan(segmentWithoutDuration.length));
       });
 
       test('creates segment with video roll angle', () {
@@ -166,8 +169,10 @@ void main() {
             equals(Uint8List.fromList([0x1f, 0x43, 0xb6, 0x75])));
 
         // Should have unknown size marker
-        expect(cluster.sublist(4, 12),
-            equals(Uint8List.fromList([0x01, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff])));
+        expect(
+            cluster.sublist(4, 12),
+            equals(Uint8List.fromList(
+                [0x01, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff])));
       });
 
       test('creates cluster with non-zero timecode', () {
@@ -203,7 +208,8 @@ void main() {
         final frame = Uint8List.fromList([0x01, 0x02, 0x03, 0x04]);
 
         final keyframeBlock = container.createSimpleBlock(frame, true, 1, 0);
-        final nonKeyframeBlock = container.createSimpleBlock(frame, false, 1, 0);
+        final nonKeyframeBlock =
+            container.createSimpleBlock(frame, false, 1, 0);
 
         // Both should start with SimpleBlock ID
         expect(keyframeBlock[0], equals(0xa3));
@@ -319,7 +325,8 @@ void main() {
         final duration = container.createDuration(10000.0);
 
         // Should start with Duration element ID [0x44, 0x89]
-        expect(duration.sublist(0, 2), equals(Uint8List.fromList([0x44, 0x89])));
+        expect(
+            duration.sublist(0, 2), equals(Uint8List.fromList([0x44, 0x89])));
       });
 
       test('creates different durations', () {
@@ -335,7 +342,8 @@ void main() {
     group('codec support', () {
       test('supports VP8 video codec', () {
         final container = WebmContainer([
-          WebmTrack(trackNumber: 1, kind: TrackKind.video, codec: WebmCodec.vp8),
+          WebmTrack(
+              trackNumber: 1, kind: TrackKind.video, codec: WebmCodec.vp8),
         ]);
 
         final segment = container.createSegment();
@@ -344,7 +352,8 @@ void main() {
 
       test('supports VP9 video codec', () {
         final container = WebmContainer([
-          WebmTrack(trackNumber: 1, kind: TrackKind.video, codec: WebmCodec.vp9),
+          WebmTrack(
+              trackNumber: 1, kind: TrackKind.video, codec: WebmCodec.vp9),
         ]);
 
         final segment = container.createSegment();
@@ -353,7 +362,8 @@ void main() {
 
       test('supports AV1 video codec', () {
         final container = WebmContainer([
-          WebmTrack(trackNumber: 1, kind: TrackKind.video, codec: WebmCodec.av1),
+          WebmTrack(
+              trackNumber: 1, kind: TrackKind.video, codec: WebmCodec.av1),
         ]);
 
         final segment = container.createSegment();
@@ -362,7 +372,8 @@ void main() {
 
       test('supports H.264 video codec', () {
         final container = WebmContainer([
-          WebmTrack(trackNumber: 1, kind: TrackKind.video, codec: WebmCodec.h264),
+          WebmTrack(
+              trackNumber: 1, kind: TrackKind.video, codec: WebmCodec.h264),
         ]);
 
         final segment = container.createSegment();
@@ -371,7 +382,8 @@ void main() {
 
       test('supports Opus audio codec', () {
         final container = WebmContainer([
-          WebmTrack(trackNumber: 1, kind: TrackKind.audio, codec: WebmCodec.opus),
+          WebmTrack(
+              trackNumber: 1, kind: TrackKind.audio, codec: WebmCodec.opus),
         ]);
 
         final segment = container.createSegment();

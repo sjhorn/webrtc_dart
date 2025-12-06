@@ -149,7 +149,8 @@ void main() {
   });
 
   group('Certificate Integration', () {
-    test('generated certificate can be serialized in Certificate message', () async {
+    test('generated certificate can be serialized in Certificate message',
+        () async {
       final certKeyPair = await generateSelfSignedCertificate();
       final certMessage = Certificate.single(certKeyPair.certificate);
       final serialized = certMessage.serialize();

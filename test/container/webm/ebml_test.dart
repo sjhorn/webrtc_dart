@@ -15,11 +15,12 @@ void main() {
       });
 
       test('2 byte numbers', () {
-        expect(numberToByteArray(256), equals(Uint8List.fromList([0x01, 0x00])));
         expect(
-            numberToByteArray(0x1234), equals(Uint8List.fromList([0x12, 0x34])));
-        expect(
-            numberToByteArray(0xffff), equals(Uint8List.fromList([0xff, 0xff])));
+            numberToByteArray(256), equals(Uint8List.fromList([0x01, 0x00])));
+        expect(numberToByteArray(0x1234),
+            equals(Uint8List.fromList([0x12, 0x34])));
+        expect(numberToByteArray(0xffff),
+            equals(Uint8List.fromList([0xff, 0xff])));
       });
 
       test('3 byte numbers', () {
@@ -37,7 +38,8 @@ void main() {
       });
 
       test('explicit byte length pads with zeros', () {
-        expect(numberToByteArray(1, 2), equals(Uint8List.fromList([0x00, 0x01])));
+        expect(
+            numberToByteArray(1, 2), equals(Uint8List.fromList([0x00, 0x01])));
         expect(numberToByteArray(1, 4),
             equals(Uint8List.fromList([0x00, 0x00, 0x00, 0x01])));
       });
@@ -122,7 +124,8 @@ void main() {
         final buf = Uint8List(10);
         final pos = value.write(buf, 2);
         expect(pos, equals(5));
-        expect(buf.sublist(2, 5), equals(Uint8List.fromList([0x01, 0x02, 0x03])));
+        expect(
+            buf.sublist(2, 5), equals(Uint8List.fromList([0x01, 0x02, 0x03])));
       });
     });
 
@@ -210,8 +213,8 @@ void main() {
       test('converts ASCII string', () {
         expect(stringToByteArray('webm'),
             equals(Uint8List.fromList([0x77, 0x65, 0x62, 0x6d])));
-        expect(
-            stringToByteArray('VP8'), equals(Uint8List.fromList([0x56, 0x50, 0x38])));
+        expect(stringToByteArray('VP8'),
+            equals(Uint8List.fromList([0x56, 0x50, 0x38])));
       });
     });
 
@@ -231,8 +234,8 @@ void main() {
     group('round-trip', () {
       test('vint encode then decode preserves value', () {
         for (final value in [0, 1, 100, 1000, 10000, 100000]) {
-          final encoded = vintEncode(
-              numberToByteArray(value, getEbmlByteLength(value)));
+          final encoded =
+              vintEncode(numberToByteArray(value, getEbmlByteLength(value)));
           final decoded = vintDecode(encoded);
           expect(decoded.value, equals(value),
               reason: 'Failed for value $value');
@@ -243,7 +246,8 @@ void main() {
 
     group('EbmlId', () {
       test('EBML header IDs are correct', () {
-        expect(EbmlId.ebml, equals(Uint8List.fromList([0x1a, 0x45, 0xdf, 0xa3])));
+        expect(
+            EbmlId.ebml, equals(Uint8List.fromList([0x1a, 0x45, 0xdf, 0xa3])));
         expect(EbmlId.segment,
             equals(Uint8List.fromList([0x18, 0x53, 0x80, 0x67])));
         expect(EbmlId.cluster,
@@ -274,8 +278,8 @@ void main() {
       });
 
       test('cue element IDs are correct', () {
-        expect(EbmlId.cues,
-            equals(Uint8List.fromList([0x1c, 0x53, 0xbb, 0x6b])));
+        expect(
+            EbmlId.cues, equals(Uint8List.fromList([0x1c, 0x53, 0xbb, 0x6b])));
         expect(EbmlId.cuePoint, equals(Uint8List.fromList([0xbb])));
         expect(EbmlId.cueTime, equals(Uint8List.fromList([0xb3])));
       });

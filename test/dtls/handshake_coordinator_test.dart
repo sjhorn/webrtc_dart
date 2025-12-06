@@ -57,7 +57,8 @@ void main() {
 
       await coordinator.start();
 
-      expect(coordinator.state, ClientHandshakeState.waitingForHelloVerifyRequest);
+      expect(
+          coordinator.state, ClientHandshakeState.waitingForHelloVerifyRequest);
       expect(dtlsContext.clientHello, isNotNull);
       expect(flightManager.currentFlight, isNotNull);
     });
@@ -137,7 +138,8 @@ void main() {
       expect(coordinator.state, ClientHandshakeState.waitingForCertificate);
       expect(dtlsContext.serverHello, isNotNull);
       expect(dtlsContext.remoteRandom, isNotNull);
-      expect(cipherContext.cipherSuite, CipherSuite.tlsEcdheEcdsaWithAes128GcmSha256);
+      expect(cipherContext.cipherSuite,
+          CipherSuite.tlsEcdheEcdsaWithAes128GcmSha256);
     });
   });
 

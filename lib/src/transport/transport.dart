@@ -35,7 +35,8 @@ class IceToDtlsAdapter implements dtls_ctx.DtlsTransport {
     // Forward non-STUN data from ICE to DTLS
     _iceDataSubscription = iceConnection.onData.listen((data) {
       if (_isOpen) {
-        print('[ICE->DTLS] Received ${data.length} bytes from ICE, first byte: 0x${data[0].toRadixString(16)}');
+        print(
+            '[ICE->DTLS] Received ${data.length} bytes from ICE, first byte: 0x${data[0].toRadixString(16)}');
         _receiveController.add(data);
       }
     });
@@ -185,10 +186,13 @@ class IntegratedTransport {
       DtlsRole effectiveRole = dtlsRole;
       if (dtlsRole == DtlsRole.auto) {
         // Convention: ICE controlling agent acts as DTLS client
-        effectiveRole = iceConnection.iceControlling ? DtlsRole.client : DtlsRole.server;
-        print('[TRANSPORT] DTLS role auto-detected: ${effectiveRole == DtlsRole.client ? "client" : "server"} (iceControlling=${iceConnection.iceControlling})');
+        effectiveRole =
+            iceConnection.iceControlling ? DtlsRole.client : DtlsRole.server;
+        print(
+            '[TRANSPORT] DTLS role auto-detected: ${effectiveRole == DtlsRole.client ? "client" : "server"} (iceControlling=${iceConnection.iceControlling})');
       } else {
-        print('[TRANSPORT] DTLS role preset: ${effectiveRole == DtlsRole.client ? "client" : "server"}');
+        print(
+            '[TRANSPORT] DTLS role preset: ${effectiveRole == DtlsRole.client ? "client" : "server"}');
       }
 
       // Create DTLS socket based on role
@@ -201,7 +205,8 @@ class IntegratedTransport {
           clientCipherContext.localSigningKey = serverCertificate!.privateKey;
           clientCipherContext.localFingerprint =
               computeCertificateFingerprint(serverCertificate!.certificate);
-          print('[TRANSPORT] DTLS client configured with certificate (fingerprint: ${clientCipherContext.localFingerprint})');
+          print(
+              '[TRANSPORT] DTLS client configured with certificate (fingerprint: ${clientCipherContext.localFingerprint})');
         }
         dtlsSocket = DtlsClient(
           transport: _dtlsAdapter!,
@@ -290,7 +295,8 @@ class IntegratedTransport {
         remotePort: 5000,
         onSendPacket: (packet) async {
           // Send SCTP packets through DTLS
-          if (dtlsSocket != null && dtlsSocket!.state == DtlsSocketState.connected) {
+          if (dtlsSocket != null &&
+              dtlsSocket!.state == DtlsSocketState.connected) {
             await dtlsSocket!.send(packet);
           }
         },
@@ -316,7 +322,8 @@ class IntegratedTransport {
       });
 
       // Create DataChannel manager
-      dataChannelManager = dcm.DataChannelManager(association: sctpAssociation!);
+      dataChannelManager =
+          dcm.DataChannelManager(association: sctpAssociation!);
 
       // Forward new DataChannels to stream
       dataChannelManager!.onDataChannel.listen((channel) {
@@ -431,7 +438,8 @@ class IntegratedTransport {
         data: data,
         ppid: 51, // WebRTC String (PPID 51)
       );
-    } else if (dtlsSocket != null && dtlsSocket!.state == DtlsSocketState.connected) {
+    } else if (dtlsSocket != null &&
+        dtlsSocket!.state == DtlsSocketState.connected) {
       // Send directly via DTLS if SCTP not established
       await dtlsSocket!.send(data);
     } else {

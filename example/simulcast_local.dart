@@ -68,7 +68,8 @@ void main() async {
   // Handle incoming tracks on receiver
   final tracksReceived = <String>[];
   receiver.onTrack.listen((transceiver) {
-    print('[Receiver] Received track: kind=${transceiver.kind}, mid=${transceiver.mid}');
+    print(
+        '[Receiver] Received track: kind=${transceiver.kind}, mid=${transceiver.mid}');
     tracksReceived.add(transceiver.mid);
 
     // In a real simulcast scenario, you would access different layers

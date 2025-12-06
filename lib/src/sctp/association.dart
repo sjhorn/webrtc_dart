@@ -238,7 +238,8 @@ class SctpAssociation {
 
   /// Start association as client (send INIT)
   Future<void> connect() async {
-    print('[SCTP] connect: state=$_state, localTag=0x${_localVerificationTag.toRadixString(16)}, localTsn=$_localInitialTsn');
+    print(
+        '[SCTP] connect: state=$_state, localTag=0x${_localVerificationTag.toRadixString(16)}, localTsn=$_localInitialTsn');
     if (_state != SctpAssociationState.closed) {
       throw StateError('Association already started');
     }
@@ -259,15 +260,18 @@ class SctpAssociation {
   /// Handle incoming SCTP packet
   Future<void> handlePacket(Uint8List data) async {
     print('[SCTP] handlePacket: ${data.length} bytes, state=$_state');
-    print('[SCTP]   first 16 bytes: ${data.take(16).map((b) => b.toRadixString(16).padLeft(2, '0')).join(' ')}');
+    print(
+        '[SCTP]   first 16 bytes: ${data.take(16).map((b) => b.toRadixString(16).padLeft(2, '0')).join(' ')}');
 
     final packet = SctpPacket.parse(data);
-    print('[SCTP]   parsed: srcPort=${packet.sourcePort}, dstPort=${packet.destinationPort}, verTag=0x${packet.verificationTag.toRadixString(16)}, chunks=${packet.chunks.length}');
+    print(
+        '[SCTP]   parsed: srcPort=${packet.sourcePort}, dstPort=${packet.destinationPort}, verTag=0x${packet.verificationTag.toRadixString(16)}, chunks=${packet.chunks.length}');
 
     // Verify verification tag (except for INIT and SHUTDOWN-COMPLETE)
     if (!_verifyVerificationTag(packet)) {
       // Silently discard
-      print('[SCTP]   verification tag mismatch - discarding (expected 0x${_localVerificationTag.toRadixString(16)}, got 0x${packet.verificationTag.toRadixString(16)})');
+      print(
+          '[SCTP]   verification tag mismatch - discarding (expected 0x${_localVerificationTag.toRadixString(16)}, got 0x${packet.verificationTag.toRadixString(16)})');
       return;
     }
 
@@ -353,7 +357,8 @@ class SctpAssociation {
 
     if (_state == SctpAssociationState.established) {
       _setState(SctpAssociationState.shutdownPending);
-      final shutdownChunk = SctpShutdownChunk(cumulativeTsnAck: _remoteCumulativeTsn);
+      final shutdownChunk =
+          SctpShutdownChunk(cumulativeTsnAck: _remoteCumulativeTsn);
       await _sendChunk(shutdownChunk);
       _setState(SctpAssociationState.shutdownSent);
       _t2Start(shutdownChunk);
@@ -477,7 +482,8 @@ class SctpAssociation {
 
   /// Handle INIT chunk (matching werift: packages/sctp/src/sctp.ts)
   Future<void> _handleInit(SctpInitChunk chunk) async {
-    print('[SCTP] _handleInit: state=$_state, remoteTag=0x${chunk.initiateTag.toRadixString(16)}, remoteTsn=${chunk.initialTsn}');
+    print(
+        '[SCTP] _handleInit: state=$_state, remoteTag=0x${chunk.initiateTag.toRadixString(16)}, remoteTsn=${chunk.initialTsn}');
 
     if (_state != SctpAssociationState.closed) {
       // Ignore INIT in non-closed state (matching werift: `if (!this.isServer) return`)
@@ -490,13 +496,15 @@ class SctpAssociation {
     _remoteCumulativeTsn = _tsnMinusOne(chunk.initialTsn);
     _lastReceivedTsn = _remoteCumulativeTsn;
 
-    print('[SCTP] _handleInit: sending INIT-ACK with localTag=0x${_localVerificationTag.toRadixString(16)}');
+    print(
+        '[SCTP] _handleInit: sending INIT-ACK with localTag=0x${_localVerificationTag.toRadixString(16)}');
     await _sendInitAck();
   }
 
   /// Handle INIT-ACK chunk
   Future<void> _handleInitAck(SctpInitAckChunk chunk) async {
-    print('[SCTP] _handleInitAck: state=$_state, remoteTag=0x${chunk.initiateTag.toRadixString(16)}');
+    print(
+        '[SCTP] _handleInitAck: state=$_state, remoteTag=0x${chunk.initiateTag.toRadixString(16)}');
 
     if (_state != SctpAssociationState.cookieWait) {
       print('[SCTP] _handleInitAck: ignoring INIT-ACK in state $_state');
@@ -511,7 +519,8 @@ class SctpAssociation {
 
     // Extract state cookie from parameters
     final stateCookie = chunk.getStateCookie();
-    print('[SCTP] _handleInitAck: stateCookie=${stateCookie != null ? '${stateCookie.length} bytes' : 'null'}');
+    print(
+        '[SCTP] _handleInitAck: stateCookie=${stateCookie != null ? '${stateCookie.length} bytes' : 'null'}');
     if (stateCookie != null) {
       print('[SCTP] _handleInitAck: sending COOKIE-ECHO');
       final cookieEchoChunk = SctpCookieEchoChunk(cookie: stateCookie);
@@ -523,14 +532,16 @@ class SctpAssociation {
 
   /// Handle COOKIE-ECHO chunk (matching werift: packages/sctp/src/sctp.ts)
   Future<void> _handleCookieEcho(SctpCookieEchoChunk chunk) async {
-    print('[SCTP] _handleCookieEcho: state=$_state, cookie=${chunk.cookie.length} bytes');
+    print(
+        '[SCTP] _handleCookieEcho: state=$_state, cookie=${chunk.cookie.length} bytes');
 
     // Verify cookie (matching werift cookie verification)
     final cookie = chunk.cookie;
 
     // Check cookie length
     if (cookie.length != _cookieLength) {
-      print('[SCTP] _handleCookieEcho: invalid cookie length ${cookie.length}, expected $_cookieLength');
+      print(
+          '[SCTP] _handleCookieEcho: invalid cookie length ${cookie.length}, expected $_cookieLength');
       return;
     }
 
@@ -561,7 +572,8 @@ class SctpAssociation {
     final now = DateTime.now().millisecondsSinceEpoch ~/ 1000;
 
     if (cookieTimestamp < now - _cookieLifetime || cookieTimestamp > now) {
-      print('[SCTP] _handleCookieEcho: cookie expired (timestamp=$cookieTimestamp, now=$now)');
+      print(
+          '[SCTP] _handleCookieEcho: cookie expired (timestamp=$cookieTimestamp, now=$now)');
       // Send ERROR chunk with Stale Cookie Error (matching werift: packages/sctp/src/sctp.ts)
       await _sendChunk(SctpErrorChunk.staleCookie());
       return;
@@ -655,7 +667,8 @@ class SctpAssociation {
 
       for (final gap in chunk.gapAckBlocks) {
         for (var pos = gap.start; pos <= gap.end; pos++) {
-          highestSeenTsn = (chunk.cumulativeTsnAck + pos) % SctpConstants.tsnModulo;
+          highestSeenTsn =
+              (chunk.cumulativeTsnAck + pos) % SctpConstants.tsnModulo;
           seen.add(highestSeenTsn);
         }
       }
@@ -736,13 +749,16 @@ class SctpAssociation {
   Future<void> _handleForwardTsn(SctpForwardTsnChunk chunk) async {
     _sackNeeded = true;
 
-    if (_lastReceivedTsn != null && _uint32Gte(_lastReceivedTsn!, chunk.newCumulativeTsn)) {
+    if (_lastReceivedTsn != null &&
+        _uint32Gte(_lastReceivedTsn!, chunk.newCumulativeTsn)) {
       return;
     }
 
     // Advance cumulative TSN
     _lastReceivedTsn = chunk.newCumulativeTsn;
-    _sackMisOrdered = _sackMisOrdered.where((tsn) => _uint32Gt(tsn, _lastReceivedTsn!)).toSet();
+    _sackMisOrdered = _sackMisOrdered
+        .where((tsn) => _uint32Gt(tsn, _lastReceivedTsn!))
+        .toSet();
 
     // Update cumulative TSN based on misordered set
     for (final tsn in _sackMisOrdered.toList()..sort()) {
@@ -753,8 +769,12 @@ class SctpAssociation {
       }
     }
 
-    _sackDuplicates = _sackDuplicates.where((tsn) => _uint32Gt(tsn, _lastReceivedTsn!)).toList();
-    _sackMisOrdered = _sackMisOrdered.where((tsn) => _uint32Gt(tsn, _lastReceivedTsn!)).toSet();
+    _sackDuplicates = _sackDuplicates
+        .where((tsn) => _uint32Gt(tsn, _lastReceivedTsn!))
+        .toList();
+    _sackMisOrdered = _sackMisOrdered
+        .where((tsn) => _uint32Gt(tsn, _lastReceivedTsn!))
+        .toSet();
 
     _scheduleSack();
   }
@@ -965,8 +985,11 @@ class SctpAssociation {
 
     // Prune obsolete entries
     if (_lastReceivedTsn != null) {
-      _sackDuplicates = _sackDuplicates.where((x) => _uint32Gt(x, _lastReceivedTsn!)).toList();
-      _sackMisOrdered = _sackMisOrdered.where((x) => _uint32Gt(x, _lastReceivedTsn!)).toSet();
+      _sackDuplicates = _sackDuplicates
+          .where((x) => _uint32Gt(x, _lastReceivedTsn!))
+          .toList();
+      _sackMisOrdered =
+          _sackMisOrdered.where((x) => _uint32Gt(x, _lastReceivedTsn!)).toSet();
     }
 
     return false;
@@ -1131,8 +1154,8 @@ class SctpAssociation {
     } else {
       _rttvar = (1 - SctpConstants.rtoBeta) * _rttvar! +
           SctpConstants.rtoBeta * (_srtt! - r).abs();
-      _srtt = (1 - SctpConstants.rtoAlpha) * _srtt! +
-          SctpConstants.rtoAlpha * r;
+      _srtt =
+          (1 - SctpConstants.rtoAlpha) * _srtt! + SctpConstants.rtoAlpha * r;
     }
     _rto = max(
       SctpConstants.rtoMin,

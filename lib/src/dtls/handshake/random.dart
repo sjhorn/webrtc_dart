@@ -33,7 +33,8 @@ class DtlsRandom {
   /// Parse from 32-byte buffer
   factory DtlsRandom.fromBytes(Uint8List bytes) {
     if (bytes.length != 32) {
-      throw ArgumentError('Random must be exactly 32 bytes, got ${bytes.length}');
+      throw ArgumentError(
+          'Random must be exactly 32 bytes, got ${bytes.length}');
     }
 
     final buffer = ByteData.sublistView(bytes);

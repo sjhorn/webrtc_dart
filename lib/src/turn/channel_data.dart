@@ -34,8 +34,7 @@ class ChannelData {
   }) {
     if (channelNumber < channelNumberMin || channelNumber > channelNumberMax) {
       throw ArgumentError(
-        'Channel number must be in range 0x4000-0x7FFF, got: 0x${channelNumber.toRadixString(16)}'
-      );
+          'Channel number must be in range 0x4000-0x7FFF, got: 0x${channelNumber.toRadixString(16)}');
     }
   }
 
@@ -65,8 +64,7 @@ class ChannelData {
   static ChannelData decode(Uint8List data) {
     if (data.length < channelDataHeaderLength) {
       throw ArgumentError(
-        'ChannelData too short: ${data.length} bytes, expected at least $channelDataHeaderLength'
-      );
+          'ChannelData too short: ${data.length} bytes, expected at least $channelDataHeaderLength');
     }
 
     final buffer = ByteData.view(data.buffer, data.offsetInBytes);
@@ -75,17 +73,16 @@ class ChannelData {
 
     if (channelNumber < channelNumberMin || channelNumber > channelNumberMax) {
       throw ArgumentError(
-        'Invalid channel number: 0x${channelNumber.toRadixString(16)}'
-      );
+          'Invalid channel number: 0x${channelNumber.toRadixString(16)}');
     }
 
     if (data.length < channelDataHeaderLength + length) {
       throw ArgumentError(
-        'ChannelData incomplete: got ${data.length} bytes, expected ${channelDataHeaderLength + length}'
-      );
+          'ChannelData incomplete: got ${data.length} bytes, expected ${channelDataHeaderLength + length}');
     }
 
-    final appData = data.sublist(channelDataHeaderLength, channelDataHeaderLength + length);
+    final appData =
+        data.sublist(channelDataHeaderLength, channelDataHeaderLength + length);
 
     return ChannelData(
       channelNumber: channelNumber,

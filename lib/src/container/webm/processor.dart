@@ -94,7 +94,8 @@ class _CuePoint {
   int blockNumber = 0;
   int cuesLength = 0;
 
-  _CuePoint(this.builder, this.trackNumber, this.relativeTimestampMs, this.position);
+  _CuePoint(
+      this.builder, this.trackNumber, this.relativeTimestampMs, this.position);
 
   EbmlData build() {
     return builder.createCuePoint(
@@ -190,9 +191,11 @@ class WebmProcessor {
     _position += staticPart.length;
 
     // Add initial cue point for video track
-    final videoTrack = _tracks.where((t) => t.kind == TrackKind.video).firstOrNull;
+    final videoTrack =
+        _tracks.where((t) => t.kind == TrackKind.video).firstOrNull;
     if (videoTrack != null) {
-      _cuePoints.add(_CuePoint(_container, videoTrack.trackNumber, 0, _position));
+      _cuePoints
+          .add(_CuePoint(_container, videoTrack.trackNumber, 0, _position));
     }
   }
 
@@ -227,7 +230,8 @@ class WebmProcessor {
   void _processFrame(WebmFrame frame) {
     if (_stopped) return;
 
-    final track = _tracks.where((t) => t.trackNumber == frame.trackNumber).firstOrNull;
+    final track =
+        _tracks.where((t) => t.trackNumber == frame.trackNumber).firstOrNull;
     if (track == null) {
       throw ArgumentError('Track ${frame.trackNumber} not found');
     }
@@ -242,7 +246,8 @@ class WebmProcessor {
   }
 
   void _onFrameReceived(WebmFrame frame) {
-    final track = _tracks.where((t) => t.trackNumber == frame.trackNumber).firstOrNull;
+    final track =
+        _tracks.where((t) => t.trackNumber == frame.trackNumber).firstOrNull;
     if (track == null) return;
 
     final timestampManager = _timestamps[track.trackNumber]!;
@@ -354,7 +359,8 @@ class WebmProcessor {
     final durationMs = _relativeTimestampMs + latestTimestamp;
 
     // Write cue points
-    final cues = _container.createCues(_cuePoints.map((c) => c.build()).toList());
+    final cues =
+        _container.createCues(_cuePoints.map((c) => c.build()).toList());
     _onOutput(WebmOutput(
       data: cues,
       kind: WebmOutputKind.cuePoints,

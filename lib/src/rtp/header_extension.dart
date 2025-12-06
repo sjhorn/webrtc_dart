@@ -8,7 +8,8 @@ class RtpExtensionUri {
   static const sdesMid = 'urn:ietf:params:rtp-hdrext:sdes:mid';
 
   /// RTP Stream ID (RID) - RFC 8851
-  static const sdesRtpStreamId = 'urn:ietf:params:rtp-hdrext:sdes:rtp-stream-id';
+  static const sdesRtpStreamId =
+      'urn:ietf:params:rtp-hdrext:sdes:rtp-stream-id';
 
   /// Repaired RTP Stream ID - RFC 8851
   static const repairedRtpStreamId =
@@ -29,12 +30,10 @@ class RtpExtensionUri {
       'http://www.webrtc.org/experiments/rtp-hdrext/abs-send-time';
 
   /// Transmission Time Offset - RFC 5450
-  static const transmissionTimeOffset =
-      'urn:ietf:params:rtp-hdrext:toffset';
+  static const transmissionTimeOffset = 'urn:ietf:params:rtp-hdrext:toffset';
 
   /// Video Orientation - RFC 7742
-  static const videoOrientation =
-      'urn:3gpp:video-orientation';
+  static const videoOrientation = 'urn:3gpp:video-orientation';
 
   /// Dependency Descriptor - Google/AV1
   static const dependencyDescriptor =

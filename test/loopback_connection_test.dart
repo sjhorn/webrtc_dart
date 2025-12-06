@@ -27,10 +27,14 @@ void main() {
       });
 
       // Track connection states
-      pc1.onIceConnectionStateChange.listen((s) => print('[PC1] ICE state: $s'));
-      pc2.onIceConnectionStateChange.listen((s) => print('[PC2] ICE state: $s'));
-      pc1.onConnectionStateChange.listen((s) => print('[PC1] Connection state: $s'));
-      pc2.onConnectionStateChange.listen((s) => print('[PC2] Connection state: $s'));
+      pc1.onIceConnectionStateChange
+          .listen((s) => print('[PC1] ICE state: $s'));
+      pc2.onIceConnectionStateChange
+          .listen((s) => print('[PC2] ICE state: $s'));
+      pc1.onConnectionStateChange
+          .listen((s) => print('[PC1] Connection state: $s'));
+      pc2.onConnectionStateChange
+          .listen((s) => print('[PC2] Connection state: $s'));
 
       // Wait for initialization
       await Future.delayed(Duration(milliseconds: 100));
@@ -55,7 +59,8 @@ void main() {
       await Future.delayed(Duration(milliseconds: 500));
 
       // Exchange ICE candidates
-      print('[Test] Exchanging ${pc1Candidates.length} + ${pc2Candidates.length} ICE candidates...');
+      print(
+          '[Test] Exchanging ${pc1Candidates.length} + ${pc2Candidates.length} ICE candidates...');
       for (final c in pc1Candidates) {
         await pc2.addIceCandidate(c);
       }
@@ -75,9 +80,9 @@ void main() {
       // Verify at least one side connected
       expect(
         pc1.iceConnectionState == IceConnectionState.connected ||
-        pc1.iceConnectionState == IceConnectionState.completed ||
-        pc2.iceConnectionState == IceConnectionState.connected ||
-        pc2.iceConnectionState == IceConnectionState.completed,
+            pc1.iceConnectionState == IceConnectionState.completed ||
+            pc2.iceConnectionState == IceConnectionState.connected ||
+            pc2.iceConnectionState == IceConnectionState.completed,
         isTrue,
         reason: 'At least one peer should reach connected state',
       );
@@ -98,14 +103,14 @@ void main() {
       // Set up data channel on PC1 (offerer)
       await Future.delayed(Duration(milliseconds: 100));
       final dc1 = pc1.createDataChannel('test');
-      
+
       dc1.onStateChange.listen((state) {
         print('[DC1] State: $state');
         if (state == DataChannelState.open && !pc1Connected.isCompleted) {
           pc1Connected.complete();
         }
       });
-      
+
       dc1.onMessage.listen((msg) {
         print('[DC1] Received: $msg');
         receivedMessages.add(msg.toString());
@@ -131,7 +136,7 @@ void main() {
         });
       });
 
-      // Collect and exchange ICE candidates  
+      // Collect and exchange ICE candidates
       final pc1Candidates = <Candidate>[];
       final pc2Candidates = <Candidate>[];
       pc1.onIceCandidate.listen((c) => pc1Candidates.add(c));
@@ -144,7 +149,7 @@ void main() {
       final offer = await pc1.createOffer();
       await pc1.setLocalDescription(offer);
       await pc2.setRemoteDescription(offer);
-      
+
       final answer = await pc2.createAnswer();
       await pc2.setLocalDescription(answer);
       await pc1.setRemoteDescription(answer);
@@ -165,13 +170,13 @@ void main() {
       try {
         await pc1Connected.future.timeout(Duration(seconds: 10));
         print('[Test] DC1 connected!');
-        
+
         // Send a message
         dc1.sendString('Hello from PC1');
-        
+
         await messageReceived.future.timeout(Duration(seconds: 5));
         print('[Test] Message received!');
-        
+
         expect(receivedMessages, contains('Echo: Hello from PC1'));
       } catch (e) {
         print('[Test] Timeout or error: $e');

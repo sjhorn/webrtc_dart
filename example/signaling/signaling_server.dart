@@ -28,7 +28,8 @@ void main(List<String> args) async {
       socket.listen(
         (data) {
           // Decode the message
-          final message = data is String ? data : utf8.decode(data as List<int>);
+          final message =
+              data is String ? data : utf8.decode(data as List<int>);
 
           // Try to parse as JSON to log nicely
           try {

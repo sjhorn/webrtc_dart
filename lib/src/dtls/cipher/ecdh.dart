@@ -78,19 +78,22 @@ Future<Uint8List> computePreMasterSecret(
   NamedCurve curve,
 ) async {
   print('[ECDH] computePreMasterSecret: curve=$curve');
-  print('[ECDH] remotePublicKey (${remotePublicKeyBytes.length} bytes): ${remotePublicKeyBytes.map((b) => b.toRadixString(16).padLeft(2, '0')).join(' ')}');
+  print(
+      '[ECDH] remotePublicKey (${remotePublicKeyBytes.length} bytes): ${remotePublicKeyBytes.map((b) => b.toRadixString(16).padLeft(2, '0')).join(' ')}');
 
   // Extract and print local private key
   final localKeyPairData = await localKeyPair.extract();
   if (localKeyPairData is SimpleKeyPairData) {
     final privateBytes = Uint8List.fromList(localKeyPairData.bytes);
-    print('[ECDH] localPrivateKey (${privateBytes.length} bytes): ${privateBytes.map((b) => b.toRadixString(16).padLeft(2, '0')).join(' ')}');
+    print(
+        '[ECDH] localPrivateKey (${privateBytes.length} bytes): ${privateBytes.map((b) => b.toRadixString(16).padLeft(2, '0')).join(' ')}');
   }
 
   // Extract and print local public key
   final localPublicKey = await localKeyPair.extractPublicKey();
   if (localPublicKey is SimplePublicKey) {
-    print('[ECDH] localPublicKey (${localPublicKey.bytes.length} bytes): ${localPublicKey.bytes.map((b) => b.toRadixString(16).padLeft(2, '0')).join(' ')}');
+    print(
+        '[ECDH] localPublicKey (${localPublicKey.bytes.length} bytes): ${localPublicKey.bytes.map((b) => b.toRadixString(16).padLeft(2, '0')).join(' ')}');
   }
 
   final remotePublicKey = SimplePublicKey(
@@ -106,7 +109,8 @@ Future<Uint8List> computePreMasterSecret(
 
   // Extract bytes from SecretKey
   final bytes = await sharedSecret.extractBytes();
-  print('[ECDH] sharedSecret (${bytes.length} bytes): ${bytes.map((b) => b.toRadixString(16).padLeft(2, '0')).join(' ')}');
+  print(
+      '[ECDH] sharedSecret (${bytes.length} bytes): ${bytes.map((b) => b.toRadixString(16).padLeft(2, '0')).join(' ')}');
   return Uint8List.fromList(bytes);
 }
 
@@ -200,7 +204,8 @@ Future<Uint8List> serializePublicKey(
     bytes = publicKey.bytes;
   } else {
     // For other public key types, try to convert
-    throw UnsupportedError('Unsupported public key type: ${publicKey.runtimeType}');
+    throw UnsupportedError(
+        'Unsupported public key type: ${publicKey.runtimeType}');
   }
 
   switch (curve) {

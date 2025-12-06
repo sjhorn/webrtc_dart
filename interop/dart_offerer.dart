@@ -47,7 +47,8 @@ void main() async {
 
   // Handle ICE candidates - write to file for exchange with JS peer
   pc.onIceCandidate.listen((candidate) async {
-    print('[Dart Offerer] ICE candidate: ${candidate.type} at ${candidate.host}:${candidate.port}');
+    print(
+        '[Dart Offerer] ICE candidate: ${candidate.type} at ${candidate.host}:${candidate.port}');
 
     // Write candidate to file (append mode, one JSON per line)
     // Format matches JavaScript RTCIceCandidate structure
@@ -230,7 +231,8 @@ void pollForCandidates(RtcPeerConnection pc, String candidatesFile) {
           final candidate = Candidate.fromSdp(candidateStr);
 
           await pc.addIceCandidate(candidate);
-          print('[Dart Offerer] Added remote ICE candidate: ${candidate.type} ${candidate.host}:${candidate.port}');
+          print(
+              '[Dart Offerer] Added remote ICE candidate: ${candidate.type} ${candidate.host}:${candidate.port}');
         } catch (e) {
           // Ignore parse errors for incomplete lines
         }
@@ -243,7 +245,8 @@ void pollForCandidates(RtcPeerConnection pc, String candidatesFile) {
     if (pc.iceConnectionState == IceConnectionState.connected ||
         pc.iceConnectionState == IceConnectionState.completed) {
       timer.cancel();
-      print('[Dart Offerer] Stopped polling for candidates (connection established)');
+      print(
+          '[Dart Offerer] Stopped polling for candidates (connection established)');
     }
   });
 }

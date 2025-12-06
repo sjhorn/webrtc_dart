@@ -159,7 +159,8 @@ class ClientHandshakeCoordinator {
   }
 
   /// Process ServerHello from server
-  Future<void> _processServerHello(Uint8List data, {Uint8List? fullMessage}) async {
+  Future<void> _processServerHello(Uint8List data,
+      {Uint8List? fullMessage}) async {
     // RFC 6347 Section 4.2.1: HelloVerifyRequest is optional
     // Server may skip it and send ServerHello directly
     if (_state == ClientHandshakeState.waitingForHelloVerifyRequest) {
@@ -170,7 +171,8 @@ class ClientHandshakeCoordinator {
 
       // Important: The ClientHello is already in the handshake buffer from Flight 1
       // Server will include it in its verify_data calculation
-      print('[CLIENT] Handshake buffer has ${dtlsContext.handshakeMessages.length} messages after ClientHello');
+      print(
+          '[CLIENT] Handshake buffer has ${dtlsContext.handshakeMessages.length} messages after ClientHello');
     }
 
     if (_state != ClientHandshakeState.waitingForServerHello) {
@@ -190,17 +192,20 @@ class ClientHandshakeCoordinator {
 
     // Check if server echoed extended master secret extension
     dtlsContext.useExtendedMasterSecret = serverHello.hasExtendedMasterSecret;
-    print('[CLIENT] Extended master secret: ${dtlsContext.useExtendedMasterSecret}');
+    print(
+        '[CLIENT] Extended master secret: ${dtlsContext.useExtendedMasterSecret}');
 
     // Add to handshake messages (use fullMessage if available, includes header)
     dtlsContext.addHandshakeMessage(fullMessage ?? data);
-    print('[CLIENT] Added ServerHello to buffer, now ${dtlsContext.handshakeMessages.length} messages');
+    print(
+        '[CLIENT] Added ServerHello to buffer, now ${dtlsContext.handshakeMessages.length} messages');
 
     _state = ClientHandshakeState.waitingForCertificate;
   }
 
   /// Process Certificate from server
-  Future<void> _processCertificate(Uint8List data, {Uint8List? fullMessage}) async {
+  Future<void> _processCertificate(Uint8List data,
+      {Uint8List? fullMessage}) async {
     // Ignore retransmissions from previous flights
     if (_state == ClientHandshakeState.waitingForServerFinished ||
         _state == ClientHandshakeState.completed) {
@@ -217,7 +222,8 @@ class ClientHandshakeCoordinator {
 
     // Parse Certificate message
     _serverCertificate = Certificate.parse(data);
-    print('[CLIENT] Received certificate with ${_serverCertificate!.certificates.length} certificate(s)');
+    print(
+        '[CLIENT] Received certificate with ${_serverCertificate!.certificates.length} certificate(s)');
 
     // Note: Certificate chain validation is not performed here (matching werift:
     // packages/dtls/src/flight/client/flight5.ts - just stores remoteCertificate).
@@ -230,11 +236,13 @@ class ClientHandshakeCoordinator {
   }
 
   /// Process ServerKeyExchange from server
-  Future<void> _processServerKeyExchange(Uint8List data, {Uint8List? fullMessage}) async {
+  Future<void> _processServerKeyExchange(Uint8List data,
+      {Uint8List? fullMessage}) async {
     // Ignore retransmissions from previous flights
     if (_state == ClientHandshakeState.waitingForServerFinished ||
         _state == ClientHandshakeState.completed) {
-      print('[CLIENT] Ignoring retransmitted ServerKeyExchange in state $_state');
+      print(
+          '[CLIENT] Ignoring retransmitted ServerKeyExchange in state $_state');
       return;
     }
 
@@ -243,7 +251,8 @@ class ClientHandshakeCoordinator {
         _state != ClientHandshakeState.waitingForCertificate &&
         _state != ClientHandshakeState.waitingForServerHello) {
       // DTLS retransmission - silently ignore duplicate messages from previous flights
-      print('[CLIENT] Ignoring retransmitted ServerKeyExchange in state $_state');
+      print(
+          '[CLIENT] Ignoring retransmitted ServerKeyExchange in state $_state');
       return;
     }
 
@@ -268,7 +277,8 @@ class ClientHandshakeCoordinator {
         certificate: _serverCertificate!,
       );
       if (!isValid) {
-        print('[CLIENT] Warning: ServerKeyExchange signature verification failed');
+        print(
+            '[CLIENT] Warning: ServerKeyExchange signature verification failed');
         // In a production system, you would fail the handshake here
         // throw StateError('ServerKeyExchange signature verification failed');
       } else {
@@ -283,17 +293,20 @@ class ClientHandshakeCoordinator {
   }
 
   /// Process CertificateRequest from server
-  Future<void> _processCertificateRequest(Uint8List data, {Uint8List? fullMessage}) async {
+  Future<void> _processCertificateRequest(Uint8List data,
+      {Uint8List? fullMessage}) async {
     // Ignore retransmissions from previous flights
     if (_state == ClientHandshakeState.waitingForServerFinished ||
         _state == ClientHandshakeState.completed) {
-      print('[CLIENT] Ignoring retransmitted CertificateRequest in state $_state');
+      print(
+          '[CLIENT] Ignoring retransmitted CertificateRequest in state $_state');
       return;
     }
 
     // CertificateRequest can arrive after ServerKeyExchange
     if (_state != ClientHandshakeState.waitingForServerHelloDone) {
-      print('[CLIENT] CertificateRequest received unexpectedly in state $_state');
+      print(
+          '[CLIENT] CertificateRequest received unexpectedly in state $_state');
     }
 
     print('[CLIENT] Server requested client certificate');
@@ -306,7 +319,8 @@ class ClientHandshakeCoordinator {
   }
 
   /// Process ServerHelloDone from server
-  Future<void> _processServerHelloDone(Uint8List data, {Uint8List? fullMessage}) async {
+  Future<void> _processServerHelloDone(Uint8List data,
+      {Uint8List? fullMessage}) async {
     // Ignore retransmissions from previous flights
     if (_state == ClientHandshakeState.waitingForServerFinished ||
         _state == ClientHandshakeState.completed) {
@@ -355,7 +369,8 @@ class ClientHandshakeCoordinator {
   }
 
   /// Process Finished from server
-  Future<void> _processFinished(Uint8List data, {Uint8List? fullMessage}) async {
+  Future<void> _processFinished(Uint8List data,
+      {Uint8List? fullMessage}) async {
     if (_state != ClientHandshakeState.waitingForServerFinished) {
       // DTLS retransmission - silently ignore duplicate Finished messages
       // This can happen if our final ACK was lost and server retransmits
@@ -430,7 +445,8 @@ class ClientHandshakeCoordinator {
     try {
       // Build the data that was signed
       final paramsLength = 1 + 2 + 1 + ske.publicKey.length;
-      final dataToVerify = Uint8List(clientRandom.length + serverRandom.length + paramsLength);
+      final dataToVerify =
+          Uint8List(clientRandom.length + serverRandom.length + paramsLength);
       var offset = 0;
 
       // Client random
@@ -446,7 +462,8 @@ class ClientHandshakeCoordinator {
       dataToVerify[offset++] = (ske.curve.value >> 8) & 0xFF;
       dataToVerify[offset++] = ske.curve.value & 0xFF;
       dataToVerify[offset++] = ske.publicKey.length;
-      dataToVerify.setRange(offset, offset + ske.publicKey.length, ske.publicKey);
+      dataToVerify.setRange(
+          offset, offset + ske.publicKey.length, ske.publicKey);
 
       // Hash the data
       final digest = Digest('SHA-256');
@@ -454,7 +471,8 @@ class ClientHandshakeCoordinator {
 
       // Extract public key from certificate
       // This is a simplified implementation - in production, you'd use a proper ASN.1 parser
-      final publicKey = _extractPublicKeyFromCertificate(certificate.entityCertificate!);
+      final publicKey =
+          _extractPublicKeyFromCertificate(certificate.entityCertificate!);
       if (publicKey == null) {
         print('[CLIENT] Could not extract public key from certificate');
         return false;
@@ -494,7 +512,8 @@ class ClientHandshakeCoordinator {
           final bitStringLength = certData[i + 1];
           if (bitStringLength >= 65 && bitStringLength <= 67) {
             // Likely our public key (04 + 32 bytes X + 32 bytes Y = 65 bytes)
-            final keyData = certData.sublist(i + 3, i + 3 + bitStringLength - 1);
+            final keyData =
+                certData.sublist(i + 3, i + 3 + bitStringLength - 1);
             if (keyData.isNotEmpty && keyData[0] == 0x04) {
               // Uncompressed point format
               final curve = ECCurve_secp256r1();

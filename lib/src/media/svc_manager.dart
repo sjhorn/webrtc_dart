@@ -53,9 +53,8 @@ class ScalabilityMode {
 
     // Check for _KEY suffix
     final keyMode = upperMode.endsWith('_KEY');
-    final cleanMode = keyMode
-        ? upperMode.substring(0, upperMode.length - 4)
-        : upperMode;
+    final cleanMode =
+        keyMode ? upperMode.substring(0, upperMode.length - 4) : upperMode;
 
     // Parse L{S}T{T} format
     final match = RegExp(r'^L(\d)T(\d)$').firstMatch(cleanMode);
@@ -322,7 +321,9 @@ class Vp9SvcFilter {
     _packetsReceived++;
 
     // Handle pending layer switch on keyframe
-    if (_waitingForKeyframe && _pendingSelection != null && payload.isKeyframe) {
+    if (_waitingForKeyframe &&
+        _pendingSelection != null &&
+        payload.isKeyframe) {
       _selection = _pendingSelection!;
       _pendingSelection = null;
       _waitingForKeyframe = false;

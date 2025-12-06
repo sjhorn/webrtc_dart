@@ -84,13 +84,15 @@ EbmlValue ebmlString(String str) => ebmlBytes(stringToByteArray(str));
 
 /// Create an EBML element with known size
 EbmlData ebmlElement(Uint8List id, dynamic child) {
-  final children = child is List<EbmlData> ? child : <EbmlData>[child as EbmlData];
+  final children =
+      child is List<EbmlData> ? child : <EbmlData>[child as EbmlData];
   return EbmlElement(id, children);
 }
 
 /// Create an EBML element with unknown size
 EbmlData ebmlUnknownSizeElement(Uint8List id, dynamic child) {
-  final children = child is List<EbmlData> ? child : <EbmlData>[child as EbmlData];
+  final children =
+      child is List<EbmlData> ? child : <EbmlData>[child as EbmlData];
   return EbmlElement(id, children, isSizeUnknown: true);
 }
 

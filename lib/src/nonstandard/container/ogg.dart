@@ -144,12 +144,13 @@ class OggParser {
               // Append remaining data to segment
               final combined = Uint8List(lastPage.segments[i].length + diff);
               combined.setAll(0, lastPage.segments[i]);
-              combined.setAll(
-                  lastPage.segments[i].length, buf.sublist(index, index + diff));
+              combined.setAll(lastPage.segments[i].length,
+                  buf.sublist(index, index + diff));
               lastPage.segments[i] = combined;
             } else {
               // Add new complete segment
-              lastPage.segments.add(Uint8List.fromList(buf.sublist(index, index + diff)));
+              lastPage.segments
+                  .add(Uint8List.fromList(buf.sublist(index, index + diff)));
             }
             index += diff;
           }
@@ -218,7 +219,8 @@ class OggParser {
               index = buf.length;
               break;
             }
-            segments.add(Uint8List.fromList(buf.sublist(index, index + segmentLength)));
+            segments.add(
+                Uint8List.fromList(buf.sublist(index, index + segmentLength)));
             index += segmentLength;
           }
 

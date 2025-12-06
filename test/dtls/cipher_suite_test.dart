@@ -373,7 +373,8 @@ void main() {
       // Create cipher suite for server receiving client data (uses clientWriteKey)
       final serverReceiveSuite = AEADCipherSuite(
         suite: CipherSuite.tlsEcdheEcdsaWithAes128GcmSha256,
-        writeKey: keys.clientWriteKey, // Server uses client's write key to decrypt client's messages
+        writeKey: keys
+            .clientWriteKey, // Server uses client's write key to decrypt client's messages
         writeNonce: keys.clientNonce,
       );
 
@@ -401,11 +402,13 @@ void main() {
         protocolVersion: header.protocolVersion,
         epoch: header.epoch,
         sequenceNumber: header.sequenceNumber,
-        contentLen: encrypted.length - 8 - 16, // Subtract explicit nonce and tag
+        contentLen:
+            encrypted.length - 8 - 16, // Subtract explicit nonce and tag
       );
 
       // Server decrypts
-      final decrypted = await serverReceiveSuite.decrypt(encrypted, decryptHeader);
+      final decrypted =
+          await serverReceiveSuite.decrypt(encrypted, decryptHeader);
 
       // Should match original
       expect(decrypted, equals(plaintext));

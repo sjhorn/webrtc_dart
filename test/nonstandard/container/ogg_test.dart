@@ -122,7 +122,9 @@ Uint8List buildOpusTags({String vendor = 'test'}) {
 void main() {
   group('OggPage', () {
     test('stores properties correctly', () {
-      final segments = [Uint8List.fromList([1, 2, 3])];
+      final segments = [
+        Uint8List.fromList([1, 2, 3])
+      ];
       final page = OggPage(
         granulePosition: 12345,
         segments: segments,
@@ -157,7 +159,9 @@ void main() {
       final parser = OggParser();
       final page = buildOggPage(
         granulePosition: 48000,
-        segments: [Uint8List.fromList([1, 2, 3])],
+        segments: [
+          Uint8List.fromList([1, 2, 3])
+        ],
       );
 
       parser.read(page);
@@ -169,7 +173,9 @@ void main() {
       final parser = OggParser();
       final page = buildOggPage(
         granulePosition: -1,
-        segments: [Uint8List.fromList([1, 2, 3])],
+        segments: [
+          Uint8List.fromList([1, 2, 3])
+        ],
       );
 
       parser.read(page);
@@ -196,11 +202,15 @@ void main() {
       final parser = OggParser();
       final page1 = buildOggPage(
         pageSequence: 0,
-        segments: [Uint8List.fromList([1, 2])],
+        segments: [
+          Uint8List.fromList([1, 2])
+        ],
       );
       final page2 = buildOggPage(
         pageSequence: 1,
-        segments: [Uint8List.fromList([3, 4])],
+        segments: [
+          Uint8List.fromList([3, 4])
+        ],
       );
 
       final combined = Uint8List(page1.length + page2.length);
@@ -223,7 +233,8 @@ void main() {
 
     test('stops on incomplete header', () {
       final parser = OggParser();
-      final data = Uint8List.fromList([0x4F, 0x67, 0x67, 0x53, 0x00]); // Just magic + version
+      final data = Uint8List.fromList(
+          [0x4F, 0x67, 0x67, 0x53, 0x00]); // Just magic + version
 
       parser.read(data);
 
@@ -271,7 +282,9 @@ void main() {
 
     test('clear removes all pages', () {
       final parser = OggParser();
-      final page = buildOggPage(segments: [Uint8List.fromList([1, 2, 3])]);
+      final page = buildOggPage(segments: [
+        Uint8List.fromList([1, 2, 3])
+      ]);
 
       parser.read(page);
       expect(parser.pages.length, equals(1));
@@ -282,7 +295,9 @@ void main() {
 
     test('read returns parser for chaining', () {
       final parser = OggParser();
-      final page = buildOggPage(segments: [Uint8List.fromList([1])]);
+      final page = buildOggPage(segments: [
+        Uint8List.fromList([1])
+      ]);
 
       final result = parser.read(page);
 
@@ -348,7 +363,8 @@ void main() {
       // Page 3: Audio
       final audioPacket1 = Uint8List.fromList([0xFC, 0x01, 0x02, 0x03]);
       final audioPacket2 = Uint8List.fromList([0xFC, 0x04, 0x05, 0x06]);
-      final page3 = buildOggPage(pageSequence: 2, segments: [audioPacket1, audioPacket2]);
+      final page3 =
+          buildOggPage(pageSequence: 2, segments: [audioPacket1, audioPacket2]);
 
       final combined = Uint8List(page1.length + page2.length + page3.length);
       var offset = 0;

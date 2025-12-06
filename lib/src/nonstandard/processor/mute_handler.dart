@@ -203,7 +203,8 @@ class MuteHandler {
     final buffer = _buffer[_index]..sort((a, b) => a.timeMs - b.timeMs);
     final last = buffer.isNotEmpty ? buffer.last : null;
 
-    final expect = last != null ? last.timeMs + options.ptime : _currentTimestamp;
+    final expect =
+        last != null ? last.timeMs + options.ptime : _currentTimestamp;
 
     // Insert dummy packets to fill gaps
     if (expect < _currentTimestamp + _bufferDuration) {

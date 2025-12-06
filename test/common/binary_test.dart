@@ -113,7 +113,8 @@ void main() {
     });
 
     test('extracts multiple bits', () {
-      expect(getBit(0xAA, 0, 4), equals(0x0A)); // 0xAA = 10101010, first 4 bits = 1010
+      expect(getBit(0xAA, 0, 4),
+          equals(0x0A)); // 0xAA = 10101010, first 4 bits = 1010
       expect(getBit(0xAA, 4, 4), equals(0x0A)); // last 4 bits = 1010
     });
   });

@@ -216,7 +216,8 @@ void main() {
       expect(uint16Add(100, 200), equals(300));
     });
 
-    test('uint16Gt should handle sequence number comparison with wraparound', () {
+    test('uint16Gt should handle sequence number comparison with wraparound',
+        () {
       // Normal comparison
       expect(uint16Gt(200, 100), isTrue);
       expect(uint16Gt(100, 200), isFalse);
@@ -232,7 +233,8 @@ void main() {
       expect(uint16Gt(0xC000, 0x4000), isFalse);
     });
 
-    test('uint16Lt should handle sequence number comparison with wraparound', () {
+    test('uint16Lt should handle sequence number comparison with wraparound',
+        () {
       // Normal comparison
       expect(uint16Lt(100, 200), isTrue);
       expect(uint16Lt(200, 100), isFalse);

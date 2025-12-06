@@ -152,7 +152,8 @@ class HandshakeMessage {
   /// Parse from complete handshake message (header + body)
   static HandshakeMessage parse(Uint8List data) {
     if (data.length < 12) {
-      throw FormatException('Handshake message too short: ${data.length} bytes');
+      throw FormatException(
+          'Handshake message too short: ${data.length} bytes');
     }
 
     final header = HandshakeHeader.parse(data);
@@ -215,7 +216,8 @@ class HandshakeMessage {
         data.sublist(offset, offset + messageLength),
       );
 
-      messages.add(HandshakeMessage(header: header, body: body, rawBytes: rawBytes));
+      messages.add(
+          HandshakeMessage(header: header, body: body, rawBytes: rawBytes));
       offset += messageLength;
     }
 

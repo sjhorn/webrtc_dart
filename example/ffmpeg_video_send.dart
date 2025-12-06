@@ -51,7 +51,8 @@ void main() async {
   );
 
   // Create UDP socket to receive RTP from ffmpeg
-  final udpSocket = await RawDatagramSocket.bind(InternetAddress.anyIPv4, rtpPort);
+  final udpSocket =
+      await RawDatagramSocket.bind(InternetAddress.anyIPv4, rtpPort);
   print('UDP socket bound to port $rtpPort');
 
   var packetsReceived = 0;
@@ -109,7 +110,9 @@ void main() async {
   // Log ffmpeg output
   ffmpegProcess.stderr.transform(const SystemEncoding().decoder).listen((data) {
     // Only print interesting lines
-    if (data.contains('frame=') || data.contains('Error') || data.contains('Opening')) {
+    if (data.contains('frame=') ||
+        data.contains('Error') ||
+        data.contains('Opening')) {
       print('[ffmpeg] $data');
     }
   });

@@ -27,12 +27,14 @@ void main() {
       final answerCandidates = <Candidate>[];
 
       pcOffer.onIceCandidate.listen((candidate) {
-        print('Offer candidate: ${candidate.type} ${candidate.host}:${candidate.port}');
+        print(
+            'Offer candidate: ${candidate.type} ${candidate.host}:${candidate.port}');
         offerCandidates.add(candidate);
       });
 
       pcAnswer.onIceCandidate.listen((candidate) {
-        print('Answer candidate: ${candidate.type} ${candidate.host}:${candidate.port}');
+        print(
+            'Answer candidate: ${candidate.type} ${candidate.host}:${candidate.port}');
         answerCandidates.add(candidate);
       });
 
@@ -117,7 +119,8 @@ void main() {
       }).timeout(Duration(seconds: 10));
 
       print('✓ Connection established!\n');
-      print('Starting 60-second stability test with messaging every 2 seconds...\n');
+      print(
+          'Starting 60-second stability test with messaging every 2 seconds...\n');
 
       final startTime = DateTime.now();
       final testDuration = Duration(seconds: 60);

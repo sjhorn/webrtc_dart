@@ -27,7 +27,9 @@ class StunMessage {
 
   /// Get transaction ID as hex string
   String get transactionIdHex {
-    return transactionId.map((b) => b.toRadixString(16).padLeft(2, '0')).join('');
+    return transactionId
+        .map((b) => b.toRadixString(16).padLeft(2, '0'))
+        .join('');
   }
 
   /// Get message type (combination of method and class)
@@ -144,7 +146,8 @@ class StunMessage {
     }
 
     // Update length to include MESSAGE-INTEGRITY
-    final checkData = setBodyLength(data, data.length - stunHeaderLength + integrityLength);
+    final checkData =
+        setBodyLength(data, data.length - stunHeaderLength + integrityLength);
 
     // Compute HMAC-SHA1
     return hmac('sha1', key, checkData);
@@ -171,7 +174,8 @@ class StunMessage {
     }
 
     // Update length to include FINGERPRINT
-    final checkData = setBodyLength(data, data.length - stunHeaderLength + fingerprintLength);
+    final checkData =
+        setBodyLength(data, data.length - stunHeaderLength + fingerprintLength);
 
     // Compute CRC32 and XOR with STUN magic
     final crc = computeCrc32(checkData);
@@ -242,14 +246,16 @@ StunMessage? parseStunMessage(Uint8List data, {Uint8List? integrityKey}) {
 
           // Verify FINGERPRINT
           if (attrTypeEnum == StunAttributeType.fingerprint) {
-            final computedFingerprint = _computeFingerprint(data.sublist(0, pos));
+            final computedFingerprint =
+                _computeFingerprint(data.sublist(0, pos));
             if (value != computedFingerprint) {
               return null; // Fingerprint mismatch
             }
           }
 
           // Verify MESSAGE-INTEGRITY
-          if (attrTypeEnum == StunAttributeType.messageIntegrity && integrityKey != null) {
+          if (attrTypeEnum == StunAttributeType.messageIntegrity &&
+              integrityKey != null) {
             final computedIntegrity = _computeMessageIntegrity(
               data.sublist(0, pos),
               integrityKey,
@@ -286,13 +292,15 @@ Uint8List setBodyLength(Uint8List data, int length) {
 
 /// Compute message integrity
 Uint8List _computeMessageIntegrity(Uint8List data, Uint8List key) {
-  final checkData = setBodyLength(data, data.length - stunHeaderLength + integrityLength);
+  final checkData =
+      setBodyLength(data, data.length - stunHeaderLength + integrityLength);
   return hmac('sha1', key, checkData);
 }
 
 /// Compute fingerprint
 int _computeFingerprint(Uint8List data) {
-  final checkData = setBodyLength(data, data.length - stunHeaderLength + fingerprintLength);
+  final checkData =
+      setBodyLength(data, data.length - stunHeaderLength + fingerprintLength);
   final crc = computeCrc32(checkData);
   return crc ^ fingerprintXor;
 }

@@ -432,8 +432,8 @@ a=simulcast:recv high;low
 
       final params = media.getSimulcastParameters();
       expect(params.length, equals(2));
-      expect(params.every((p) => p.direction == SimulcastDirection.recv),
-          isTrue);
+      expect(
+          params.every((p) => p.direction == SimulcastDirection.recv), isTrue);
     });
   });
 }

@@ -118,7 +118,8 @@ class Candidate {
   /// address version.
   bool canPairWith(Candidate other) {
     final thisIsV4 = InternetAddress(host).type == InternetAddressType.IPv4;
-    final otherIsV4 = InternetAddress(other.host).type == InternetAddressType.IPv4;
+    final otherIsV4 =
+        InternetAddress(other.host).type == InternetAddressType.IPv4;
 
     return component == other.component &&
         transport.toLowerCase() == other.transport.toLowerCase() &&
@@ -127,7 +128,8 @@ class Candidate {
 
   /// Convert candidate to SDP format
   String toSdp() {
-    var sdp = '$foundation $component $transport $priority $host $port typ $type';
+    var sdp =
+        '$foundation $component $transport $priority $host $port typ $type';
 
     if (relatedAddress != null) {
       sdp += ' raddr $relatedAddress';

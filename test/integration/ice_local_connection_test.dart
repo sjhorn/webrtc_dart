@@ -122,7 +122,6 @@ void main() {
           print('✓ Data received: ${ice2Data[0]}');
           expect(ice2Data[0], equals(testData));
         }
-
       } catch (e) {
         print('✗ Connection timeout or error: $e');
         print('ICE1 state: ${ice1.state}');

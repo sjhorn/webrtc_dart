@@ -130,7 +130,8 @@ class Av1Obu {
     // Bit 0 (MSB) = forbidden, bits 1-4 = type, bit 5 = extension, bit 6 = has_size, bit 7 = reserved
     int header = 0;
     header |= (obuForbiddenBit & 0x01) << 7; // bit 0 -> position 7
-    header |= ((obuTypeIds[obuType] ?? 0) & 0x0F) << 3; // bits 1-4 -> positions 6-3
+    header |=
+        ((obuTypeIds[obuType] ?? 0) & 0x0F) << 3; // bits 1-4 -> positions 6-3
     header |= (obuExtensionFlag & 0x01) << 2; // bit 5 -> position 2
     header |= (obuHasSizeField & 0x01) << 1; // bit 6 -> position 1
     header |= (obuReserved1Bit & 0x01); // bit 7 -> position 0

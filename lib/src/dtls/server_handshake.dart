@@ -88,7 +88,8 @@ class ServerHandshakeCoordinator {
   }
 
   /// Process ClientHello from client
-  Future<void> _processClientHello(Uint8List data, {Uint8List? fullMessage}) async {
+  Future<void> _processClientHello(Uint8List data,
+      {Uint8List? fullMessage}) async {
     // Parse ClientHello
     final clientHello = ClientHello.parse(data);
     dtlsContext.clientHello = clientHello;
@@ -96,7 +97,8 @@ class ServerHandshakeCoordinator {
 
     // Check if client wants extended master secret
     dtlsContext.useExtendedMasterSecret = clientHello.hasExtendedMasterSecret;
-    print('[SERVER] Processing ClientHello (cookie length: ${clientHello.cookie.length}, ems=${dtlsContext.useExtendedMasterSecret})');
+    print(
+        '[SERVER] Processing ClientHello (cookie length: ${clientHello.cookie.length}, ems=${dtlsContext.useExtendedMasterSecret})');
 
     // Check if cookie is present
     if (clientHello.cookie.isEmpty) {
@@ -163,14 +165,16 @@ class ServerHandshakeCoordinator {
   /// Note: Client certificate authentication is optional in WebRTC and rarely used.
   /// werift supports this via CertificateRequest (packages/dtls/src/flight/server/flight4.ts)
   /// but most browser implementations don't send client certificates.
-  Future<void> _processCertificate(Uint8List data, {Uint8List? fullMessage}) async {
+  Future<void> _processCertificate(Uint8List data,
+      {Uint8List? fullMessage}) async {
     // Parse and store client certificate (matching werift behavior)
     // In practice, browsers don't send certificates unless CertificateRequest was sent
     dtlsContext.addHandshakeMessage(fullMessage ?? data);
   }
 
   /// Process ClientKeyExchange from client
-  Future<void> _processClientKeyExchange(Uint8List data, {Uint8List? fullMessage}) async {
+  Future<void> _processClientKeyExchange(Uint8List data,
+      {Uint8List? fullMessage}) async {
     if (_state != ServerHandshakeState.waitingForClientKeyExchange) {
       throw StateError('Unexpected ClientKeyExchange in state $_state');
     }
@@ -199,7 +203,8 @@ class ServerHandshakeCoordinator {
 
       // Derive master secret from pre-master secret
       // Only use extended master secret if negotiated with client (RFC 7627)
-      print('[SERVER] Deriving master secret (extended=${dtlsContext.useExtendedMasterSecret})');
+      print(
+          '[SERVER] Deriving master secret (extended=${dtlsContext.useExtendedMasterSecret})');
       final masterSecret = KeyDerivation.deriveMasterSecret(
         dtlsContext,
         cipherContext,
@@ -216,7 +221,8 @@ class ServerHandshakeCoordinator {
 
       // Initialize ciphers for encryption/decryption
       if (cipherContext.cipherSuite != null) {
-        cipherContext.initializeCiphers(encryptionKeys, cipherContext.cipherSuite!);
+        cipherContext.initializeCiphers(
+            encryptionKeys, cipherContext.cipherSuite!);
       }
     }
 
@@ -227,14 +233,16 @@ class ServerHandshakeCoordinator {
   /// werift implements this in packages/dtls/src/handshake/message/client/certificateVerify.ts
   /// The message contains a signature over the handshake transcript.
   /// Only received if server sent CertificateRequest and client has a certificate.
-  Future<void> _processCertificateVerify(Uint8List data, {Uint8List? fullMessage}) async {
+  Future<void> _processCertificateVerify(Uint8List data,
+      {Uint8List? fullMessage}) async {
     // Parse CertificateVerify: algorithm (uint16) + signature (length-prefixed)
     // In practice, browsers don't send this unless we request client authentication
     dtlsContext.addHandshakeMessage(fullMessage ?? data);
   }
 
   /// Process Finished from client
-  Future<void> _processFinished(Uint8List data, {Uint8List? fullMessage}) async {
+  Future<void> _processFinished(Uint8List data,
+      {Uint8List? fullMessage}) async {
     if (_state != ServerHandshakeState.waitingForClientFinished) {
       throw StateError('Unexpected Finished in state $_state');
     }

@@ -143,15 +143,16 @@ class ServerFlight4 extends Flight {
     if (cipherContext.localPublicKey != null &&
         cipherContext.namedCurve != null) {
       // Compute signature over ServerKeyExchange params
-      final signature = (dtlsContext.remoteRandom != null && dtlsContext.localRandom != null)
-          ? _signServerKeyExchange(
-              clientRandom: dtlsContext.remoteRandom!,
-              serverRandom: dtlsContext.localRandom!,
-              curve: cipherContext.namedCurve!,
-              publicKey: cipherContext.localPublicKey!,
-              privateKey: privateKey,
-            )
-          : Uint8List(64); // Placeholder signature if randoms not set
+      final signature =
+          (dtlsContext.remoteRandom != null && dtlsContext.localRandom != null)
+              ? _signServerKeyExchange(
+                  clientRandom: dtlsContext.remoteRandom!,
+                  serverRandom: dtlsContext.localRandom!,
+                  curve: cipherContext.namedCurve!,
+                  publicKey: cipherContext.localPublicKey!,
+                  privateKey: privateKey,
+                )
+              : Uint8List(64); // Placeholder signature if randoms not set
 
       final serverKeyExchange = ServerKeyExchange(
         curve: cipherContext.namedCurve!,
@@ -304,8 +305,12 @@ Uint8List _signServerKeyExchange({
   }
 
   // Build the data to sign: client_random + server_random + server_params
-  final paramsLength = 1 + 2 + 1 + publicKey.length; // ECCurveType + NamedCurve + length + publicKey
-  final dataToSign = Uint8List(clientRandom.length + serverRandom.length + paramsLength);
+  final paramsLength = 1 +
+      2 +
+      1 +
+      publicKey.length; // ECCurveType + NamedCurve + length + publicKey
+  final dataToSign =
+      Uint8List(clientRandom.length + serverRandom.length + paramsLength);
   var offset = 0;
 
   // Client random

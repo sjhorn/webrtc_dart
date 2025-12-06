@@ -36,7 +36,8 @@ void main() async {
   // Track ICE candidates
   final localCandidates = <Candidate>[];
   pc.onIceCandidate.listen((candidate) {
-    print('[Dart] Local ICE candidate: ${candidate.type} ${candidate.host}:${candidate.port}');
+    print(
+        '[Dart] Local ICE candidate: ${candidate.type} ${candidate.host}:${candidate.port}');
     localCandidates.add(candidate);
   });
 
@@ -76,10 +77,12 @@ void main() async {
   });
 
   // Read offer from stdin
-  print('\n--- Paste the offer JSON from Chrome (then press Enter twice): ---\n');
+  print(
+      '\n--- Paste the offer JSON from Chrome (then press Enter twice): ---\n');
 
   final lines = <String>[];
-  await for (final line in stdin.transform(utf8.decoder).transform(const LineSplitter())) {
+  await for (final line
+      in stdin.transform(utf8.decoder).transform(const LineSplitter())) {
     if (line.isEmpty && lines.isNotEmpty) {
       break; // Empty line signals end of input
     }
@@ -97,7 +100,8 @@ void main() async {
 
     print('\n[Dart] Received offer:');
     print('[Dart] SDP type: ${offer.type}');
-    print('[Dart] SDP preview: ${offer.sdp.substring(0, 200.clamp(0, offer.sdp.length))}...');
+    print(
+        '[Dart] SDP preview: ${offer.sdp.substring(0, 200.clamp(0, offer.sdp.length))}...');
 
     // Set remote description
     await pc.setRemoteDescription(offer);
@@ -135,7 +139,6 @@ void main() async {
 
     // Keep running
     await Future.delayed(Duration(minutes: 5));
-
   } catch (e, st) {
     print('[Dart] Error: $e');
     print(st);

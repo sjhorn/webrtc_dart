@@ -288,8 +288,7 @@ void main() {
       // Filter: only pass packets with even sequence numbers
       final transform = RtpTransformStream(
         input: source,
-        transform: (rtp) =>
-            rtp.sequenceNumber % 2 == 0 ? rtp : null,
+        transform: (rtp) => rtp.sequenceNumber % 2 == 0 ? rtp : null,
       );
 
       transform.stream.listen(outputs.add);

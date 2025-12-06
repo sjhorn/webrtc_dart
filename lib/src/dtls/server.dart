@@ -46,18 +46,17 @@ class DtlsServer extends DtlsSocket {
     List<NamedCurve>? supportedCurves,
     this.certificate,
     this.privateKey,
-  }) : cipherSuites =
-           cipherSuites ??
-           [
-             CipherSuite.tlsEcdheEcdsaWithAes128GcmSha256,
-             CipherSuite.tlsEcdheRsaWithAes128GcmSha256,
-           ],
-       supportedCurves =
-           supportedCurves ?? [NamedCurve.x25519, NamedCurve.secp256r1],
-       super(
-         cipherContext: cipherContext ?? CipherContext(isClient: false),
-         initialState: DtlsSocketState.closed,
-       ) {
+  })  : cipherSuites = cipherSuites ??
+            [
+              CipherSuite.tlsEcdheEcdsaWithAes128GcmSha256,
+              CipherSuite.tlsEcdheRsaWithAes128GcmSha256,
+            ],
+        supportedCurves =
+            supportedCurves ?? [NamedCurve.x25519, NamedCurve.secp256r1],
+        super(
+          cipherContext: cipherContext ?? CipherContext(isClient: false),
+          initialState: DtlsSocketState.closed,
+        ) {
     // Initialize record layer
     _recordLayer = DtlsRecordLayer(
       dtlsContext: dtlsContext,

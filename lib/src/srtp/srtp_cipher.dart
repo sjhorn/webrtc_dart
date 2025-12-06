@@ -37,7 +37,8 @@ class SrtpCipher {
     final sessionSalt = _deriveSessionSalt(packet.ssrc, roc);
 
     // Build nonce (IV)
-    final nonce = _buildNonce(sessionSalt, packet.ssrc, packet.sequenceNumber, roc);
+    final nonce =
+        _buildNonce(sessionSalt, packet.ssrc, packet.sequenceNumber, roc);
 
     // Serialize RTP header (authenticated data)
     final header = _serializeHeader(packet);
@@ -58,7 +59,8 @@ class SrtpCipher {
     final output = Uint8List(outputLength);
 
     // Encrypt
-    var outOff = gcm.processBytes(packet.payload, 0, packet.payload.length, output, 0);
+    var outOff =
+        gcm.processBytes(packet.payload, 0, packet.payload.length, output, 0);
     outOff += gcm.doFinal(output, outOff);
 
     // Build final SRTP packet: header + encrypted_payload + auth_tag
@@ -72,8 +74,10 @@ class SrtpCipher {
   /// Decrypt SRTP packet
   /// Returns decrypted RTP packet
   Future<RtpPacket> decrypt(Uint8List srtpPacket) async {
-    if (srtpPacket.length < RtpPacket.fixedHeaderSize + SrtpAuthTagSize.tag128) {
-      throw FormatException('SRTP packet too short: ${srtpPacket.length} bytes');
+    if (srtpPacket.length <
+        RtpPacket.fixedHeaderSize + SrtpAuthTagSize.tag128) {
+      throw FormatException(
+          'SRTP packet too short: ${srtpPacket.length} bytes');
     }
 
     // Parse RTP header (not encrypted)

@@ -102,7 +102,8 @@ c=IN IP4 10.0.0.1
       expect(message.connection, isNotNull);
       expect(message.connection!.connectionAddress, '192.168.1.1');
       expect(message.mediaDescriptions[0].connection, isNotNull);
-      expect(message.mediaDescriptions[0].connection!.connectionAddress, '10.0.0.1');
+      expect(message.mediaDescriptions[0].connection!.connectionAddress,
+          '10.0.0.1');
     });
   });
 
@@ -175,9 +176,12 @@ a=sctp-port:5000
 
       expect(reparsed.version, message.version);
       expect(reparsed.sessionName, message.sessionName);
-      expect(reparsed.mediaDescriptions.length, message.mediaDescriptions.length);
-      expect(reparsed.mediaDescriptions[0].type, message.mediaDescriptions[0].type);
-      expect(reparsed.mediaDescriptions[1].type, message.mediaDescriptions[1].type);
+      expect(
+          reparsed.mediaDescriptions.length, message.mediaDescriptions.length);
+      expect(reparsed.mediaDescriptions[0].type,
+          message.mediaDescriptions[0].type);
+      expect(reparsed.mediaDescriptions[1].type,
+          message.mediaDescriptions[1].type);
     });
   });
 

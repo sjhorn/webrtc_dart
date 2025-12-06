@@ -252,7 +252,8 @@ void main() {
         await recorder.stop();
 
         // Should have some WebM data output
-        final dataOutputs = outputs.where((o) => o.data != null && o.data!.isNotEmpty);
+        final dataOutputs =
+            outputs.where((o) => o.data != null && o.data!.isNotEmpty);
         expect(dataOutputs.length, greaterThan(0));
       });
 
@@ -631,10 +632,18 @@ void main() {
             timestamp: 0,
             ssrc: 12345,
             payload: Uint8List.fromList([
-              0x90, 0x80, 0x00,
-              0x9d, 0x01, 0x2a,
-              0x80, 0x02, 0x58, 0x01,
-              0x00, 0x00,
+              0x90,
+              0x80,
+              0x00,
+              0x9d,
+              0x01,
+              0x2a,
+              0x80,
+              0x02,
+              0x58,
+              0x01,
+              0x00,
+              0x00,
             ]),
           ),
           trackNumber: 1,
@@ -649,7 +658,8 @@ void main() {
 
     group('file recording', () {
       test('records to file', () async {
-        final tempDir = await Directory.systemTemp.createTemp('media_recorder_test_');
+        final tempDir =
+            await Directory.systemTemp.createTemp('media_recorder_test_');
         final filePath = '${tempDir.path}/test.webm';
 
         try {
@@ -683,9 +693,16 @@ void main() {
               timestamp: 0,
               ssrc: 12345,
               payload: Uint8List.fromList([
-                0x90, 0x80, 0x00,
-                0x9d, 0x01, 0x2a,
-                0x80, 0x02, 0x58, 0x01,
+                0x90,
+                0x80,
+                0x00,
+                0x9d,
+                0x01,
+                0x2a,
+                0x80,
+                0x02,
+                0x58,
+                0x01,
               ]),
             ),
             trackNumber: 1,
@@ -811,7 +828,8 @@ void main() {
 
     group('file recording', () {
       test('records to file', () async {
-        final tempDir = await Directory.systemTemp.createTemp('simple_recorder_test_');
+        final tempDir =
+            await Directory.systemTemp.createTemp('simple_recorder_test_');
         final filePath = '${tempDir.path}/test.webm';
 
         try {

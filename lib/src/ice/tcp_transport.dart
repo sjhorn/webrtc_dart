@@ -306,8 +306,7 @@ class IceTcpServer {
   final Map<String, IceTcpConnection> _connections = {};
 
   /// Controller for new connections
-  final _connectionController =
-      StreamController<IceTcpConnection>.broadcast();
+  final _connectionController = StreamController<IceTcpConnection>.broadcast();
 
   IceTcpServer({
     required this.localAddress,

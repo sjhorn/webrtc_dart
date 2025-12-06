@@ -195,18 +195,21 @@ void main() {
       // Parse and re-serialize
       final parsed = offer.parse();
       final reserialized = parsed.serialize();
-      final reparsed = SessionDescription(type: 'offer', sdp: reserialized).parse();
+      final reparsed =
+          SessionDescription(type: 'offer', sdp: reserialized).parse();
 
       // Check key fields are preserved
       expect(reparsed.version, parsed.version);
       expect(reparsed.sessionName, parsed.sessionName);
-      expect(reparsed.mediaDescriptions.length, parsed.mediaDescriptions.length);
+      expect(
+          reparsed.mediaDescriptions.length, parsed.mediaDescriptions.length);
 
       await pc.close();
     });
 
     test('ICE candidate can be parsed from SDP', () {
-      final sdpLine = 'foundation 1 udp 2130706431 192.168.1.1 50000 typ host generation 0 ufrag abcd';
+      final sdpLine =
+          'foundation 1 udp 2130706431 192.168.1.1 50000 typ host generation 0 ufrag abcd';
 
       final candidate = Candidate.fromSdp(sdpLine);
 

@@ -82,7 +82,8 @@ class SsrcInfo {
   /// Label
   String? label;
 
-  SsrcInfo({required this.ssrc, this.cname, this.msid, this.mslabel, this.label});
+  SsrcInfo(
+      {required this.ssrc, this.cname, this.msid, this.mslabel, this.label});
 
   @override
   String toString() {
@@ -106,7 +107,8 @@ extension SdpMediaRtxExtension on SdpMedia {
     if (codecParts.isEmpty) return null;
 
     final codecName = codecParts[0];
-    final clockRate = codecParts.length > 1 ? int.tryParse(codecParts[1]) ?? 90000 : 90000;
+    final clockRate =
+        codecParts.length > 1 ? int.tryParse(codecParts[1]) ?? 90000 : 90000;
     final channels = codecParts.length > 2 ? int.tryParse(codecParts[2]) : null;
 
     return RtpMapInfo(
@@ -238,7 +240,8 @@ extension SdpMediaRtxExtension on SdpMedia {
         // Find the apt (associated payload type) in fmtp
         final fmtp = fmtps.firstWhere(
           (f) => f.payloadType == rtpMap.payloadType,
-          orElse: () => FmtpInfo(payloadType: rtpMap.payloadType, parameters: {}),
+          orElse: () =>
+              FmtpInfo(payloadType: rtpMap.payloadType, parameters: {}),
         );
 
         final aptStr = fmtp.parameters['apt'];
@@ -339,7 +342,8 @@ class FmtpInfo {
 /// RTX SDP Builder - helps generate RTX-related SDP attributes
 class RtxSdpBuilder {
   /// Create rtpmap attribute for RTX
-  static SdpAttribute createRtxRtpMap(int rtxPayloadType, {int clockRate = 90000}) {
+  static SdpAttribute createRtxRtpMap(int rtxPayloadType,
+      {int clockRate = 90000}) {
     return SdpAttribute(
       key: 'rtpmap',
       value: '$rtxPayloadType rtx/$clockRate',
@@ -347,7 +351,8 @@ class RtxSdpBuilder {
   }
 
   /// Create fmtp attribute for RTX with apt (associated payload type)
-  static SdpAttribute createRtxFmtp(int rtxPayloadType, int associatedPayloadType) {
+  static SdpAttribute createRtxFmtp(
+      int rtxPayloadType, int associatedPayloadType) {
     return SdpAttribute(
       key: 'fmtp',
       value: '$rtxPayloadType apt=$associatedPayloadType',
@@ -371,7 +376,8 @@ class RtxSdpBuilder {
   }
 
   /// Create ssrc attribute with msid
-  static SdpAttribute createSsrcMsid(int ssrc, String streamId, String trackId) {
+  static SdpAttribute createSsrcMsid(
+      int ssrc, String streamId, String trackId) {
     return SdpAttribute(
       key: 'ssrc',
       value: '$ssrc msid:$streamId $trackId',

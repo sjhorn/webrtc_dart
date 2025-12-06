@@ -50,10 +50,14 @@ class AEADCipherSuite {
     final aad = _constructAAD(header, plaintext.length);
 
     print('[AEAD] encrypt: epoch=${header.epoch} seq=${header.sequenceNumber}');
-    print('[AEAD] plaintext (${plaintext.length} bytes): ${plaintext.map((b) => b.toRadixString(16).padLeft(2, '0')).join(' ')}');
-    print('[AEAD] writeKey: ${writeKey.map((b) => b.toRadixString(16).padLeft(2, '0')).join(' ')}');
-    print('[AEAD] nonce: ${nonce.map((b) => b.toRadixString(16).padLeft(2, '0')).join(' ')}');
-    print('[AEAD] aad: ${aad.map((b) => b.toRadixString(16).padLeft(2, '0')).join(' ')}');
+    print(
+        '[AEAD] plaintext (${plaintext.length} bytes): ${plaintext.map((b) => b.toRadixString(16).padLeft(2, '0')).join(' ')}');
+    print(
+        '[AEAD] writeKey: ${writeKey.map((b) => b.toRadixString(16).padLeft(2, '0')).join(' ')}');
+    print(
+        '[AEAD] nonce: ${nonce.map((b) => b.toRadixString(16).padLeft(2, '0')).join(' ')}');
+    print(
+        '[AEAD] aad: ${aad.map((b) => b.toRadixString(16).padLeft(2, '0')).join(' ')}');
 
     // Encrypt with AES-GCM
     final ciphertext = await aesGcmEncrypt(
@@ -65,12 +69,14 @@ class AEADCipherSuite {
 
     // Prepend explicit nonce (epoch + sequence number) to ciphertext
     // Format: explicit_nonce (8 bytes) + ciphertext + tag (16 bytes)
-    final explicitNonce = _encodeExplicitNonce(header.epoch, header.sequenceNumber);
+    final explicitNonce =
+        _encodeExplicitNonce(header.epoch, header.sequenceNumber);
     final result = Uint8List(explicitNonce.length + ciphertext.length);
     result.setRange(0, explicitNonce.length, explicitNonce);
     result.setRange(explicitNonce.length, result.length, ciphertext);
 
-    print('[AEAD] result (${result.length} bytes): ${result.map((b) => b.toRadixString(16).padLeft(2, '0')).join(' ')}');
+    print(
+        '[AEAD] result (${result.length} bytes): ${result.map((b) => b.toRadixString(16).padLeft(2, '0')).join(' ')}');
 
     return result;
   }

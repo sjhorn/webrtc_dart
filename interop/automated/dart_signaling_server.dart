@@ -66,8 +66,10 @@ class DartSignalingServer {
   Future<void> _handleRequest(HttpRequest request) async {
     // Enable CORS
     request.response.headers.add('Access-Control-Allow-Origin', '*');
-    request.response.headers.add('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
-    request.response.headers.add('Access-Control-Allow-Headers', 'Content-Type');
+    request.response.headers
+        .add('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
+    request.response.headers
+        .add('Access-Control-Allow-Headers', 'Content-Type');
 
     if (request.method == 'OPTIONS') {
       request.response.statusCode = 200;
@@ -154,7 +156,8 @@ class DartSignalingServer {
     // Track connection state
     _pc!.onConnectionStateChange.listen((state) {
       print('[Server] Connection state: $state');
-      if (state == PeerConnectionState.connected && !_connectionCompleter.isCompleted) {
+      if (state == PeerConnectionState.connected &&
+          !_connectionCompleter.isCompleted) {
         _connectedTime = DateTime.now();
         _connectionCompleter.complete();
       }
@@ -166,7 +169,8 @@ class DartSignalingServer {
 
     // Track ICE candidates from Dart side
     _pc!.onIceCandidate.listen((candidate) {
-      print('[Server] Local ICE candidate: ${candidate.type} ${candidate.host}:${candidate.port}');
+      print(
+          '[Server] Local ICE candidate: ${candidate.type} ${candidate.host}:${candidate.port}');
       _localCandidates.add({
         'candidate': 'candidate:${candidate.toSdp()}',
         'sdpMid': '0',
@@ -197,7 +201,8 @@ class DartSignalingServer {
     });
 
     channel.onMessage.listen((message) {
-      final text = message is String ? message : utf8.decode(message as List<int>);
+      final text =
+          message is String ? message : utf8.decode(message as List<int>);
       print('[Server] Received: $text');
       _receivedMessages.add(text);
 
@@ -258,7 +263,8 @@ class DartSignalingServer {
   // Note: _handleAnswer is no longer needed in this flow, but keep for compatibility
   Future<void> _handleAnswer(HttpRequest request) async {
     request.response.headers.contentType = ContentType.json;
-    request.response.write(jsonEncode({'status': 'not needed - browser is offerer'}));
+    request.response
+        .write(jsonEncode({'status': 'not needed - browser is offerer'}));
   }
 
   Future<void> _handleCandidate(HttpRequest request) async {
@@ -326,8 +332,8 @@ class DartSignalingServer {
     final result = TestResult(
       browser: _currentBrowser,
       success: _receivedMessages.isNotEmpty &&
-               (_pc?.connectionState == PeerConnectionState.connected ||
-                _pc?.iceConnectionState == IceConnectionState.connected),
+          (_pc?.connectionState == PeerConnectionState.connected ||
+              _pc?.iceConnectionState == IceConnectionState.connected),
       messagesSent: _messagesSent,
       messagesReceived: _receivedMessages.length,
       receivedMessages: _receivedMessages,

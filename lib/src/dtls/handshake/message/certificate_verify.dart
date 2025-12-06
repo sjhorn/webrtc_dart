@@ -66,7 +66,8 @@ class CertificateVerify {
     final schemeValue = buffer.getUint16(0);
     final signatureScheme = SignatureScheme.fromValue(schemeValue);
     if (signatureScheme == null) {
-      throw FormatException('Unknown signature scheme: 0x${schemeValue.toRadixString(16)}');
+      throw FormatException(
+          'Unknown signature scheme: 0x${schemeValue.toRadixString(16)}');
     }
 
     // Signature length (2 bytes)

@@ -142,7 +142,8 @@ Future<void> main() async {
     durationSeconds: 3,
   );
   print('');
-  print('Throughput (4KB messages): ${throughputResult.toStringAsFixed(2)} MB/s');
+  print(
+      'Throughput (4KB messages): ${throughputResult.toStringAsFixed(2)} MB/s');
 
   // Cleanup
   await peer1.close();

@@ -55,8 +55,18 @@ void main() {
 
     test('serializes simple binding request', () {
       final tid = Uint8List.fromList([
-        0x01, 0x02, 0x03, 0x04, 0x05, 0x06,
-        0x07, 0x08, 0x09, 0x0A, 0x0B, 0x0C,
+        0x01,
+        0x02,
+        0x03,
+        0x04,
+        0x05,
+        0x06,
+        0x07,
+        0x08,
+        0x09,
+        0x0A,
+        0x0B,
+        0x0C,
       ]);
 
       final msg = StunMessage(
@@ -141,7 +151,8 @@ void main() {
       expect(parsed!.method, equals(msg.method));
       expect(parsed.messageClass, equals(msg.messageClass));
       expect(parsed.transactionId, equals(msg.transactionId));
-      expect(parsed.getAttribute(StunAttributeType.username), equals('testuser'));
+      expect(
+          parsed.getAttribute(StunAttributeType.username), equals('testuser'));
       expect(parsed.getAttribute(StunAttributeType.priority), equals(98765));
       expect(parsed.hasAttribute(StunAttributeType.useCandidate), isTrue);
     });
@@ -181,13 +192,15 @@ void main() {
         messageClass: StunClass.successResponse,
       );
 
-      msg.setAttribute(StunAttributeType.xorMappedAddress, ('192.168.1.100', 8080));
+      msg.setAttribute(
+          StunAttributeType.xorMappedAddress, ('192.168.1.100', 8080));
 
       final bytes = msg.toBytes();
       final parsed = parseStunMessage(bytes);
 
       expect(parsed, isNotNull);
-      final addr = parsed!.getAttribute(StunAttributeType.xorMappedAddress) as Address;
+      final addr =
+          parsed!.getAttribute(StunAttributeType.xorMappedAddress) as Address;
       expect(addr.$1, equals('192.168.1.100'));
       expect(addr.$2, equals(8080));
     });
@@ -269,7 +282,8 @@ void main() {
       final parsed = parseStunMessage(bytes);
 
       expect(parsed, isNotNull);
-      final errorCode = parsed!.getAttribute(StunAttributeType.errorCode) as (int, String);
+      final errorCode =
+          parsed!.getAttribute(StunAttributeType.errorCode) as (int, String);
       expect(errorCode.$1, equals(401));
       expect(errorCode.$2, equals('Unauthorized'));
     });
@@ -306,8 +320,10 @@ void main() {
       final parsed = parseStunMessage(bytes);
 
       expect(parsed, isNotNull);
-      final mapped = parsed!.getAttribute(StunAttributeType.xorMappedAddress) as Address;
-      final relayed = parsed.getAttribute(StunAttributeType.xorRelayedAddress) as Address;
+      final mapped =
+          parsed!.getAttribute(StunAttributeType.xorMappedAddress) as Address;
+      final relayed =
+          parsed.getAttribute(StunAttributeType.xorRelayedAddress) as Address;
 
       expect(mapped.$1, equals('10.0.0.1'));
       expect(mapped.$2, equals(3478));

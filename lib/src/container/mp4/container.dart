@@ -375,8 +375,8 @@ class Mp4Container {
 
   Uint8List _buildVideoTrak(int trackId, VideoDecoderConfig config) {
     final builder = Mp4BoxBuilder();
-    builder.addBox(_buildTkhd(trackId, config.codedWidth ?? 640,
-        config.codedHeight ?? 480, false));
+    builder.addBox(_buildTkhd(
+        trackId, config.codedWidth ?? 640, config.codedHeight ?? 480, false));
     builder.addBox(_buildVideoMdia(config));
     return _wrapBox('trak', builder.build());
   }
@@ -755,9 +755,11 @@ class Mp4Container {
 
     // sample_flags
     if (isKeyframe) {
-      builder.writeUint32(0x02000000); // is_leading=0, depends_on=2 (does not depend)
+      builder.writeUint32(
+          0x02000000); // is_leading=0, depends_on=2 (does not depend)
     } else {
-      builder.writeUint32(0x01010000); // is_leading=0, depends_on=1 (depends on another)
+      builder.writeUint32(
+          0x01010000); // is_leading=0, depends_on=1 (depends on another)
     }
 
     return _wrapFullBox('trun', 0, 0x000F01, builder.build());

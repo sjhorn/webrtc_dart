@@ -35,7 +35,8 @@ void main() {
 
     test('hmac SHA-1 produces correct digest', () {
       final key = Uint8List.fromList('key'.codeUnits);
-      final data = Uint8List.fromList('The quick brown fox jumps over the lazy dog'.codeUnits);
+      final data = Uint8List.fromList(
+          'The quick brown fox jumps over the lazy dog'.codeUnits);
 
       final result = hmac('sha1', key, data);
 
@@ -44,9 +45,26 @@ void main() {
       expect(
         result,
         equals([
-          0xde, 0x7c, 0x9b, 0x85, 0xb8, 0xb7, 0x8a, 0xa6,
-          0xbc, 0x8a, 0x7a, 0x36, 0xf7, 0x0a, 0x90, 0x70,
-          0x1c, 0x9d, 0xb4, 0xd9,
+          0xde,
+          0x7c,
+          0x9b,
+          0x85,
+          0xb8,
+          0xb7,
+          0x8a,
+          0xa6,
+          0xbc,
+          0x8a,
+          0x7a,
+          0x36,
+          0xf7,
+          0x0a,
+          0x90,
+          0x70,
+          0x1c,
+          0x9d,
+          0xb4,
+          0xd9,
         ]),
       );
     });
@@ -93,10 +111,38 @@ void main() {
       expect(
         result,
         equals([
-          0xb9, 0x4d, 0x27, 0xb9, 0x93, 0x4d, 0x3e, 0x08,
-          0xa5, 0x2e, 0x52, 0xd7, 0xda, 0x7d, 0xab, 0xfa,
-          0xc4, 0x84, 0xef, 0xe3, 0x7a, 0x53, 0x80, 0xee,
-          0x90, 0x88, 0xf7, 0xac, 0xe2, 0xef, 0xcd, 0xe9,
+          0xb9,
+          0x4d,
+          0x27,
+          0xb9,
+          0x93,
+          0x4d,
+          0x3e,
+          0x08,
+          0xa5,
+          0x2e,
+          0x52,
+          0xd7,
+          0xda,
+          0x7d,
+          0xab,
+          0xfa,
+          0xc4,
+          0x84,
+          0xef,
+          0xe3,
+          0x7a,
+          0x53,
+          0x80,
+          0xee,
+          0x90,
+          0x88,
+          0xf7,
+          0xac,
+          0xe2,
+          0xef,
+          0xcd,
+          0xe9,
         ]),
       );
     });
@@ -110,9 +156,26 @@ void main() {
       expect(
         result,
         equals([
-          0x2a, 0xae, 0x6c, 0x35, 0xc9, 0x4f, 0xcf, 0xb4,
-          0x15, 0xdb, 0xe9, 0x5f, 0x40, 0x8b, 0x9c, 0xe9,
-          0x1e, 0xe8, 0x46, 0xed,
+          0x2a,
+          0xae,
+          0x6c,
+          0x35,
+          0xc9,
+          0x4f,
+          0xcf,
+          0xb4,
+          0x15,
+          0xdb,
+          0xe9,
+          0x5f,
+          0x40,
+          0x8b,
+          0x9c,
+          0xe9,
+          0x1e,
+          0xe8,
+          0x46,
+          0xed,
         ]),
       );
     });
@@ -199,7 +262,8 @@ void main() {
     test('encrypts and decrypts data', () async {
       final key = randomBytes(16); // 128-bit key
       final iv = randomBytes(16); // 128-bit IV
-      final plaintext = Uint8List.fromList('Hello, World!!!!' .codeUnits); // 16 bytes (block size)
+      final plaintext = Uint8List.fromList(
+          'Hello, World!!!!'.codeUnits); // 16 bytes (block size)
 
       final ciphertext = await aesCbcEncrypt(
         key: key,
@@ -221,7 +285,8 @@ void main() {
     test('handles non-block-aligned plaintext', () async {
       final key = randomBytes(16);
       final iv = randomBytes(16);
-      final plaintext = Uint8List.fromList('Hello!'.codeUnits); // 6 bytes, not block-aligned
+      final plaintext =
+          Uint8List.fromList('Hello!'.codeUnits); // 6 bytes, not block-aligned
 
       final ciphertext = await aesCbcEncrypt(
         key: key,

@@ -34,9 +34,8 @@ class RTCRtpSimulcastParameters {
 
     final rid = parts[0];
     final dirStr = parts[1].toLowerCase();
-    final direction = dirStr == 'send'
-        ? SimulcastDirection.send
-        : SimulcastDirection.recv;
+    final direction =
+        dirStr == 'send' ? SimulcastDirection.send : SimulcastDirection.recv;
 
     return RTCRtpSimulcastParameters(rid: rid, direction: direction);
   }
@@ -58,7 +57,8 @@ class RTCRtpSimulcastParameters {
   int get hashCode => rid.hashCode ^ direction.hashCode;
 
   @override
-  String toString() => 'RTCRtpSimulcastParameters(rid: $rid, direction: $direction)';
+  String toString() =>
+      'RTCRtpSimulcastParameters(rid: $rid, direction: $direction)';
 }
 
 /// RTCP Feedback configuration

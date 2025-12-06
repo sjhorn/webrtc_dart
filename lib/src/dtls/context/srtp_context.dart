@@ -99,7 +99,8 @@ class SrtpContext {
     final saltLen = saltLength;
 
     if (keyingMaterial.length < keyLen * 2 + saltLen * 2) {
-      throw ArgumentError('Insufficient keying material: ${keyingMaterial.length} bytes');
+      throw ArgumentError(
+          'Insufficient keying material: ${keyingMaterial.length} bytes');
     }
 
     var offset = 0;

@@ -20,7 +20,8 @@ class ServerHelloDone {
   /// Parse from bytes
   static ServerHelloDone parse(Uint8List data) {
     if (data.isNotEmpty) {
-      throw FormatException('ServerHelloDone should be empty, got ${data.length} bytes');
+      throw FormatException(
+          'ServerHelloDone should be empty, got ${data.length} bytes');
     }
 
     return const ServerHelloDone();

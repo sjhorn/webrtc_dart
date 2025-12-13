@@ -11,6 +11,7 @@ import 'package:webrtc_dart/src/dtls/flight/flight.dart';
 import 'package:webrtc_dart/src/dtls/handshake/const.dart';
 import 'package:webrtc_dart/src/dtls/handshake/extensions/extended_master_secret.dart';
 import 'package:webrtc_dart/src/dtls/handshake/extensions/extension.dart';
+import 'package:webrtc_dart/src/dtls/handshake/extensions/use_srtp.dart';
 import 'package:webrtc_dart/src/dtls/handshake/handshake_header.dart';
 import 'package:webrtc_dart/src/dtls/handshake/message/change_cipher_spec.dart';
 import 'package:webrtc_dart/src/dtls/handshake/message/finished.dart';
@@ -51,7 +52,7 @@ class ServerFlight2 extends Flight {
     final handshakeMessage = wrapHandshakeMessage(
       HandshakeType.helloVerifyRequest,
       messageBody,
-      messageSeq: 0,
+      messageSeq: dtlsContext.getNextHandshakeMessageSeq(),
     );
 
     // Wrap in record
@@ -76,6 +77,7 @@ class ServerFlight4 extends Flight {
   final Uint8List? certificate;
   final dynamic privateKey;
   final bool requireClientCert;
+  final SrtpProtectionProfile? srtpProfile;
 
   ServerFlight4({
     required this.dtlsContext,
@@ -85,6 +87,7 @@ class ServerFlight4 extends Flight {
     this.certificate,
     this.privateKey,
     this.requireClientCert = false,
+    this.srtpProfile,
   });
 
   @override
@@ -98,10 +101,17 @@ class ServerFlight4 extends Flight {
     final messages = <Uint8List>[];
 
     // 1. ServerHello
-    // Echo extended_master_secret if client offered it
+    // Build extensions
     final extensions = <Extension>[];
+
+    // Echo extended_master_secret if client offered it
     if (dtlsContext.useExtendedMasterSecret) {
       extensions.add(ExtendedMasterSecretExtension());
+    }
+
+    // Include selected SRTP profile if negotiated
+    if (srtpProfile != null) {
+      extensions.add(UseSrtpExtension(profiles: [srtpProfile!]));
     }
 
     final selectedCipher = _selectCipherSuite();
@@ -118,7 +128,7 @@ class ServerFlight4 extends Flight {
     final serverHelloMsg = wrapHandshakeMessage(
       HandshakeType.serverHello,
       serverHelloBody,
-      messageSeq: 0,
+      messageSeq: dtlsContext.getNextHandshakeMessageSeq(),
     );
     // Add full message with header to handshake buffer
     dtlsContext.addHandshakeMessage(serverHelloMsg);
@@ -132,7 +142,7 @@ class ServerFlight4 extends Flight {
       final certMsg = wrapHandshakeMessage(
         HandshakeType.certificate,
         certBody,
-        messageSeq: 0,
+        messageSeq: dtlsContext.getNextHandshakeMessageSeq(),
       );
       // Add full message with header to handshake buffer
       dtlsContext.addHandshakeMessage(certMsg);
@@ -165,7 +175,7 @@ class ServerFlight4 extends Flight {
       final skeMsg = wrapHandshakeMessage(
         HandshakeType.serverKeyExchange,
         skeBody,
-        messageSeq: 0,
+        messageSeq: dtlsContext.getNextHandshakeMessageSeq(),
       );
       // Add full message with header to handshake buffer
       dtlsContext.addHandshakeMessage(skeMsg);
@@ -182,7 +192,7 @@ class ServerFlight4 extends Flight {
       final certReqMsg = wrapHandshakeMessage(
         HandshakeType.certificateRequest,
         certReqBody,
-        messageSeq: 0,
+        messageSeq: dtlsContext.getNextHandshakeMessageSeq(),
       );
       dtlsContext.addHandshakeMessage(certReqMsg);
       messages.add(recordLayer.wrapHandshake(certReqMsg).serialize());
@@ -194,7 +204,7 @@ class ServerFlight4 extends Flight {
     final shdMsg = wrapHandshakeMessage(
       HandshakeType.serverHelloDone,
       shdBody,
-      messageSeq: 0,
+      messageSeq: dtlsContext.getNextHandshakeMessageSeq(),
     );
     // Add full message with header to handshake buffer
     dtlsContext.addHandshakeMessage(shdMsg);
@@ -268,7 +278,7 @@ class ServerFlight6 extends Flight {
     final finishedMsg = wrapHandshakeMessage(
       HandshakeType.finished,
       finishedBody,
-      messageSeq: 0,
+      messageSeq: dtlsContext.getNextHandshakeMessageSeq(),
     );
     // Add full message with header to handshake buffer (AFTER computing verify_data)
     dtlsContext.addHandshakeMessage(finishedMsg);

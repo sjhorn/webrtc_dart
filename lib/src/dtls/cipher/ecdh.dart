@@ -1,8 +1,11 @@
 import 'dart:math' as math;
 import 'dart:typed_data';
 import 'package:cryptography/cryptography.dart';
+import 'package:webrtc_dart/src/common/logging.dart';
 import 'package:pointycastle/export.dart' as pc;
 import 'package:webrtc_dart/src/dtls/cipher/const.dart';
+
+final _log = WebRtcLogging.dtlsEcdh;
 
 /// ECDH key exchange for DTLS
 /// Supports Curve25519 (X25519) and secp256r1 (P-256)
@@ -77,23 +80,23 @@ Future<Uint8List> computePreMasterSecret(
   Uint8List remotePublicKeyBytes,
   NamedCurve curve,
 ) async {
-  print('[ECDH] computePreMasterSecret: curve=$curve');
-  print(
-      '[ECDH] remotePublicKey (${remotePublicKeyBytes.length} bytes): ${remotePublicKeyBytes.map((b) => b.toRadixString(16).padLeft(2, '0')).join(' ')}');
+  _log.fine('computePreMasterSecret: curve=$curve');
+  _log.fine(
+      'remotePublicKey (${remotePublicKeyBytes.length} bytes): ${remotePublicKeyBytes.map((b) => b.toRadixString(16).padLeft(2, '0')).join(' ')}');
 
   // Extract and print local private key
   final localKeyPairData = await localKeyPair.extract();
   if (localKeyPairData is SimpleKeyPairData) {
     final privateBytes = Uint8List.fromList(localKeyPairData.bytes);
-    print(
-        '[ECDH] localPrivateKey (${privateBytes.length} bytes): ${privateBytes.map((b) => b.toRadixString(16).padLeft(2, '0')).join(' ')}');
+    _log.fine(
+        'localPrivateKey (${privateBytes.length} bytes): ${privateBytes.map((b) => b.toRadixString(16).padLeft(2, '0')).join(' ')}');
   }
 
   // Extract and print local public key
   final localPublicKey = await localKeyPair.extractPublicKey();
   if (localPublicKey is SimplePublicKey) {
-    print(
-        '[ECDH] localPublicKey (${localPublicKey.bytes.length} bytes): ${localPublicKey.bytes.map((b) => b.toRadixString(16).padLeft(2, '0')).join(' ')}');
+    _log.fine(
+        'localPublicKey (${localPublicKey.bytes.length} bytes): ${localPublicKey.bytes.map((b) => b.toRadixString(16).padLeft(2, '0')).join(' ')}');
   }
 
   final remotePublicKey = SimplePublicKey(
@@ -109,8 +112,8 @@ Future<Uint8List> computePreMasterSecret(
 
   // Extract bytes from SecretKey
   final bytes = await sharedSecret.extractBytes();
-  print(
-      '[ECDH] sharedSecret (${bytes.length} bytes): ${bytes.map((b) => b.toRadixString(16).padLeft(2, '0')).join(' ')}');
+  _log.fine(
+      'sharedSecret (${bytes.length} bytes): ${bytes.map((b) => b.toRadixString(16).padLeft(2, '0')).join(' ')}');
   return Uint8List.fromList(bytes);
 }
 

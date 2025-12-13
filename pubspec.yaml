@@ -20,6 +20,7 @@ environment:
 dependencies:
   cryptography: ^2.8.0
   crypto: ^3.0.6
+  logging: ^1.2.0
   pointycastle: ^4.0.0
 
 dev_dependencies:

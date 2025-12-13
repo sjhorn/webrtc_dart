@@ -1,16 +1,22 @@
 import 'dart:typed_data';
+
+import 'package:webrtc_dart/src/common/logging.dart';
 import 'package:webrtc_dart/src/dtls/cipher/const.dart';
 import 'package:webrtc_dart/src/dtls/cipher/ecdh.dart';
 import 'package:webrtc_dart/src/dtls/cipher/key_derivation.dart';
 import 'package:webrtc_dart/src/dtls/context/cipher_context.dart';
 import 'package:webrtc_dart/src/dtls/context/dtls_context.dart';
+import 'package:webrtc_dart/src/dtls/context/srtp_context.dart';
 import 'package:webrtc_dart/src/dtls/flight/flight.dart';
 import 'package:webrtc_dart/src/dtls/flight/server_flights.dart';
 import 'package:webrtc_dart/src/dtls/handshake/const.dart';
+import 'package:webrtc_dart/src/dtls/handshake/extensions/use_srtp.dart';
 import 'package:webrtc_dart/src/dtls/handshake/message/client_hello.dart';
 import 'package:webrtc_dart/src/dtls/handshake/message/client_key_exchange.dart';
 import 'package:webrtc_dart/src/dtls/handshake/message/finished.dart';
 import 'package:webrtc_dart/src/dtls/record/record_layer.dart';
+
+final _log = WebRtcLogging.dtlsServer;
 
 /// Server handshake state
 enum ServerHandshakeState {
@@ -28,6 +34,7 @@ enum ServerHandshakeState {
 class ServerHandshakeCoordinator {
   final DtlsContext dtlsContext;
   final CipherContext cipherContext;
+  final SrtpContext srtpContext;
   final DtlsRecordLayer recordLayer;
   final FlightManager flightManager;
   final List<CipherSuite> cipherSuites;
@@ -35,11 +42,21 @@ class ServerHandshakeCoordinator {
   final Uint8List? certificate;
   final dynamic privateKey;
 
+  /// Supported SRTP protection profiles (server preference order)
+  /// Includes both AES-GCM (modern/preferred) and AES-CM-HMAC (legacy/compatible)
+  static const List<SrtpProtectionProfile> supportedSrtpProfiles = [
+    SrtpProtectionProfile.srtpAeadAes128Gcm,
+    SrtpProtectionProfile.srtpAeadAes256Gcm,
+    SrtpProtectionProfile.srtpAes128CmHmacSha1_80,
+    SrtpProtectionProfile.srtpAes128CmHmacSha1_32,
+  ];
+
   ServerHandshakeState _state = ServerHandshakeState.waitingForClientHello;
 
   ServerHandshakeCoordinator({
     required this.dtlsContext,
     required this.cipherContext,
+    required this.srtpContext,
     required this.recordLayer,
     required this.flightManager,
     required this.cipherSuites,
@@ -64,7 +81,7 @@ class ServerHandshakeCoordinator {
     Uint8List body, {
     Uint8List? fullMessage,
   }) async {
-    print('[SERVER] Processing $messageType in state $_state');
+    _log.fine('Processing $messageType in state $_state');
     switch (messageType) {
       case HandshakeType.clientHello:
         await _processClientHello(body, fullMessage: fullMessage);
@@ -97,8 +114,22 @@ class ServerHandshakeCoordinator {
 
     // Check if client wants extended master secret
     dtlsContext.useExtendedMasterSecret = clientHello.hasExtendedMasterSecret;
-    print(
-        '[SERVER] Processing ClientHello (cookie length: ${clientHello.cookie.length}, ems=${dtlsContext.useExtendedMasterSecret})');
+
+    // Negotiate SRTP profile if client offered any
+    final clientSrtpProfiles = clientHello.srtpProfiles;
+    if (clientSrtpProfiles.isNotEmpty && srtpContext.profile == null) {
+      // Find first matching profile (server preference)
+      for (final serverProfile in supportedSrtpProfiles) {
+        if (clientSrtpProfiles.contains(serverProfile)) {
+          srtpContext.profile = serverProfile;
+          _log.fine('Selected SRTP profile: $serverProfile');
+          break;
+        }
+      }
+    }
+
+    _log.fine(
+        'Processing ClientHello (cookie length: ${clientHello.cookie.length}, ems=${dtlsContext.useExtendedMasterSecret}, srtp=${srtpContext.profile})');
 
     // Check if cookie is present
     if (clientHello.cookie.isEmpty) {
@@ -119,7 +150,23 @@ class ServerHandshakeCoordinator {
       _state = ServerHandshakeState.waitingForClientHelloWithCookie;
     } else {
       // Second ClientHello with cookie - verify and proceed
-      print('[SERVER] Second ClientHello - verifying cookie');
+      _log.fine('Second ClientHello - verifying cookie');
+
+      // Handle retransmission: if we're in a later state, this is a retransmit
+      // We should re-send the last flight (RFC 6347 Section 4.2.4)
+      if (_state == ServerHandshakeState.waitingForClientKeyExchange ||
+          _state == ServerHandshakeState.waitingForClientFinished) {
+        _log.fine(
+            'Retransmitted ClientHello detected in state $_state, re-sending last flight');
+        // Just re-send the current flight - the caller will handle it via _sendPendingFlights
+        final currentFlight = flightManager.currentFlight;
+        if (currentFlight != null) {
+          // Mark as not sent so it gets retransmitted
+          currentFlight.markNotSent();
+        }
+        return;
+      }
+
       if (_state != ServerHandshakeState.waitingForClientHelloWithCookie) {
         throw StateError('Unexpected second ClientHello in state $_state');
       }
@@ -130,7 +177,7 @@ class ServerHandshakeCoordinator {
         throw StateError('Cookie mismatch');
       }
 
-      print('[SERVER] Cookie verified, generating key pair');
+      _log.fine('Cookie verified, generating key pair');
 
       // Add to handshake messages (use fullMessage if available, includes header)
       dtlsContext.addHandshakeMessage(fullMessage ?? data);
@@ -141,7 +188,7 @@ class ServerHandshakeCoordinator {
       // Generate our ECDH key pair
       await _generateKeyPair();
 
-      print('[SERVER] Key pair generated, creating Flight 4');
+      _log.fine('Key pair generated, creating Flight 4');
 
       // Send Flight 4 (ServerHello + Certificate + ServerKeyExchange + ServerHelloDone)
       final flight4 = ServerFlight4(
@@ -151,10 +198,11 @@ class ServerHandshakeCoordinator {
         cipherSuites: cipherSuites,
         certificate: certificate,
         privateKey: privateKey,
+        srtpProfile: srtpContext.profile,
       );
 
       final messages = await flight4.generateMessages();
-      print('[SERVER] Flight 4 has ${messages.length} messages');
+      _log.fine('Flight 4 has ${messages.length} messages');
       flightManager.addFlight(flight4, messages);
 
       _state = ServerHandshakeState.waitingForClientKeyExchange;
@@ -203,8 +251,8 @@ class ServerHandshakeCoordinator {
 
       // Derive master secret from pre-master secret
       // Only use extended master secret if negotiated with client (RFC 7627)
-      print(
-          '[SERVER] Deriving master secret (extended=${dtlsContext.useExtendedMasterSecret})');
+      _log.fine(
+          'Deriving master secret (extended=${dtlsContext.useExtendedMasterSecret})');
       final masterSecret = KeyDerivation.deriveMasterSecret(
         dtlsContext,
         cipherContext,

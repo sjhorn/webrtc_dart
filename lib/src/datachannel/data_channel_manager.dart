@@ -1,9 +1,13 @@
 import 'dart:async';
 import 'dart:typed_data';
+
+import 'package:webrtc_dart/src/common/logging.dart';
 import 'package:webrtc_dart/src/datachannel/data_channel.dart';
 import 'package:webrtc_dart/src/datachannel/dcep.dart';
 import 'package:webrtc_dart/src/sctp/association.dart';
 import 'package:webrtc_dart/src/sctp/const.dart';
+
+final _log = WebRtcLogging.datachannel;
 
 /// DataChannel Manager
 /// Manages multiple DataChannels over a single SCTP association
@@ -97,7 +101,7 @@ class DataChannelManager {
     // Open the channel (sends DCEP OPEN)
     channel.open().catchError((e) {
       // Handle error
-      print('Failed to open DataChannel: $e');
+      _log.warning('Failed to open DataChannel: $e');
     });
 
     return channel;
@@ -136,7 +140,7 @@ class DataChannelManager {
       }
 
       // Unknown stream, ignore
-      print('Received data on unknown stream $streamId');
+      _log.warning('Received data on unknown stream $streamId');
       return;
     }
 

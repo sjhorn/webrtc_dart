@@ -1,0 +1,17 @@
+name: ring_camera_example
+description: Ring camera streaming example using webrtc_dart
+version: 1.0.0
+publish_to: none
+
+environment:
+  sdk: ^3.0.0
+
+dependencies:
+  logging: ^1.2.0
+  ring_client_api:
+    path: ../../../ring_client_api
+  rxdart: ^0.28.0
+  webrtc_dart:
+    path: ../../
+dev_dependencies:
+  lints: ^6.0.0

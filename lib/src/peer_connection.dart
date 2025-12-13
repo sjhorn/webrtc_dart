@@ -1,22 +1,29 @@
 import 'dart:async';
 import 'dart:math';
 import 'dart:typed_data';
-import 'package:webrtc_dart/src/ice/ice_connection.dart';
-import 'package:webrtc_dart/src/ice/candidate.dart';
-import 'package:webrtc_dart/src/transport/transport.dart';
+
+import 'package:webrtc_dart/src/codec/codec_parameters.dart';
+import 'package:webrtc_dart/src/common/logging.dart';
 import 'package:webrtc_dart/src/datachannel/data_channel.dart';
 import 'package:webrtc_dart/src/dtls/certificate/certificate_generator.dart';
 import 'package:webrtc_dart/src/dtls/dtls_transport.dart' show DtlsRole;
-import 'package:webrtc_dart/src/sdp/sdp.dart';
-import 'package:webrtc_dart/src/sdp/rtx_sdp.dart';
+import 'package:webrtc_dart/src/ice/candidate.dart';
+import 'package:webrtc_dart/src/ice/ice_connection.dart';
+import 'package:webrtc_dart/src/ice/mdns.dart';
 import 'package:webrtc_dart/src/media/media_stream_track.dart';
+import 'package:webrtc_dart/src/media/rtp_router.dart';
 import 'package:webrtc_dart/src/media/rtp_transceiver.dart';
+import 'package:webrtc_dart/src/nonstandard/media/track.dart' as nonstandard;
+import 'package:webrtc_dart/src/rtp/header_extension.dart';
 import 'package:webrtc_dart/src/rtp/rtp_session.dart';
-import 'package:webrtc_dart/src/codec/codec_parameters.dart';
+import 'package:webrtc_dart/src/sdp/rtx_sdp.dart';
+import 'package:webrtc_dart/src/sdp/sdp.dart';
+import 'package:webrtc_dart/src/srtp/rtp_packet.dart';
 import 'package:webrtc_dart/src/srtp/srtp_session.dart';
 import 'package:webrtc_dart/src/stats/rtc_stats.dart';
-import 'package:webrtc_dart/src/media/rtp_router.dart';
-import 'package:webrtc_dart/src/srtp/rtp_packet.dart';
+import 'package:webrtc_dart/src/transport/transport.dart';
+
+final _log = WebRtcLogging.pc;
 
 /// RTCPeerConnection State
 enum PeerConnectionState {
@@ -52,6 +59,23 @@ enum IceConnectionState {
 /// RTCIceGatheringState
 enum IceGatheringState { new_, gathering, complete }
 
+/// Codec configuration for RTCPeerConnection
+/// Matches TypeScript werift's Partial<{ audio: RTCRtpCodecParameters[]; video: RTCRtpCodecParameters[]; }>
+class RtcCodecs {
+  /// Audio codecs to use
+  final List<RtpCodecParameters>? audio;
+
+  /// Video codecs to use
+  final List<RtpCodecParameters>? video;
+
+  const RtcCodecs({this.audio, this.video});
+}
+
+/// Default ICE servers (matching TypeScript werift)
+const _defaultIceServers = [
+  IceServer(urls: ['stun:stun.l.google.com:19302']),
+];
+
 /// RTCConfiguration
 class RtcConfiguration {
   /// ICE servers
@@ -60,9 +84,17 @@ class RtcConfiguration {
   /// ICE transport policy
   final IceTransportPolicy iceTransportPolicy;
 
+  /// Bundle policy - controls how media is bundled over transports
+  final BundlePolicy bundlePolicy;
+
+  /// Codecs to use for audio/video (matching TypeScript werift)
+  final RtcCodecs codecs;
+
   const RtcConfiguration({
-    this.iceServers = const [],
+    this.iceServers = _defaultIceServers,
     this.iceTransportPolicy = IceTransportPolicy.all,
+    this.bundlePolicy = BundlePolicy.maxCompat,
+    this.codecs = const RtcCodecs(),
   });
 }
 
@@ -77,6 +109,19 @@ class IceServer {
 
 /// ICE Transport Policy
 enum IceTransportPolicy { relay, all }
+
+/// Bundle Policy
+/// Controls how media is bundled over the same transport
+enum BundlePolicy {
+  /// All media will be bundled on a single transport
+  maxBundle,
+
+  /// Media will be bundled if possible, but each media section has its own transport
+  maxCompat,
+
+  /// Each media section will have its own transport (no BUNDLE group in SDP)
+  disable,
+}
 
 /// Options for createOffer
 class RtcOfferOptions {
@@ -121,14 +166,20 @@ class RtcPeerConnection {
   /// Remote description
   SessionDescription? _remoteDescription;
 
-  /// ICE connection
+  /// ICE connection (primary, for bundled media)
   late final IceConnection _iceConnection;
 
   /// ICE controlling role (true if this peer created the offer)
   bool _iceControlling = false;
 
-  /// Integrated transport (ICE + DTLS + SCTP)
+  /// Integrated transport (ICE + DTLS + SCTP) - for bundled media and DataChannel
   IntegratedTransport? _transport;
+
+  /// Media transports (for bundlePolicy: disable, one per media line)
+  final Map<String, MediaTransport> _mediaTransports = {};
+
+  /// Whether remote SDP uses bundling
+  bool _remoteIsBundled = false;
 
   /// Server certificate for DTLS
   CertificateKeyPair? _certificate;
@@ -169,12 +220,22 @@ class RtcPeerConnection {
   /// RTX SSRC mapping by MID (original SSRC -> RTX SSRC)
   final Map<String, int> _rtxSsrcByMid = {};
 
+  /// SRTP session for encryption/decryption of RTP/RTCP packets (shared transport)
+  SrtpSession? _srtpSession;
+
+  /// SRTP sessions by MID for bundlePolicy:disable (per-transport SRTP)
+  final Map<String, SrtpSession> _srtpSessionsByMid = {};
+
   /// Random number generator for SSRC
   final Random _random = Random.secure();
 
   /// Next MID counter
   /// Starts at 1 because MID 0 is reserved for DataChannel (SCTP)
   int _nextMid = 1;
+
+  /// Default extension ID for sdes:mid header extension
+  /// Standard browsers typically use ID 1 for mid
+  static const int _midExtensionId = 1;
 
   /// Counter for data channels opened (for stats)
   int _dataChannelsOpened = 0;
@@ -185,6 +246,9 @@ class RtcPeerConnection {
   /// Debug label for this peer connection
   static int _instanceCounter = 0;
   late final String _debugLabel;
+
+  /// Future that completes when async initialization is done
+  late final Future<void> _initializationComplete;
 
   RtcPeerConnection([this.configuration = const RtcConfiguration()]) {
     _debugLabel = 'PC${++_instanceCounter}';
@@ -205,8 +269,8 @@ class RtcPeerConnection {
     // Setup ICE state change listener
     _iceConnection.onStateChanged.listen(_handleIceStateChange);
 
-    // Initialize asynchronously
-    _initializeAsync();
+    // Initialize asynchronously and store the future
+    _initializationComplete = _initializeAsync();
   }
 
   /// Initialize async components (certificate generation, transport setup)
@@ -233,9 +297,10 @@ class RtcPeerConnection {
           _setConnectionState(PeerConnectionState.connecting);
           break;
         case TransportState.connected:
-          _setConnectionState(PeerConnectionState.connected);
-          // Set up SRTP for all RTP sessions when DTLS is connected
+          // Set up SRTP for all RTP sessions BEFORE notifying connected state
+          // This ensures SRTP is ready when onConnectionStateChange fires
           _setupSrtpSessions();
+          _setConnectionState(PeerConnectionState.connected);
           break;
         case TransportState.disconnected:
           _setConnectionState(PeerConnectionState.disconnected);
@@ -270,11 +335,16 @@ class RtcPeerConnection {
 
     for (final server in config.iceServers) {
       for (final url in server.urls) {
-        final uri = Uri.parse(url);
-        if (uri.scheme == 'stun') {
-          stunServer = (uri.host, uri.port != 0 ? uri.port : 3478);
-        } else if (uri.scheme == 'turn') {
-          turnServer = (uri.host, uri.port != 0 ? uri.port : 3478);
+        // Parse STUN/TURN URLs which use format: stun:host:port or turn:host:port
+        // Dart's Uri parser expects // for host-based URIs, so we parse manually
+        final (scheme, host, port) = _parseIceServerUrl(url);
+        _log.fine(
+            '[PC] Parsed ICE URL $url -> scheme=$scheme, host=$host, port=$port');
+        if (scheme == 'stun' && host != null && stunServer == null) {
+          stunServer = (host, port ?? 3478);
+          _log.fine(' Using STUN server: $stunServer');
+        } else if (scheme == 'turn' && host != null) {
+          turnServer = (host, port ?? 3478);
           turnUsername = server.username;
           turnPassword = server.credential;
         }
@@ -287,6 +357,43 @@ class RtcPeerConnection {
       turnUsername: turnUsername,
       turnPassword: turnPassword,
     );
+  }
+
+  /// Parse ICE server URL (stun:host:port or turn:host:port)
+  static (String scheme, String? host, int? port) _parseIceServerUrl(
+    String url,
+  ) {
+    // Handle URLs like: stun:stun.l.google.com:19302
+    // or: turn:turn.example.com:3478?transport=udp
+    final colonIdx = url.indexOf(':');
+    if (colonIdx == -1) return (url, null, null);
+
+    final scheme = url.substring(0, colonIdx);
+    var rest = url.substring(colonIdx + 1);
+
+    // Remove leading // if present
+    if (rest.startsWith('//')) {
+      rest = rest.substring(2);
+    }
+
+    // Remove query string if present
+    final queryIdx = rest.indexOf('?');
+    if (queryIdx != -1) {
+      rest = rest.substring(0, queryIdx);
+    }
+
+    // Parse host:port
+    final lastColonIdx = rest.lastIndexOf(':');
+    if (lastColonIdx == -1) {
+      // No port specified
+      return (scheme, rest, null);
+    }
+
+    final host = rest.substring(0, lastColonIdx);
+    final portStr = rest.substring(lastColonIdx + 1);
+    final port = int.tryParse(portStr);
+
+    return (scheme, host, port);
   }
 
   /// Get signaling state
@@ -330,6 +437,9 @@ class RtcPeerConnection {
   /// [options] - Optional configuration for the offer:
   ///   - iceRestart: If true, generates new ICE credentials for ICE restart
   Future<SessionDescription> createOffer([RtcOfferOptions? options]) async {
+    // Wait for async initialization (certificate generation) to complete
+    await _initializationComplete;
+
     if (_signalingState != SignalingState.stable &&
         _signalingState != SignalingState.haveLocalOffer) {
       throw StateError('Cannot create offer in state $_signalingState');
@@ -341,7 +451,7 @@ class RtcPeerConnection {
       await _iceConnection.restart();
       _iceConnectCalled = false;
       _setIceGatheringState(IceGatheringState.new_);
-      print('[$_debugLabel] ICE restart: new credentials generated');
+      _log.fine('[$_debugLabel] ICE restart: new credentials generated');
     }
 
     // Set ICE controlling role (offerer is controlling)
@@ -375,14 +485,20 @@ class RtcPeerConnection {
       final formats = <String>['$payloadType'];
 
       // Build attributes list
+      final directionStr = transceiver.direction.name;
       final attributes = <SdpAttribute>[
         SdpAttribute(key: 'ice-ufrag', value: iceUfrag),
         SdpAttribute(key: 'ice-pwd', value: icePwd),
         SdpAttribute(key: 'fingerprint', value: dtlsFingerprint),
         SdpAttribute(key: 'setup', value: 'actpass'),
         SdpAttribute(key: 'mid', value: mid),
-        SdpAttribute(key: 'sendrecv'),
+        SdpAttribute(key: directionStr),
         SdpAttribute(key: 'rtcp-mux'),
+        // Add sdes:mid header extension for media identification
+        SdpAttribute(
+          key: 'extmap',
+          value: '$_midExtensionId ${RtpExtensionUri.sdesMid}',
+        ),
         SdpAttribute(
           key: 'rtpmap',
           value:
@@ -390,6 +506,14 @@ class RtcPeerConnection {
         ),
         if (codec.parameters != null)
           SdpAttribute(key: 'fmtp', value: '$payloadType ${codec.parameters}'),
+        // Add RTCP feedback attributes from codec
+        for (final fb in codec.rtcpFeedback)
+          SdpAttribute(
+            key: 'rtcp-fb',
+            value: fb.parameter != null
+                ? '$payloadType ${fb.type} ${fb.parameter}'
+                : '$payloadType ${fb.type}',
+          ),
       ];
 
       // Add RTX for video only
@@ -462,6 +586,20 @@ class RtcPeerConnection {
       ),
     );
 
+    // Build session-level attributes
+    final sessionAttributes = <SdpAttribute>[
+      SdpAttribute(key: 'ice-options', value: 'trickle'),
+    ];
+
+    // Add BUNDLE group unless bundlePolicy is disable
+    if (configuration.bundlePolicy != BundlePolicy.disable &&
+        bundleMids.isNotEmpty) {
+      sessionAttributes.insert(
+        0,
+        SdpAttribute(key: 'group', value: 'BUNDLE ${bundleMids.join(' ')}'),
+      );
+    }
+
     // Build SDP
     final sdpMessage = SdpMessage(
       version: 0,
@@ -475,10 +613,7 @@ class RtcPeerConnection {
       // c= line at session level for browsers that check there
       connection: const SdpConnection(connectionAddress: '0.0.0.0'),
       timing: [SdpTiming(startTime: 0, stopTime: 0)],
-      attributes: [
-        SdpAttribute(key: 'group', value: 'BUNDLE ${bundleMids.join(' ')}'),
-        SdpAttribute(key: 'ice-options', value: 'trickle'),
-      ],
+      attributes: sessionAttributes,
       mediaDescriptions: mediaDescriptions,
     );
 
@@ -488,6 +623,9 @@ class RtcPeerConnection {
 
   /// Create an answer
   Future<SessionDescription> createAnswer() async {
+    // Wait for async initialization (certificate generation) to complete
+    await _initializationComplete;
+
     if (_signalingState != SignalingState.haveRemoteOffer &&
         _signalingState != SignalingState.haveLocalPranswer) {
       throw StateError('Cannot create answer in state $_signalingState');
@@ -596,6 +734,20 @@ class RtcPeerConnection {
       );
     }
 
+    // Build session-level attributes
+    final sessionAttributes = <SdpAttribute>[
+      SdpAttribute(key: 'ice-options', value: 'trickle'),
+    ];
+
+    // Add BUNDLE group unless bundlePolicy is disable
+    if (configuration.bundlePolicy != BundlePolicy.disable &&
+        bundleMids.isNotEmpty) {
+      sessionAttributes.insert(
+        0,
+        SdpAttribute(key: 'group', value: 'BUNDLE ${bundleMids.join(' ')}'),
+      );
+    }
+
     final sdpMessage = SdpMessage(
       version: 0,
       origin: SdpOrigin(
@@ -608,10 +760,7 @@ class RtcPeerConnection {
       // c= line at session level for browsers that check there
       connection: const SdpConnection(connectionAddress: '0.0.0.0'),
       timing: [SdpTiming(startTime: 0, stopTime: 0)],
-      attributes: [
-        SdpAttribute(key: 'group', value: 'BUNDLE ${bundleMids.join(' ')}'),
-        SdpAttribute(key: 'ice-options', value: 'trickle'),
-      ],
+      attributes: sessionAttributes,
       mediaDescriptions: mediaDescriptions,
     );
 
@@ -662,7 +811,7 @@ class RtcPeerConnection {
       _iceConnectCalled = true;
       // Start ICE connectivity checks in background
       _iceConnection.connect().catchError((e) {
-        print('[$_debugLabel] ICE connect error: $e');
+        _log.fine('[$_debugLabel] ICE connect error: $e');
       });
     }
   }
@@ -693,89 +842,219 @@ class RtcPeerConnection {
 
     // Parse SDP to extract ICE credentials
     final sdpMessage = description.parse();
-    if (sdpMessage.mediaDescriptions.isNotEmpty) {
-      final media = sdpMessage.mediaDescriptions[0];
+
+    // Check if remote uses BUNDLE
+    _remoteIsBundled = sdpMessage.attributes.any(
+      (a) =>
+          a.key == 'group' && a.value != null && a.value!.startsWith('BUNDLE'),
+    );
+    _log.fine(
+        '[$_debugLabel] Remote is bundled: $_remoteIsBundled, bundlePolicy: ${configuration.bundlePolicy}');
+
+    final isIceLite = sdpMessage.isIceLite;
+
+    // Process each media line
+    // When bundlePolicy is disable, each media line has its own ICE/DTLS transport
+    for (var i = 0; i < sdpMessage.mediaDescriptions.length; i++) {
+      final media = sdpMessage.mediaDescriptions[i];
+      final mid = media.getAttributeValue('mid') ?? '$i';
       final iceUfrag = media.getAttributeValue('ice-ufrag');
       final icePwd = media.getAttributeValue('ice-pwd');
-
-      if (iceUfrag != null && icePwd != null) {
-        // Detect remote ICE restart by checking if credentials changed
-        final isRemoteIceRestart = _previousRemoteIceUfrag != null &&
-            _previousRemoteIcePwd != null &&
-            (_previousRemoteIceUfrag != iceUfrag ||
-                _previousRemoteIcePwd != icePwd);
-
-        if (isRemoteIceRestart) {
-          print(
-            '[$_debugLabel] Remote ICE restart detected - credentials changed',
-          );
-          // Perform local ICE restart to match
-          await _iceConnection.restart();
-          _iceConnectCalled = false;
-          _setIceGatheringState(IceGatheringState.new_);
-        }
-
-        // Store credentials for future comparison
-        _previousRemoteIceUfrag = iceUfrag;
-        _previousRemoteIcePwd = icePwd;
-
-        final isIceLite = sdpMessage.isIceLite;
-        print(
-          '[$_debugLabel] Setting remote ICE params: ufrag=$iceUfrag, pwd=${icePwd.substring(0, 8)}...${isIceLite ? ' (ice-lite)' : ''}',
-        );
-        _iceConnection.setRemoteParams(
-          iceLite: isIceLite,
-          usernameFragment: iceUfrag,
-          password: icePwd,
-        );
-      }
-
-      // Extract DTLS setup role from remote SDP
-      // Per RFC 5763:
-      // - If remote is 'active', we are the DTLS server (passive)
-      // - If remote is 'passive', we are the DTLS client (active)
-      // - If remote is 'actpass', we choose to be active (client)
       final setup = media.getAttributeValue('setup');
-      if (setup != null && _transport != null) {
-        print('[$_debugLabel] Remote DTLS setup: $setup');
-        if (setup == 'active') {
-          // Remote is client, we are server
-          _transport!.dtlsRole = DtlsRole.server;
-          print(
-            '[$_debugLabel] Setting DTLS role to server (remote is active)',
-          );
-        } else if (setup == 'passive') {
-          // Remote is server, we are client
-          _transport!.dtlsRole = DtlsRole.client;
-          print(
-            '[$_debugLabel] Setting DTLS role to client (remote is passive)',
-          );
-        } else if (setup == 'actpass') {
-          // Remote can be either, we choose to be client
-          _transport!.dtlsRole = DtlsRole.client;
-          print(
-            '[$_debugLabel] Setting DTLS role to client (remote is actpass)',
-          );
+
+      _log.fine(
+          '[$_debugLabel] Media[$i] mid=$mid type=${media.type} ufrag=${iceUfrag != null && iceUfrag.length > 8 ? '${iceUfrag.substring(0, 8)}...' : iceUfrag}');
+
+      // Determine which transport to use
+      if (configuration.bundlePolicy == BundlePolicy.disable &&
+          !_remoteIsBundled) {
+        // Each media line gets its own transport
+        if (media.type == 'audio' || media.type == 'video') {
+          final transport = await _findOrCreateMediaTransport(mid, i);
+
+          // Set ICE params for this transport
+          if (iceUfrag != null && icePwd != null) {
+            _log.fine(
+                '[$_debugLabel] Setting ICE params for transport $mid: ufrag=${iceUfrag.length > 8 ? '${iceUfrag.substring(0, 8)}...' : iceUfrag}');
+            transport.iceConnection.setRemoteParams(
+              iceLite: isIceLite,
+              usernameFragment: iceUfrag,
+              password: icePwd,
+            );
+          }
+
+          // Set DTLS role
+          if (setup != null) {
+            _log.fine('[$_debugLabel] Remote DTLS setup for $mid: $setup');
+            if (setup == 'active') {
+              transport.dtlsRole = DtlsRole.server;
+            } else if (setup == 'passive') {
+              transport.dtlsRole = DtlsRole.client;
+            } else if (setup == 'actpass') {
+              transport.dtlsRole = DtlsRole.client;
+            }
+          }
+
+          // Add candidates for this media line
+          final candidateAttrs = media.attributes
+              .where((attr) => attr.key == 'candidate')
+              .toList();
+          _log.fine(
+              '[$_debugLabel] Found ${candidateAttrs.length} candidates for $mid');
+          for (final attr in candidateAttrs) {
+            if (attr.value != null) {
+              try {
+                var candidate =
+                    await _resolveCandidate(Candidate.fromSdp(attr.value!));
+                if (candidate != null) {
+                  _log.fine(
+                      '[$_debugLabel] Adding candidate to transport $mid: ${candidate.host}:${candidate.port}');
+                  await transport.iceConnection.addRemoteCandidate(candidate);
+                }
+              } catch (e) {
+                _log.fine(
+                    '[$_debugLabel] Failed to parse candidate for $mid: $e');
+              }
+            }
+          }
+        }
+      } else {
+        // Bundled - use primary transport for first media line
+        if (i == 0) {
+          if (iceUfrag != null && icePwd != null) {
+            // Detect remote ICE restart
+            final isRemoteIceRestart = _previousRemoteIceUfrag != null &&
+                _previousRemoteIcePwd != null &&
+                (_previousRemoteIceUfrag != iceUfrag ||
+                    _previousRemoteIcePwd != icePwd);
+
+            if (isRemoteIceRestart) {
+              _log.fine('[$_debugLabel] Remote ICE restart detected');
+              await _iceConnection.restart();
+              _iceConnectCalled = false;
+              _setIceGatheringState(IceGatheringState.new_);
+            }
+
+            _previousRemoteIceUfrag = iceUfrag;
+            _previousRemoteIcePwd = icePwd;
+
+            _log.fine(
+                '[$_debugLabel] Setting remote ICE params: ufrag=${iceUfrag.length > 8 ? '${iceUfrag.substring(0, 8)}...' : iceUfrag}${isIceLite ? ' (ice-lite)' : ''}');
+            _iceConnection.setRemoteParams(
+              iceLite: isIceLite,
+              usernameFragment: iceUfrag,
+              password: icePwd,
+            );
+          }
+
+          // Set DTLS role on primary transport
+          if (setup != null && _transport != null) {
+            _log.fine('[$_debugLabel] Remote DTLS setup: $setup');
+            if (setup == 'active') {
+              _transport!.dtlsRole = DtlsRole.server;
+            } else if (setup == 'passive') {
+              _transport!.dtlsRole = DtlsRole.client;
+            } else if (setup == 'actpass') {
+              _transport!.dtlsRole = DtlsRole.client;
+            }
+          }
         }
       }
+    }
+
+    // Extract bundled ICE candidates from all media lines (for bundled case)
+    if (_remoteIsBundled ||
+        configuration.bundlePolicy != BundlePolicy.disable) {
+      var bundledCandidateCount = 0;
+      for (final media in sdpMessage.mediaDescriptions) {
+        final candidateAttrs =
+            media.attributes.where((attr) => attr.key == 'candidate').toList();
+        _log.fine(
+            '[$_debugLabel] Found ${candidateAttrs.length} bundled candidates in ${media.type} media');
+        for (final attr in candidateAttrs) {
+          if (attr.value != null) {
+            try {
+              var candidate =
+                  await _resolveCandidate(Candidate.fromSdp(attr.value!));
+              if (candidate != null) {
+                _log.fine(
+                    '[$_debugLabel] Adding remote candidate: ${candidate.type} ${candidate.transport} ${candidate.host}:${candidate.port}');
+                await _iceConnection.addRemoteCandidate(candidate);
+                bundledCandidateCount++;
+              }
+            } catch (e) {
+              _log.fine('[$_debugLabel] Failed to parse bundled candidate: $e');
+            }
+          }
+        }
+      }
+      _log.fine(
+          '[$_debugLabel] Added $bundledCandidateCount bundled remote candidates');
     }
 
     // Process remote media descriptions to create transceivers for incoming tracks
     await _processRemoteMediaDescriptions(sdpMessage);
 
-    // If we have both local and remote descriptions, start connecting
-    // Note: ICE connect runs asynchronously - don't await it here
-    // This allows the signaling to complete while ICE runs in background
+    // Start ICE connectivity checks
     if (_localDescription != null &&
         _remoteDescription != null &&
         !_iceConnectCalled) {
       _setConnectionState(PeerConnectionState.connecting);
       _iceConnectCalled = true;
-      // Start ICE connectivity checks in background
-      _iceConnection.connect().catchError((e) {
-        print('[$_debugLabel] ICE connect error: $e');
-      });
+
+      if (configuration.bundlePolicy == BundlePolicy.disable &&
+          !_remoteIsBundled) {
+        // Start all media transports in parallel
+        _log.fine(
+            '[$_debugLabel] Starting ${_mediaTransports.length} media transports');
+        await Future.wait(_mediaTransports.values.map((transport) async {
+          try {
+            await transport.iceConnection.gatherCandidates();
+            await transport.iceConnection.connect();
+          } catch (e) {
+            _log.fine(
+                '[$_debugLabel] Transport ${transport.id} connect error: $e');
+          }
+        }));
+      } else {
+        // Single bundled connection
+        _iceConnection.connect().catchError((e) {
+          _log.fine('[$_debugLabel] ICE connect error: $e');
+        });
+      }
     }
+  }
+
+  /// Resolve mDNS candidate if needed
+  Future<Candidate?> _resolveCandidate(Candidate candidate) async {
+    if (!candidate.host.endsWith('.local')) {
+      return candidate;
+    }
+
+    _log.fine('[$_debugLabel] Resolving mDNS candidate: ${candidate.host}');
+    if (!mdnsService.isRunning) {
+      await mdnsService.start();
+    }
+    final resolvedIp = await mdnsService.resolve(candidate.host);
+    if (resolvedIp == null) {
+      _log.fine(
+          '[$_debugLabel] Failed to resolve mDNS candidate: ${candidate.host}');
+      return null;
+    }
+    _log.fine('[$_debugLabel] Resolved ${candidate.host} to $resolvedIp');
+    return Candidate(
+      foundation: candidate.foundation,
+      component: candidate.component,
+      transport: candidate.transport,
+      priority: candidate.priority,
+      host: resolvedIp,
+      port: candidate.port,
+      type: candidate.type,
+      relatedAddress: candidate.relatedAddress,
+      relatedPort: candidate.relatedPort,
+      generation: candidate.generation,
+      tcpType: candidate.tcpType,
+    );
   }
 
   /// Process remote media descriptions to create transceivers for incoming tracks
@@ -846,23 +1125,43 @@ class RtcPeerConnection {
       final ssrc = _random.nextInt(0xFFFFFFFF);
 
       // Create RTP session for this remote track
+      // Capture mid for use in closures (for bundlePolicy: disable routing)
+      final transceiverMid = mid;
       RtpTransceiver? transceiver;
       final rtpSession = RtpSession(
         localSsrc: ssrc,
         srtpSession: null,
         onSendRtp: (packet) async {
-          if (_transport?.dtlsSocket != null) {
-            await _transport!.dtlsSocket!.send(packet);
+          // SRTP packets go directly over ICE/UDP, not wrapped in DTLS
+          // Use the MID-specific transport for bundlePolicy: disable
+          final iceConnection = _getIceConnectionForMid(transceiverMid);
+          if (iceConnection != null) {
+            _log.fine('[PC:$transceiverMid] ICE send ${packet.length} bytes');
+            await iceConnection.send(packet);
+          } else {
+            _log.fine(
+                '[PC:$transceiverMid] ICE null, _transport=${_transport != null}, _mediaTransports=${_mediaTransports.keys}');
           }
         },
         onSendRtcp: (packet) async {
-          if (_transport?.dtlsSocket != null) {
-            await _transport!.dtlsSocket!.send(packet);
+          // SRTCP packets go directly over ICE/UDP, not wrapped in DTLS
+          // Use the MID-specific transport for bundlePolicy: disable
+          final iceConnection = _getIceConnectionForMid(transceiverMid);
+          if (iceConnection != null) {
+            try {
+              await iceConnection.send(packet);
+            } on StateError catch (_) {
+              // ICE not yet nominated, silently drop RTCP
+              // This can happen when RTCP timer fires before ICE completes
+            }
           }
         },
         onReceiveRtp: (packet) {
           if (transceiver != null) {
             transceiver.receiver.handleRtpPacket(packet);
+          } else {
+            _log.fine(
+                '[$_debugLabel] WARN: onReceiveRtp for mid=$mid but transceiver is null!');
           }
         },
       );
@@ -896,7 +1195,40 @@ class RtcPeerConnection {
 
   /// Add ICE candidate
   Future<void> addIceCandidate(Candidate candidate) async {
-    await _iceConnection.addRemoteCandidate(candidate);
+    var resolvedCandidate = candidate;
+    // Resolve mDNS candidates (.local addresses) to real IPs
+    if (candidate.host.endsWith('.local')) {
+      _log.fine(
+        '[$_debugLabel] Resolving mDNS candidate: ${candidate.host}',
+      );
+      // Start mDNS service if not running
+      if (!mdnsService.isRunning) {
+        await mdnsService.start();
+      }
+      final resolvedIp = await mdnsService.resolve(candidate.host);
+      if (resolvedIp == null) {
+        _log.fine(
+          '[$_debugLabel] Failed to resolve mDNS candidate: ${candidate.host}',
+        );
+        return;
+      }
+      _log.fine('[$_debugLabel] Resolved ${candidate.host} to $resolvedIp');
+      // Create new candidate with resolved IP
+      resolvedCandidate = Candidate(
+        foundation: candidate.foundation,
+        component: candidate.component,
+        transport: candidate.transport,
+        priority: candidate.priority,
+        host: resolvedIp,
+        port: candidate.port,
+        type: candidate.type,
+        relatedAddress: candidate.relatedAddress,
+        relatedPort: candidate.relatedPort,
+        generation: candidate.generation,
+        tcpType: candidate.tcpType,
+      );
+    }
+    await _iceConnection.addRemoteCandidate(resolvedCandidate);
   }
 
   /// Create data channel
@@ -1003,6 +1335,70 @@ class RtcPeerConnection {
     }
   }
 
+  /// Update local description SDP with gathered ICE candidates
+  /// This adds candidate lines to each media section so the full SDP
+  /// can be sent to the remote peer (non-trickle ICE style)
+  void _updateLocalDescriptionWithCandidates() {
+    if (_localDescription == null) return;
+
+    // Get all gathered candidates from the ICE connection
+    final candidates = _iceConnection.localCandidates;
+    if (candidates.isEmpty) return;
+
+    // Parse the current SDP
+    final sdp = _localDescription!.sdp;
+    // Filter out empty lines and trim whitespace
+    final lines = sdp.split('\n').where((l) => l.trim().isNotEmpty).toList();
+    final newLines = <String>[];
+
+    // Helper to format a candidate line (RFC 5245 format)
+    String formatCandidate(Candidate candidate) {
+      var line = 'a=candidate:${candidate.foundation} ${candidate.component} '
+          '${candidate.transport} ${candidate.priority} ${candidate.host} '
+          '${candidate.port} typ ${candidate.type}';
+      // Add raddr/rport for reflexive and relay candidates (required by RFC 5245)
+      if (candidate.relatedAddress != null && candidate.relatedPort != null) {
+        line +=
+            ' raddr ${candidate.relatedAddress} rport ${candidate.relatedPort}';
+      }
+      // Add generation (Chrome requires this)
+      line += ' generation ${candidate.generation ?? 0}';
+      return line;
+    }
+
+    bool inMediaSection = false;
+
+    for (int i = 0; i < lines.length; i++) {
+      final line = lines[i];
+
+      // Check if this starts a new media section
+      if (line.startsWith('m=')) {
+        // If we were in a media section, add candidates before starting new one
+        if (inMediaSection) {
+          for (final candidate in candidates) {
+            newLines.add(formatCandidate(candidate));
+          }
+        }
+        inMediaSection = true;
+      }
+
+      newLines.add(line);
+    }
+
+    // Add candidates to the last media section
+    if (inMediaSection) {
+      for (final candidate in candidates) {
+        newLines.add(formatCandidate(candidate));
+      }
+    }
+
+    // Update local description with new SDP
+    _localDescription = SessionDescription(
+      type: _localDescription!.type,
+      sdp: newLines.join('\n'),
+    );
+  }
+
   /// Validate setRemoteDescription
   void _validateSetRemoteDescription(String type) {
     // Rollback is always allowed
@@ -1095,7 +1491,7 @@ class RtcPeerConnection {
       throw StateError('PeerConnection is closed');
     }
     _needsIceRestart = true;
-    print('[$_debugLabel] ICE restart requested');
+    _log.fine('[$_debugLabel] ICE restart requested');
   }
 
   // ========================================================================
@@ -1132,20 +1528,35 @@ class RtcPeerConnection {
     // Create RTP session with receiver callback
     // Store the transceiver so the callback can access it
     RtpTransceiver? transceiverRef;
+    // Capture mid for use in closures (for bundlePolicy: disable routing)
+    final transceiverMid = mid;
 
     final rtpSession = RtpSession(
       localSsrc: ssrc,
       srtpSession: null, // Will be set when DTLS keys are available
       onSendRtp: (packet) async {
-        // Send RTP through DTLS
-        if (_transport?.dtlsSocket != null) {
-          await _transport!.dtlsSocket!.send(packet);
+        // SRTP packets go directly over ICE/UDP, not wrapped in DTLS
+        // Use the MID-specific transport for bundlePolicy: disable
+        final iceConnection = _getIceConnectionForMid(transceiverMid);
+        if (iceConnection != null) {
+          _log.fine('[PC:$transceiverMid] ICE send ${packet.length} bytes');
+          await iceConnection.send(packet);
+        } else {
+          _log.fine(
+              '[PC:$transceiverMid] ICE null, _transport=${_transport != null}, _mediaTransports=${_mediaTransports.keys}');
         }
       },
       onSendRtcp: (packet) async {
-        // Send RTCP through DTLS
-        if (_transport?.dtlsSocket != null) {
-          await _transport!.dtlsSocket!.send(packet);
+        // SRTCP packets go directly over ICE/UDP, not wrapped in DTLS
+        // Use the MID-specific transport for bundlePolicy: disable
+        final iceConnection = _getIceConnectionForMid(transceiverMid);
+        if (iceConnection != null) {
+          try {
+            await iceConnection.send(packet);
+          } on StateError catch (_) {
+            // ICE not yet nominated, silently drop RTCP
+            // This can happen when RTCP timer fires before ICE completes
+          }
         }
       },
       onReceiveRtp: (packet) {
@@ -1187,15 +1598,458 @@ class RtcPeerConnection {
     return transceiver.sender;
   }
 
+  /// Add a transceiver with specific codec
+  ///
+  /// This allows specifying the codec to use for the track, which is useful
+  /// when the remote peer requires a specific codec (e.g., H264 for Ring cameras).
+  ///
+  /// [kind] - The type of media (audio or video)
+  /// [codec] - The codec parameters to use (e.g., createH264Codec())
+  /// [direction] - The transceiver direction (default: recvonly)
+  RtpTransceiver addTransceiver(
+    MediaStreamTrackKind kind, {
+    RtpCodecParameters? codec,
+    RtpTransceiverDirection direction = RtpTransceiverDirection.recvonly,
+  }) {
+    if (_connectionState == PeerConnectionState.closed) {
+      throw StateError('PeerConnection is closed');
+    }
+
+    // Create new transceiver
+    final mid = '${_nextMid++}';
+    final ssrc = _generateSsrc();
+
+    RtpTransceiver? transceiverRef;
+    // Capture mid for use in closures (for bundlePolicy: disable routing)
+    final transceiverMid = mid;
+
+    final rtpSession = RtpSession(
+      localSsrc: ssrc,
+      srtpSession: null,
+      onSendRtp: (packet) async {
+        // SRTP packets go directly over ICE/UDP, not wrapped in DTLS
+        // Use the MID-specific transport for bundlePolicy: disable
+        final iceConnection = _getIceConnectionForMid(transceiverMid);
+        if (iceConnection != null) {
+          _log.fine('[PC:$transceiverMid] ICE send ${packet.length} bytes');
+          await iceConnection.send(packet);
+        } else {
+          _log.fine(
+              '[PC:$transceiverMid] ICE null, _transport=${_transport != null}, _mediaTransports=${_mediaTransports.keys}');
+        }
+      },
+      onSendRtcp: (packet) async {
+        // SRTCP packets go directly over ICE/UDP, not wrapped in DTLS
+        // Use the MID-specific transport for bundlePolicy: disable
+        final iceConnection = _getIceConnectionForMid(transceiverMid);
+        if (iceConnection != null) {
+          try {
+            await iceConnection.send(packet);
+          } on StateError catch (_) {
+            // ICE not yet nominated, silently drop RTCP
+            // This can happen when RTCP timer fires before ICE completes
+          }
+        }
+      },
+      onReceiveRtp: (packet) {
+        if (transceiverRef != null) {
+          transceiverRef.receiver.handleRtpPacket(packet);
+        }
+      },
+    );
+
+    rtpSession.start();
+    _rtpSessions[mid] = rtpSession;
+
+    // Use configured codecs if no explicit codec provided
+    final effectiveCodec = codec ??
+        (kind == MediaStreamTrackKind.audio
+            ? configuration.codecs.audio?.firstOrNull
+            : configuration.codecs.video?.firstOrNull);
+
+    RtpTransceiver transceiver;
+    if (kind == MediaStreamTrackKind.audio) {
+      transceiver = createAudioTransceiver(
+        mid: mid,
+        rtpSession: rtpSession,
+        sendTrack: null,
+        direction: direction,
+        codec: effectiveCodec,
+      );
+    } else {
+      transceiver = createVideoTransceiver(
+        mid: mid,
+        rtpSession: rtpSession,
+        sendTrack: null,
+        direction: direction,
+        codec: effectiveCodec,
+      );
+    }
+
+    transceiverRef = transceiver;
+    _transceivers.add(transceiver);
+
+    // Set sender.mid and midExtensionId for RTP header extension
+    transceiver.sender.mid = mid;
+    transceiver.sender.midExtensionId = _midExtensionId;
+
+    return transceiver;
+  }
+
+  /// Add a transceiver with a nonstandard track for pre-encoded RTP
+  ///
+  /// This matches the TypeScript werift addTransceiver(track, options) API.
+  /// The track's onReceiveRtp stream is wired to the sender's sendRtp,
+  /// so calling track.writeRtp() will forward packets to the remote peer.
+  ///
+  /// Used for forwarding pre-encoded RTP (e.g., from Ring cameras, FFmpeg).
+  ///
+  /// Example:
+  /// ```dart
+  /// final track = nonstandard.MediaStreamTrack(kind: nonstandard.MediaKind.video);
+  /// final transceiver = pc.addTransceiverWithTrack(track, direction: sendonly);
+  /// // Later, from Ring camera:
+  /// ringCamera.onVideoRtp.listen((rtp) => track.writeRtp(rtp));
+  /// ```
+  RtpTransceiver addTransceiverWithTrack(
+    nonstandard.MediaStreamTrack track, {
+    RtpCodecParameters? codec,
+    RtpTransceiverDirection direction = RtpTransceiverDirection.sendonly,
+  }) {
+    if (_connectionState == PeerConnectionState.closed) {
+      throw StateError('PeerConnection is closed');
+    }
+
+    // Create new transceiver
+    final mid = '${_nextMid++}';
+    final ssrc = _generateSsrc();
+
+    RtpTransceiver? transceiverRef;
+    // Capture mid for use in closures (for bundlePolicy: disable routing)
+    final transceiverMid = mid;
+
+    final rtpSession = RtpSession(
+      localSsrc: ssrc,
+      srtpSession: null,
+      onSendRtp: (packet) async {
+        // SRTP packets go directly over ICE/UDP, not wrapped in DTLS
+        // Use the MID-specific transport for bundlePolicy: disable
+        final iceConnection = _getIceConnectionForMid(transceiverMid);
+        if (iceConnection != null) {
+          _log.fine('[PC:$transceiverMid] ICE send ${packet.length} bytes');
+          await iceConnection.send(packet);
+        } else {
+          _log.fine(
+              '[PC:$transceiverMid] ICE null, _transport=${_transport != null}, _mediaTransports=${_mediaTransports.keys}');
+        }
+      },
+      onSendRtcp: (packet) async {
+        // SRTCP packets go directly over ICE/UDP, not wrapped in DTLS
+        // Use the MID-specific transport for bundlePolicy: disable
+        final iceConnection = _getIceConnectionForMid(transceiverMid);
+        if (iceConnection != null) {
+          try {
+            await iceConnection.send(packet);
+          } on StateError catch (_) {
+            // ICE not yet nominated, silently drop RTCP
+            // This can happen when RTCP timer fires before ICE completes
+          }
+        }
+      },
+      onReceiveRtp: (packet) {
+        if (transceiverRef != null) {
+          transceiverRef.receiver.handleRtpPacket(packet);
+        }
+      },
+    );
+
+    rtpSession.start();
+    _rtpSessions[mid] = rtpSession;
+
+    // If SRTP session already exists (DTLS completed before this transceiver was added),
+    // assign it now so RTP packets will be encrypted
+    if (_srtpSession != null) {
+      rtpSession.srtpSession = _srtpSession;
+    }
+
+    // Determine kind from track
+    final kind = track.kind == nonstandard.MediaKind.audio
+        ? MediaStreamTrackKind.audio
+        : MediaStreamTrackKind.video;
+
+    // Use configured codecs if no explicit codec provided
+    final effectiveCodec = codec ??
+        (kind == MediaStreamTrackKind.audio
+            ? configuration.codecs.audio?.firstOrNull
+            : configuration.codecs.video?.firstOrNull);
+
+    RtpTransceiver transceiver;
+    if (kind == MediaStreamTrackKind.audio) {
+      transceiver = createAudioTransceiver(
+        mid: mid,
+        rtpSession: rtpSession,
+        sendTrack: null,
+        direction: direction,
+        codec: effectiveCodec,
+      );
+    } else {
+      transceiver = createVideoTransceiver(
+        mid: mid,
+        rtpSession: rtpSession,
+        sendTrack: null,
+        direction: direction,
+        codec: effectiveCodec,
+      );
+    }
+
+    // Set sender.mid and midExtensionId for RTP header extension
+    // MUST be set BEFORE registerNonstandardTrack, since that function captures mid
+    transceiver.sender.mid = mid;
+    transceiver.sender.midExtensionId = _midExtensionId;
+
+    // Register the nonstandard track with the sender (like TypeScript registerTrack)
+    transceiver.sender.registerNonstandardTrack(track);
+
+    transceiverRef = transceiver;
+    _transceivers.add(transceiver);
+
+    return transceiver;
+  }
+
   /// Generate random SSRC
   int _generateSsrc() {
     return _random.nextInt(0xFFFFFFFF);
   }
 
+  /// Find or create a transport for a media line
+  /// When bundlePolicy is disable, creates a new transport per media line.
+  /// When bundled, reuses the primary transport.
+  Future<MediaTransport> _findOrCreateMediaTransport(
+    String mid,
+    int mLineIndex,
+  ) async {
+    // If bundled or bundlePolicy is not disable, use primary transport
+    if (_remoteIsBundled ||
+        configuration.bundlePolicy != BundlePolicy.disable) {
+      // Return a wrapper around the primary transport
+      // For bundled media, we just return the first transport
+      if (_mediaTransports.isNotEmpty) {
+        return _mediaTransports.values.first;
+      }
+      // Create primary media transport using the main ICE connection
+      final transport = MediaTransport(
+        id: mid,
+        iceConnection: _iceConnection,
+        certificate: _certificate,
+        debugLabel: '$_debugLabel-$mid',
+        mLineIndex: mLineIndex,
+      );
+      _mediaTransports[mid] = transport;
+      return transport;
+    }
+
+    // bundlePolicy: disable - each media line gets its own transport
+    if (_mediaTransports.containsKey(mid)) {
+      return _mediaTransports[mid]!;
+    }
+
+    // Create new ICE connection for this media line
+    final iceOptions = _configToIceOptions(configuration);
+    final iceConnection = IceConnectionImpl(
+      iceControlling: _iceControlling,
+      options: iceOptions,
+      debugLabel: '$_debugLabel-$mid',
+    );
+
+    // Forward ICE candidates with m-line index set
+    iceConnection.onIceCandidate.listen((candidate) {
+      // Tag with m-line index and MID for bundlePolicy:disable routing
+      final taggedCandidate = candidate.copyWith(
+        sdpMLineIndex: mLineIndex,
+        sdpMid: mid,
+      );
+      _log.fine(
+          '[$_debugLabel] ICE candidate for $mid (mLineIndex=$mLineIndex): ${taggedCandidate.toSdp()}');
+      _iceCandidateController.add(taggedCandidate);
+    });
+
+    final transport = MediaTransport(
+      id: mid,
+      iceConnection: iceConnection,
+      certificate: _certificate,
+      debugLabel: '$_debugLabel-$mid',
+      mLineIndex: mLineIndex,
+    );
+
+    // Listen for state changes
+    transport.onStateChange.listen((state) {
+      // Set up SRTP session for this transport as soon as it's connected
+      // This is critical for bundlePolicy: disable where transports connect independently
+      if (state == TransportState.connected) {
+        _setupSrtpSessionForTransport(transport);
+      }
+      _updateAggregateConnectionState();
+    });
+
+    // Handle incoming RTP/RTCP packets for this media transport
+    transport.onRtpData.listen((data) {
+      _handleIncomingRtpData(data, mid: mid);
+    });
+
+    _mediaTransports[mid] = transport;
+    return transport;
+  }
+
+  /// Update aggregate connection state from all media transports
+  /// For bundlePolicy: disable, connected when at least one transport is connected
+  void _updateAggregateConnectionState() {
+    if (_mediaTransports.isEmpty) {
+      return;
+    }
+
+    final states = _mediaTransports.values.map((t) => t.state).toList();
+
+    // Any failed = failed
+    if (states.any((s) => s == TransportState.failed)) {
+      _setConnectionState(PeerConnectionState.failed);
+      return;
+    }
+
+    // Any disconnected = disconnected (but only if none are connected)
+    if (states.any((s) => s == TransportState.disconnected) &&
+        !states.any((s) => s == TransportState.connected)) {
+      _setConnectionState(PeerConnectionState.disconnected);
+      return;
+    }
+
+    // For bundlePolicy: disable, connected when ANY transport is connected
+    // This allows video to flow even if audio transport is still connecting
+    if (states.any((s) => s == TransportState.connected)) {
+      _setConnectionState(PeerConnectionState.connected);
+      // Set up SRTP for all connected transports
+      _setupSrtpSessionsForAllTransports();
+      return;
+    }
+
+    // Still connecting
+    if (states.any((s) => s == TransportState.connecting)) {
+      _setConnectionState(PeerConnectionState.connecting);
+      return;
+    }
+  }
+
+  /// Set up SRTP sessions for all media transports
+  void _setupSrtpSessionsForAllTransports() {
+    for (final transport in _mediaTransports.values) {
+      final dtlsSocket = transport.dtlsSocket;
+      if (dtlsSocket == null) continue;
+
+      final srtpContext = dtlsSocket.srtpContext;
+      if (srtpContext.localMasterKey == null ||
+          srtpContext.localMasterSalt == null ||
+          srtpContext.remoteMasterKey == null ||
+          srtpContext.remoteMasterSalt == null ||
+          srtpContext.profile == null) {
+        continue;
+      }
+
+      final srtpSession = SrtpSession(
+        profile: srtpContext.profile!,
+        localMasterKey: srtpContext.localMasterKey!,
+        localMasterSalt: srtpContext.localMasterSalt!,
+        remoteMasterKey: srtpContext.remoteMasterKey!,
+        remoteMasterSalt: srtpContext.remoteMasterSalt!,
+      );
+
+      // Store SRTP session by transport ID (MID)
+      _srtpSessionsByMid[transport.id] = srtpSession;
+      _log.fine(
+          '[$_debugLabel] SRTP session created for transport ${transport.id}');
+
+      // Find transceivers using this transport and update their SRTP sessions
+      // For bundlePolicy:disable, transport.id == mid, so match by mid directly
+      for (final transceiver in _transceivers) {
+        if (transceiver.mid == transport.id) {
+          final rtpSession = _rtpSessions[transceiver.mid];
+          if (rtpSession != null) {
+            rtpSession.srtpSession = srtpSession;
+          }
+        }
+      }
+    }
+  }
+
+  /// Set up SRTP session for a single media transport when it becomes connected
+  /// This is called immediately when an individual transport's DTLS completes
+  /// Critical for bundlePolicy: disable where transports connect independently
+  void _setupSrtpSessionForTransport(MediaTransport transport) {
+    // Skip if already set up
+    if (_srtpSessionsByMid.containsKey(transport.id)) {
+      return;
+    }
+
+    final dtlsSocket = transport.dtlsSocket;
+    if (dtlsSocket == null) return;
+
+    final srtpContext = dtlsSocket.srtpContext;
+    if (srtpContext.localMasterKey == null ||
+        srtpContext.localMasterSalt == null ||
+        srtpContext.remoteMasterKey == null ||
+        srtpContext.remoteMasterSalt == null ||
+        srtpContext.profile == null) {
+      _log.fine(
+          '[$_debugLabel] SRTP keys not available for transport ${transport.id}');
+      return;
+    }
+
+    final srtpSession = SrtpSession(
+      profile: srtpContext.profile!,
+      localMasterKey: srtpContext.localMasterKey!,
+      localMasterSalt: srtpContext.localMasterSalt!,
+      remoteMasterKey: srtpContext.remoteMasterKey!,
+      remoteMasterSalt: srtpContext.remoteMasterSalt!,
+    );
+
+    // Store SRTP session by transport ID (MID)
+    _srtpSessionsByMid[transport.id] = srtpSession;
+    _log.fine(
+        '[$_debugLabel] SRTP session created for transport ${transport.id} (per-transport setup)');
+
+    // Find transceivers using this transport and update their SRTP sessions
+    // For bundlePolicy:disable, transport.id == mid, so match by mid directly
+    for (final transceiver in _transceivers) {
+      // Match by MID since transport.id is the MID for bundlePolicy:disable
+      if (transceiver.mid == transport.id) {
+        final rtpSession = _rtpSessions[transceiver.mid];
+        if (rtpSession != null) {
+          rtpSession.srtpSession = srtpSession;
+          _log.fine(
+              '[$_debugLabel] Assigned SRTP session to RTP session for mid=${transceiver.mid}');
+        }
+      }
+    }
+  }
+
+  /// Get ICE connection for sending RTP/RTCP packets for a given MID
+  /// For bundlePolicy: disable, returns the transport specific to this MID
+  /// For bundled connections, returns the primary transport
+  IceConnection? _getIceConnectionForMid(String mid) {
+    // First check for media transport (bundlePolicy: disable case)
+    final mediaTransport = _mediaTransports[mid];
+    if (mediaTransport != null) {
+      return mediaTransport.iceConnection;
+    }
+    // Fall back to primary transport (bundled case)
+    return _transport?.iceConnection;
+  }
+
   /// Set up SRTP sessions for all RTP sessions once DTLS is connected
   void _setupSrtpSessions() {
+    _log.fine(
+        ' _setupSrtpSessions called, _rtpSessions.length=${_rtpSessions.length}');
     final dtlsSocket = _transport?.dtlsSocket;
     if (dtlsSocket == null) {
+      _log.fine(' _setupSrtpSessions: dtlsSocket is null');
       return;
     }
 
@@ -1209,6 +2063,8 @@ class RtcPeerConnection {
         srtpContext.remoteMasterSalt == null ||
         srtpContext.profile == null) {
       // Keys not yet available, will be set up later
+      _log.fine(
+          ' _setupSrtpSessions: SRTP keys not available - localKey=${srtpContext.localMasterKey != null}, localSalt=${srtpContext.localMasterSalt != null}, remoteKey=${srtpContext.remoteMasterKey != null}, remoteSalt=${srtpContext.remoteMasterSalt != null}, profile=${srtpContext.profile}');
       return;
     }
 
@@ -1221,14 +2077,21 @@ class RtcPeerConnection {
       remoteMasterSalt: srtpContext.remoteMasterSalt!,
     );
 
+    // Store at PeerConnection level for use in decryption
+    _srtpSession = srtpSession;
+    _log.fine(
+        ' Created SRTP session, applying to ${_rtpSessions.length} RTP sessions');
+
     // Apply SRTP session to all RTP sessions
-    for (final rtpSession in _rtpSessions.values) {
-      rtpSession.srtpSession = srtpSession;
+    for (final entry in _rtpSessions.entries) {
+      _log.fine(' Applying SRTP to RTP session for mid=${entry.key}');
+      entry.value.srtpSession = srtpSession;
     }
   }
 
   /// Handle incoming RTP/RTCP data from transport
-  void _handleIncomingRtpData(Uint8List data) {
+  /// [mid] is optional - when provided (bundlePolicy:disable), uses per-transport SRTP session
+  void _handleIncomingRtpData(Uint8List data, {String? mid}) {
     if (data.length < 12) {
       // Too short to be valid RTP/RTCP
       return;
@@ -1245,7 +2108,7 @@ class RtcPeerConnection {
         if (data.length >= 8) {
           final ssrc =
               (data[4] << 24) | (data[5] << 16) | (data[6] << 8) | data[7];
-          _routeRtcpPacket(ssrc, data);
+          _routeRtcpPacket(ssrc, data, mid: mid);
         }
       } else {
         // RTP packet - parse to get SSRC
@@ -1253,7 +2116,7 @@ class RtcPeerConnection {
         if (data.length >= 12) {
           final ssrc =
               (data[8] << 24) | (data[9] << 16) | (data[10] << 8) | data[11];
-          _routeRtpPacket(ssrc, data);
+          _routeRtpPacket(ssrc, data, mid: mid);
         }
       }
     } catch (e) {
@@ -1263,10 +2126,25 @@ class RtcPeerConnection {
 
   /// Route RTP packet to appropriate session using RtpRouter
   /// (matching werift: packages/webrtc/src/peerConnection.ts - router.routeRtp)
-  void _routeRtpPacket(int ssrc, Uint8List data) async {
-    // Parse RTP packet for routing
+  /// [mid] is optional - when provided (bundlePolicy:disable), uses per-transport SRTP session
+  void _routeRtpPacket(int ssrc, Uint8List data, {String? mid}) async {
     try {
-      final packet = RtpPacket.parse(data);
+      // Get SRTP session - prefer per-MID session for bundlePolicy:disable
+      SrtpSession? srtpSession;
+      if (mid != null && _srtpSessionsByMid.containsKey(mid)) {
+        srtpSession = _srtpSessionsByMid[mid];
+      } else {
+        srtpSession = _srtpSession;
+      }
+
+      // Decrypt SRTP to RTP first
+      RtpPacket packet;
+      if (srtpSession != null) {
+        packet = await srtpSession.decryptSrtp(data);
+      } else {
+        // No SRTP session yet (before DTLS handshake), parse as plain RTP
+        packet = RtpPacket.parse(data);
+      }
 
       // Use RtpRouter if we have registered handlers
       if (_rtpRouter.registeredSsrcs.isNotEmpty ||
@@ -1275,31 +2153,49 @@ class RtcPeerConnection {
         return;
       }
 
+      // Route by MID if available (bundlePolicy:disable or separate transports)
+      if (mid != null && _rtpSessions.containsKey(mid)) {
+        final session = _rtpSessions[mid]!;
+        if (session.onReceiveRtp != null) {
+          session.onReceiveRtp!(packet);
+        }
+        return;
+      }
+
       // Fallback: deliver to all sessions if no SSRC registration yet
       // This handles the case before SDP negotiation provides SSRC mappings
       for (final session in _rtpSessions.values) {
-        await session.receiveRtp(data);
+        if (session.onReceiveRtp != null) {
+          session.onReceiveRtp!(packet);
+        }
       }
     } catch (e) {
-      // Parse error - try fallback delivery
-      for (final session in _rtpSessions.values) {
-        await session.receiveRtp(data);
-      }
+      // Decryption or parse error - could be replay attack, corrupted packet, etc.
+      // Silently ignore to avoid log spam
     }
   }
 
   /// Route RTCP packet to appropriate session
-  void _routeRtcpPacket(int ssrc, Uint8List data) async {
+  /// [mid] is optional - when provided (bundlePolicy:disable), uses per-transport SRTP session
+  void _routeRtcpPacket(int ssrc, Uint8List data, {String? mid}) async {
+    // Get SRTP session for decryption - prefer per-MID session for bundlePolicy:disable
+    SrtpSession? srtpSession;
+    if (mid != null && _srtpSessionsByMid.containsKey(mid)) {
+      srtpSession = _srtpSessionsByMid[mid];
+    } else {
+      srtpSession = _srtpSession;
+    }
+
     // Route RTCP by SSRC to the appropriate session
     final session = _findSessionBySsrc(ssrc);
     if (session != null) {
-      await session.receiveRtcp(data);
+      await session.receiveRtcp(data, srtpSession: srtpSession);
       return;
     }
 
     // Fallback: deliver to all sessions
     for (final session in _rtpSessions.values) {
-      await session.receiveRtcp(data);
+      await session.receiveRtcp(data, srtpSession: srtpSession);
     }
   }
 

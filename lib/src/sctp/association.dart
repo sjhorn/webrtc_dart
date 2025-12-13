@@ -1,10 +1,15 @@
 import 'dart:async';
 import 'dart:math';
 import 'dart:typed_data';
+
 import 'package:crypto/crypto.dart';
+
+import 'package:webrtc_dart/src/common/logging.dart';
+import 'package:webrtc_dart/src/sctp/chunk.dart';
 import 'package:webrtc_dart/src/sctp/const.dart';
 import 'package:webrtc_dart/src/sctp/packet.dart';
-import 'package:webrtc_dart/src/sctp/chunk.dart';
+
+final _log = WebRtcLogging.sctp;
 
 /// Cookie constants (matching werift: packages/sctp/src/sctp.ts)
 const int _cookieLength = 24; // 4 bytes timestamp + 20 bytes HMAC-SHA1
@@ -124,6 +129,7 @@ class SctpAssociation {
   /// Timer T1 - wait for INIT-ACK or COOKIE-ACK
   Timer? _t1Timer;
   SctpChunk? _t1Chunk;
+  int? _t1VerificationTag; // Verification tag to use for retransmission
   int _t1Failures = 0;
 
   /// Timer T2 - wait for SHUTDOWN
@@ -238,13 +244,13 @@ class SctpAssociation {
 
   /// Start association as client (send INIT)
   Future<void> connect() async {
-    print(
+    _log.fine(
         '[SCTP] connect: state=$_state, localTag=0x${_localVerificationTag.toRadixString(16)}, localTsn=$_localInitialTsn');
     if (_state != SctpAssociationState.closed) {
       throw StateError('Association already started');
     }
 
-    print('[SCTP] connect: sending INIT');
+    _log.fine(' connect: sending INIT');
     final initChunk = SctpInitChunk(
       initiateTag: _localVerificationTag,
       advertisedRwnd: advertisedRwnd,
@@ -254,30 +260,30 @@ class SctpAssociation {
     );
     await _sendChunk(initChunk, verificationTag: 0);
     _setState(SctpAssociationState.cookieWait);
-    _t1Start(initChunk);
+    _t1Start(initChunk, verificationTag: 0);
   }
 
   /// Handle incoming SCTP packet
   Future<void> handlePacket(Uint8List data) async {
-    print('[SCTP] handlePacket: ${data.length} bytes, state=$_state');
-    print(
+    _log.fine(' handlePacket: ${data.length} bytes, state=$_state');
+    _log.fine(
         '[SCTP]   first 16 bytes: ${data.take(16).map((b) => b.toRadixString(16).padLeft(2, '0')).join(' ')}');
 
     final packet = SctpPacket.parse(data);
-    print(
+    _log.fine(
         '[SCTP]   parsed: srcPort=${packet.sourcePort}, dstPort=${packet.destinationPort}, verTag=0x${packet.verificationTag.toRadixString(16)}, chunks=${packet.chunks.length}');
 
     // Verify verification tag (except for INIT and SHUTDOWN-COMPLETE)
     if (!_verifyVerificationTag(packet)) {
       // Silently discard
-      print(
+      _log.fine(
           '[SCTP]   verification tag mismatch - discarding (expected 0x${_localVerificationTag.toRadixString(16)}, got 0x${packet.verificationTag.toRadixString(16)})');
       return;
     }
 
     // Process each chunk
     for (final chunk in packet.chunks) {
-      print('[SCTP]   processing chunk type=${chunk.type}');
+      _log.fine('   processing chunk type=${chunk.type}');
       await _handleChunk(chunk);
     }
   }
@@ -482,13 +488,13 @@ class SctpAssociation {
 
   /// Handle INIT chunk (matching werift: packages/sctp/src/sctp.ts)
   Future<void> _handleInit(SctpInitChunk chunk) async {
-    print(
+    _log.fine(
         '[SCTP] _handleInit: state=$_state, remoteTag=0x${chunk.initiateTag.toRadixString(16)}, remoteTsn=${chunk.initialTsn}');
 
     if (_state != SctpAssociationState.closed) {
       // Ignore INIT in non-closed state (matching werift: `if (!this.isServer) return`)
       // RFC 4960 Section 5.2 defines collision handling, but werift simply ignores
-      print('[SCTP] _handleInit: ignoring INIT in state $_state');
+      _log.fine(' _handleInit: ignoring INIT in state $_state');
       return;
     }
 
@@ -496,18 +502,18 @@ class SctpAssociation {
     _remoteCumulativeTsn = _tsnMinusOne(chunk.initialTsn);
     _lastReceivedTsn = _remoteCumulativeTsn;
 
-    print(
+    _log.fine(
         '[SCTP] _handleInit: sending INIT-ACK with localTag=0x${_localVerificationTag.toRadixString(16)}');
     await _sendInitAck();
   }
 
   /// Handle INIT-ACK chunk
   Future<void> _handleInitAck(SctpInitAckChunk chunk) async {
-    print(
+    _log.fine(
         '[SCTP] _handleInitAck: state=$_state, remoteTag=0x${chunk.initiateTag.toRadixString(16)}');
 
     if (_state != SctpAssociationState.cookieWait) {
-      print('[SCTP] _handleInitAck: ignoring INIT-ACK in state $_state');
+      _log.fine(' _handleInitAck: ignoring INIT-ACK in state $_state');
       return;
     }
 
@@ -519,20 +525,21 @@ class SctpAssociation {
 
     // Extract state cookie from parameters
     final stateCookie = chunk.getStateCookie();
-    print(
+    _log.fine(
         '[SCTP] _handleInitAck: stateCookie=${stateCookie != null ? '${stateCookie.length} bytes' : 'null'}');
     if (stateCookie != null) {
-      print('[SCTP] _handleInitAck: sending COOKIE-ECHO');
+      _log.fine(' _handleInitAck: sending COOKIE-ECHO');
       final cookieEchoChunk = SctpCookieEchoChunk(cookie: stateCookie);
       await _sendChunk(cookieEchoChunk);
       _setState(SctpAssociationState.cookieEchoed);
-      _t1Start(cookieEchoChunk);
+      // For COOKIE-ECHO retransmission, use remote verification tag
+      _t1Start(cookieEchoChunk, verificationTag: _remoteVerificationTag);
     }
   }
 
   /// Handle COOKIE-ECHO chunk (matching werift: packages/sctp/src/sctp.ts)
   Future<void> _handleCookieEcho(SctpCookieEchoChunk chunk) async {
-    print(
+    _log.fine(
         '[SCTP] _handleCookieEcho: state=$_state, cookie=${chunk.cookie.length} bytes');
 
     // Verify cookie (matching werift cookie verification)
@@ -540,7 +547,7 @@ class SctpAssociation {
 
     // Check cookie length
     if (cookie.length != _cookieLength) {
-      print(
+      _log.fine(
           '[SCTP] _handleCookieEcho: invalid cookie length ${cookie.length}, expected $_cookieLength');
       return;
     }
@@ -562,7 +569,7 @@ class SctpAssociation {
     }
 
     if (!digestMatch) {
-      print('[SCTP] _handleCookieEcho: cookie HMAC verification failed');
+      _log.fine(' _handleCookieEcho: cookie HMAC verification failed');
       return;
     }
 
@@ -572,28 +579,28 @@ class SctpAssociation {
     final now = DateTime.now().millisecondsSinceEpoch ~/ 1000;
 
     if (cookieTimestamp < now - _cookieLifetime || cookieTimestamp > now) {
-      print(
+      _log.fine(
           '[SCTP] _handleCookieEcho: cookie expired (timestamp=$cookieTimestamp, now=$now)');
       // Send ERROR chunk with Stale Cookie Error (matching werift: packages/sctp/src/sctp.ts)
       await _sendChunk(SctpErrorChunk.staleCookie());
       return;
     }
 
-    print('[SCTP] _handleCookieEcho: cookie verified, sending COOKIE-ACK');
+    _log.fine(' _handleCookieEcho: cookie verified, sending COOKIE-ACK');
     await _sendChunk(SctpCookieAckChunk());
     _setState(SctpAssociationState.established);
   }
 
   /// Handle COOKIE-ACK chunk
   Future<void> _handleCookieAck() async {
-    print('[SCTP] _handleCookieAck: state=$_state');
+    _log.fine(' _handleCookieAck: state=$_state');
     if (_state != SctpAssociationState.cookieEchoed) {
-      print('[SCTP] _handleCookieAck: ignoring in state $_state');
+      _log.fine(' _handleCookieAck: ignoring in state $_state');
       return;
     }
 
     _t1Cancel();
-    print('[SCTP] _handleCookieAck: association established!');
+    _log.fine(' _handleCookieAck: association established!');
     _setState(SctpAssociationState.established);
   }
 
@@ -857,7 +864,7 @@ class SctpAssociation {
     }
 
     if (param.result != ReconfigResult.successPerformed) {
-      print('[SCTP] Reconfig request failed: result=${param.result}');
+      _log.fine(' Reconfig request failed: result=${param.result}');
       return;
     }
 
@@ -1046,9 +1053,10 @@ class SctpAssociation {
 
   // === Timer T1 (INIT/COOKIE-ECHO retransmission) ===
 
-  void _t1Start(SctpChunk chunk) {
+  void _t1Start(SctpChunk chunk, {int? verificationTag}) {
     if (_t1Timer != null) throw StateError('T1 timer already running');
     _t1Chunk = chunk;
+    _t1VerificationTag = verificationTag;
     _t1Failures = 0;
     _t1Timer = Timer(Duration(milliseconds: _rto), _t1Expired);
   }
@@ -1061,7 +1069,7 @@ class SctpAssociation {
       _setState(SctpAssociationState.closed);
       _dispose();
     } else {
-      _sendChunk(_t1Chunk!);
+      _sendChunk(_t1Chunk!, verificationTag: _t1VerificationTag);
       _t1Timer = Timer(Duration(milliseconds: _rto), _t1Expired);
     }
   }
@@ -1070,6 +1078,7 @@ class SctpAssociation {
     _t1Timer?.cancel();
     _t1Timer = null;
     _t1Chunk = null;
+    _t1VerificationTag = null;
   }
 
   // === Timer T2 (SHUTDOWN retransmission) ===

@@ -6,6 +6,11 @@ library;
 
 export 'src/webrtc_dart_base.dart';
 
+// Logging
+export 'src/common/logging.dart' show WebRtcLogging;
+export 'src/common/debug.dart'
+    show webrtcDebug; // Deprecated, use WebRtcLogging
+
 // Core API
 export 'src/peer_connection.dart'
     show
@@ -15,8 +20,10 @@ export 'src/peer_connection.dart'
         IceConnectionState,
         IceGatheringState,
         RtcConfiguration,
+        RtcCodecs,
         IceServer,
         IceTransportPolicy,
+        BundlePolicy,
         RtcOfferOptions;
 export 'src/sdp/sdp.dart';
 export 'src/sdp/rtx_sdp.dart';

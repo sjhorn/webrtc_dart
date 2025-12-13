@@ -1,16 +1,21 @@
 import 'dart:async';
 import 'dart:typed_data';
-import 'package:webrtc_dart/src/srtp/rtp_packet.dart';
-import 'package:webrtc_dart/src/srtp/rtcp_packet.dart';
-import 'package:webrtc_dart/src/srtp/srtp_session.dart';
-import 'package:webrtc_dart/src/rtp/rtp_statistics.dart';
-import 'package:webrtc_dart/src/rtp/rtcp_reports.dart';
-import 'package:webrtc_dart/src/rtp/retransmission_buffer.dart';
-import 'package:webrtc_dart/src/rtp/nack_handler.dart';
-import 'package:webrtc_dart/src/rtp/rtx.dart';
+
+import 'package:webrtc_dart/src/common/logging.dart';
 import 'package:webrtc_dart/src/rtcp/nack.dart';
+import 'package:webrtc_dart/src/rtcp/psfb/psfb.dart';
+import 'package:webrtc_dart/src/rtp/nack_handler.dart';
+import 'package:webrtc_dart/src/rtp/retransmission_buffer.dart';
+import 'package:webrtc_dart/src/rtp/rtcp_reports.dart';
+import 'package:webrtc_dart/src/rtp/rtp_statistics.dart';
+import 'package:webrtc_dart/src/rtp/rtx.dart';
+import 'package:webrtc_dart/src/srtp/rtcp_packet.dart';
+import 'package:webrtc_dart/src/srtp/rtp_packet.dart';
+import 'package:webrtc_dart/src/srtp/srtp_session.dart';
 import 'package:webrtc_dart/src/stats/rtc_stats.dart';
 import 'package:webrtc_dart/src/stats/rtp_stats.dart';
+
+final _log = WebRtcLogging.rtp;
 
 /// RTP Session
 /// Manages RTP/RTCP streams with encryption and statistics tracking
@@ -159,6 +164,67 @@ class RtpSession {
     }
   }
 
+  /// Send a pre-formed RTP packet (for forwarding/relaying)
+  /// This is useful for SFU scenarios where packets are forwarded without re-encoding
+  ///
+  /// Parameters:
+  /// - [replaceSsrc]: If true (default), replaces packet SSRC with localSsrc
+  /// - [payloadType]: If provided, overrides the packet's payload type with this value.
+  ///   This is essential when forwarding RTP from an external source (e.g., Ring camera)
+  ///   to a browser, as the browser expects the negotiated payload type.
+  ///
+  /// Matches TypeScript werift rtpSender.ts:sendRtp behavior:
+  /// - Rewrites SSRC to sender's SSRC
+  /// - Rewrites payloadType to codec's payloadType
+  Future<void> sendRawRtpPacket(
+    RtpPacket packet, {
+    bool replaceSsrc = true,
+    int? payloadType,
+  }) async {
+    // Guard: Only send if SRTP session is established (DTLS complete)
+    // This matches TypeScript werift rtpSender.ts:sendRtp check:
+    // if (this.dtlsTransport.state !== "connected" || !this.codec) return;
+    if (srtpSession == null) {
+      // DTLS not yet complete, drop packet - matching werift behavior
+      return;
+    }
+
+    // Determine if we need to modify the packet
+    final needsModification = (replaceSsrc && packet.ssrc != localSsrc) ||
+        (payloadType != null && payloadType != packet.payloadType);
+
+    // Create modified packet if needed, otherwise use original
+    final RtpPacket packetToSend;
+    if (needsModification) {
+      packetToSend = RtpPacket(
+        version: packet.version,
+        padding: packet.padding,
+        extension: packet.extension,
+        marker: packet.marker,
+        payloadType: payloadType ?? packet.payloadType,
+        sequenceNumber: packet.sequenceNumber,
+        timestamp: packet.timestamp,
+        ssrc: replaceSsrc ? localSsrc : packet.ssrc,
+        csrcs: packet.csrcs,
+        extensionHeader: packet.extensionHeader,
+        payload: packet.payload,
+      );
+    } else {
+      packetToSend = packet;
+    }
+
+    // Update statistics
+    senderStats.updateSent(payloadSize: packet.payload.length);
+
+    // Encrypt with SRTP
+    final data = await srtpSession!.encryptRtp(packetToSend);
+
+    // Send packet
+    if (onSendRtp != null) {
+      await onSendRtp!(data);
+    }
+  }
+
   /// Receive RTP/SRTP packet
   Future<void> receiveRtp(Uint8List data) async {
     // Decrypt if SRTP is enabled
@@ -212,13 +278,24 @@ class RtpSession {
   }
 
   /// Receive RTCP/SRTCP packet
-  Future<void> receiveRtcp(Uint8List data) async {
+  /// [srtpSession] is optional - when provided, overrides this session's SRTP session
+  /// (used for bundlePolicy:disable where each transport has its own SRTP session)
+  Future<void> receiveRtcp(Uint8List data, {SrtpSession? srtpSession}) async {
+    // Use provided SRTP session or fall back to this session's SRTP session
+    final effectiveSrtpSession = srtpSession ?? this.srtpSession;
+
     // Decrypt if SRTCP is enabled
     final RtcpPacket packet;
-    if (srtpSession != null) {
-      packet = await srtpSession!.decryptSrtcp(data);
-    } else {
-      packet = RtcpPacket.parse(data);
+    try {
+      if (effectiveSrtpSession != null) {
+        packet = await effectiveSrtpSession.decryptSrtcp(data);
+      } else {
+        packet = RtcpPacket.parse(data);
+      }
+    } on FormatException catch (e) {
+      // Skip malformed RTCP packets
+      _log.warning('Skipping malformed RTCP packet: $e');
+      return;
     }
 
     // Handle different RTCP packet types
@@ -522,6 +599,30 @@ class RtpSession {
     if (onSendRtcp == null) return;
 
     final packet = nack.toRtcpPacket();
+
+    // Encrypt if SRTCP is enabled
+    final Uint8List data;
+    if (srtpSession != null) {
+      data = await srtpSession!.encryptRtcp(packet);
+    } else {
+      data = packet.serialize();
+    }
+
+    await onSendRtcp!(data);
+  }
+
+  /// Send Picture Loss Indication (PLI) to request a keyframe
+  ///
+  /// [mediaSsrc] is the SSRC of the video stream to request a keyframe for.
+  /// This is typically the remote sender's SSRC.
+  Future<void> sendPli(int mediaSsrc) async {
+    if (onSendRtcp == null) return;
+
+    final psfb = PayloadSpecificFeedback.pli(
+      senderSsrc: localSsrc,
+      mediaSsrc: mediaSsrc,
+    );
+    final packet = psfb.toRtcpPacket();
 
     // Encrypt if SRTCP is enabled
     final Uint8List data;

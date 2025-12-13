@@ -1,8 +1,11 @@
 import 'dart:typed_data';
+import 'package:webrtc_dart/src/common/logging.dart';
 import 'package:webrtc_dart/src/common/crypto.dart';
 import 'package:webrtc_dart/src/dtls/cipher/const.dart';
 import 'package:webrtc_dart/src/dtls/cipher/prf.dart';
 import 'package:webrtc_dart/src/dtls/record/header.dart';
+
+final _log = WebRtcLogging.dtlsCipher;
 
 /// AEAD cipher suite for DTLS (AES-GCM)
 /// RFC 5288 - AES Galois Counter Mode (GCM) Cipher Suites for TLS
@@ -49,15 +52,15 @@ class AEADCipherSuite {
     // Construct additional authenticated data (AAD) - always uses plaintext length
     final aad = _constructAAD(header, plaintext.length);
 
-    print('[AEAD] encrypt: epoch=${header.epoch} seq=${header.sequenceNumber}');
-    print(
-        '[AEAD] plaintext (${plaintext.length} bytes): ${plaintext.map((b) => b.toRadixString(16).padLeft(2, '0')).join(' ')}');
-    print(
-        '[AEAD] writeKey: ${writeKey.map((b) => b.toRadixString(16).padLeft(2, '0')).join(' ')}');
-    print(
-        '[AEAD] nonce: ${nonce.map((b) => b.toRadixString(16).padLeft(2, '0')).join(' ')}');
-    print(
-        '[AEAD] aad: ${aad.map((b) => b.toRadixString(16).padLeft(2, '0')).join(' ')}');
+    _log.fine('encrypt: epoch=${header.epoch} seq=${header.sequenceNumber}');
+    _log.fine(
+        'plaintext (${plaintext.length} bytes): ${plaintext.map((b) => b.toRadixString(16).padLeft(2, '0')).join(' ')}');
+    _log.fine(
+        'writeKey: ${writeKey.map((b) => b.toRadixString(16).padLeft(2, '0')).join(' ')}');
+    _log.fine(
+        'nonce: ${nonce.map((b) => b.toRadixString(16).padLeft(2, '0')).join(' ')}');
+    _log.fine(
+        'aad: ${aad.map((b) => b.toRadixString(16).padLeft(2, '0')).join(' ')}');
 
     // Encrypt with AES-GCM
     final ciphertext = await aesGcmEncrypt(
@@ -75,8 +78,8 @@ class AEADCipherSuite {
     result.setRange(0, explicitNonce.length, explicitNonce);
     result.setRange(explicitNonce.length, result.length, ciphertext);
 
-    print(
-        '[AEAD] result (${result.length} bytes): ${result.map((b) => b.toRadixString(16).padLeft(2, '0')).join(' ')}');
+    _log.fine(
+        'result (${result.length} bytes): ${result.map((b) => b.toRadixString(16).padLeft(2, '0')).join(' ')}');
 
     return result;
   }

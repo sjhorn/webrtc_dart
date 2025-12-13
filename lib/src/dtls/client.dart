@@ -1,4 +1,6 @@
 import 'dart:typed_data';
+
+import 'package:webrtc_dart/src/common/logging.dart';
 import 'package:webrtc_dart/src/dtls/cipher/const.dart';
 import 'package:webrtc_dart/src/dtls/cipher/key_derivation.dart';
 import 'package:webrtc_dart/src/dtls/client_handshake.dart';
@@ -10,6 +12,8 @@ import 'package:webrtc_dart/src/dtls/handshake/message/alert.dart';
 import 'package:webrtc_dart/src/dtls/record/const.dart';
 import 'package:webrtc_dart/src/dtls/record/record_layer.dart';
 import 'package:webrtc_dart/src/dtls/socket.dart';
+
+final _log = WebRtcLogging.dtlsClient;
 
 /// DTLS Client
 /// Initiates DTLS handshake as the client
@@ -69,6 +73,7 @@ class DtlsClient extends DtlsSocket {
     _handshakeCoordinator = ClientHandshakeCoordinator(
       dtlsContext: dtlsContext,
       cipherContext: this.cipherContext,
+      srtpContext: srtpContext,
       recordLayer: _recordLayer,
       flightManager: flightManager,
       cipherSuites: this.cipherSuites,
@@ -132,8 +137,8 @@ class DtlsClient extends DtlsSocket {
 
             case ContentType.changeCipherSpec:
               // CCS received - increment read epoch for decryption
-              print(
-                '[CLIENT] Received ChangeCipherSpec, incrementing readEpoch from ${dtlsContext.readEpoch} to ${dtlsContext.readEpoch + 1}',
+              _log.fine(
+                'Received ChangeCipherSpec, incrementing readEpoch from ${dtlsContext.readEpoch} to ${dtlsContext.readEpoch + 1}',
               );
               dtlsContext.readEpoch++;
               ccsReceived = true;
@@ -155,8 +160,8 @@ class DtlsClient extends DtlsSocket {
 
         // If we received CCS, reprocess any buffered future-epoch records
         if (ccsReceived && _futureEpochBuffer.isNotEmpty) {
-          print(
-            '[CLIENT] Reprocessing ${_futureEpochBuffer.length} buffered future-epoch records',
+          _log.fine(
+            'Reprocessing ${_futureEpochBuffer.length} buffered future-epoch records',
           );
           final bufferedData = List<Uint8List>.from(_futureEpochBuffer);
           _futureEpochBuffer.clear();
@@ -200,7 +205,7 @@ class DtlsClient extends DtlsSocket {
         }
       }
     } catch (e) {
-      print('[CLIENT] Error processing buffered record: $e');
+      _log.fine('Error processing buffered record: $e');
     }
   }
 
@@ -216,8 +221,8 @@ class DtlsClient extends DtlsSocket {
       // The coordinator will add the full message to the handshake buffer
       // Use rawBytes if available to preserve original bytes for handshake hash
       final fullMessage = handshakeMsg.rawBytes ?? handshakeMsg.serialize();
-      print(
-        '[CLIENT] Processing ${handshakeMsg.header.messageType}, rawBytes available: ${handshakeMsg.rawBytes != null}, fullMessage len: ${fullMessage.length}',
+      _log.fine(
+        'Processing ${handshakeMsg.header.messageType}, rawBytes available: ${handshakeMsg.rawBytes != null}, fullMessage len: ${fullMessage.length}',
       );
       await _handshakeCoordinator.processHandshakeWithType(
         handshakeMsg.header.messageType,
@@ -236,12 +241,12 @@ class DtlsClient extends DtlsSocket {
     if (currentFlight != null &&
         !currentFlight.sent &&
         currentFlight.messages.isNotEmpty) {
-      print(
-        '[CLIENT] Sending flight ${currentFlight.flight.flightNumber} with ${currentFlight.messages.length} messages',
+      _log.fine(
+        'Sending flight ${currentFlight.flight.flightNumber} with ${currentFlight.messages.length} messages',
       );
       for (var i = 0; i < currentFlight.messages.length; i++) {
         final message = currentFlight.messages[i];
-        print('[CLIENT]   Message $i: ${message.length} bytes');
+        _log.fine('  Message $i: ${message.length} bytes');
         await transport.send(message);
       }
       currentFlight.markSent();
@@ -250,17 +255,28 @@ class DtlsClient extends DtlsSocket {
 
   /// Called when handshake completes
   void _onHandshakeComplete() {
-    print('[CLIENT] Handshake complete!');
+    _log.info('Handshake complete!');
 
-    // Export SRTP keys
-    final srtpKeyMaterial = KeyDerivation.exportSrtpKeys(
-      dtlsContext,
-      60, // Standard SRTP key material length
-      true, // isClient
-    );
+    // Export SRTP keys if profile was negotiated
+    if (srtpContext.profile != null) {
+      final srtpKeyMaterial = KeyDerivation.exportSrtpKeys(
+        dtlsContext,
+        srtpContext.keyMaterialLength,
+        true, // isClient
+      );
 
-    // Store in SRTP context
-    srtpContext.keyMaterial = srtpKeyMaterial;
+      // Store raw material and extract individual keys
+      srtpContext.keyMaterial = srtpKeyMaterial;
+      srtpContext.extractKeys(srtpKeyMaterial, true);
+
+      _log.fine('Exported SRTP keys for profile ${srtpContext.profile}');
+      _log.fine(
+          'Local key: ${srtpContext.localMasterKey?.length} bytes, salt: ${srtpContext.localMasterSalt?.length} bytes');
+      _log.fine(
+          'Remote key: ${srtpContext.remoteMasterKey?.length} bytes, salt: ${srtpContext.remoteMasterSalt?.length} bytes');
+    } else {
+      _log.fine('No SRTP profile negotiated, skipping key export');
+    }
 
     // Mark as connected
     dtlsContext.handshakeComplete = true;
@@ -271,23 +287,23 @@ class DtlsClient extends DtlsSocket {
   Future<void> _processAlert(Uint8List data) async {
     try {
       final alert = Alert.parse(data);
-      print('[CLIENT] Received alert: $alert');
+      _log.fine('Received alert: $alert');
 
       if (alert.isFatal) {
-        print('[CLIENT] Fatal alert received, closing connection');
+        _log.warning('Fatal alert received, closing connection');
         if (!isClosed) {
           errorController.add(Exception('Fatal alert: ${alert.description}'));
           setState(DtlsSocketState.failed);
         }
         await close();
       } else if (alert.description == AlertDescription.closeNotify) {
-        print('[CLIENT] Close notify received, closing connection');
+        _log.fine('Close notify received, closing connection');
         await close();
       } else {
-        print('[CLIENT] Warning alert: ${alert.description}');
+        _log.warning('Alert: ${alert.description}');
       }
     } catch (e) {
-      print('[CLIENT] Error processing alert: $e');
+      _log.warning('Error processing alert: $e');
       if (!isClosed) {
         errorController.add(e);
       }
@@ -300,9 +316,9 @@ class DtlsClient extends DtlsSocket {
       final alertRecord = _recordLayer.wrapAlert(alert);
       final serialized = await _recordLayer.encryptRecord(alertRecord);
       await transport.send(serialized);
-      print('[CLIENT] Sent alert: $alert');
+      _log.fine('Sent alert: $alert');
     } catch (e) {
-      print('[CLIENT] Error sending alert: $e');
+      _log.warning('Error sending alert: $e');
     }
   }
 }

@@ -1,10 +1,15 @@
 import 'dart:async';
 import 'dart:typed_data';
+
+import 'package:webrtc_dart/src/common/logging.dart';
+import 'package:webrtc_dart/src/dtls/cipher/prf.dart';
 import 'package:webrtc_dart/src/dtls/context/cipher_context.dart';
 import 'package:webrtc_dart/src/dtls/context/dtls_context.dart';
 import 'package:webrtc_dart/src/dtls/context/srtp_context.dart';
 import 'package:webrtc_dart/src/dtls/context/transport.dart';
 import 'package:webrtc_dart/src/dtls/flight/flight.dart';
+
+final _log = WebRtcLogging.dtls;
 
 /// DTLS Socket States
 enum DtlsSocketState {
@@ -164,19 +169,33 @@ abstract class DtlsSocket {
     }
 
     if (srtpContext.profile == null) {
-      throw StateError('SRTP profile not selected');
+      // No SRTP profile negotiated - this is OK for data-only connections
+      _log.fine('No SRTP profile negotiated, skipping key export');
+      return;
     }
 
-    // Import from cipher/prf.dart when implementing
-    // final keyingMaterial = exportKeyingMaterial(
-    //   'EXTRACTOR-dtls_srtp',
-    //   srtpContext.keyMaterialLength,
-    //   dtlsContext.masterSecret!,
-    //   dtlsContext.localRandom!,
-    //   dtlsContext.remoteRandom!,
-    //   cipherContext.isClient,
-    // );
+    if (dtlsContext.localRandom == null || dtlsContext.remoteRandom == null) {
+      throw StateError('Random values not available');
+    }
 
-    // srtpContext.extractKeys(keyingMaterial, cipherContext.isClient);
+    // Export keying material using RFC 5705 PRF
+    // Label is "EXTRACTOR-dtls_srtp" per RFC 5764 Section 4.2
+    final keyingMaterial = exportKeyingMaterial(
+      'EXTRACTOR-dtls_srtp',
+      srtpContext.keyMaterialLength,
+      dtlsContext.masterSecret!,
+      dtlsContext.localRandom!,
+      dtlsContext.remoteRandom!,
+      cipherContext.isClient,
+    );
+
+    // Extract individual keys from keying material
+    srtpContext.extractKeys(keyingMaterial, cipherContext.isClient);
+
+    _log.fine('Exported SRTP keys for profile ${srtpContext.profile}');
+    _log.fine(
+        'Local key: ${srtpContext.localMasterKey?.length} bytes, salt: ${srtpContext.localMasterSalt?.length} bytes');
+    _log.fine(
+        'Remote key: ${srtpContext.remoteMasterKey?.length} bytes, salt: ${srtpContext.remoteMasterSalt?.length} bytes');
   }
 }

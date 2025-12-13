@@ -1,10 +1,14 @@
 import 'dart:typed_data';
+
+import 'package:webrtc_dart/src/common/logging.dart';
 import 'package:webrtc_dart/src/dtls/context/cipher_context.dart';
 import 'package:webrtc_dart/src/dtls/context/dtls_context.dart';
 import 'package:webrtc_dart/src/dtls/handshake/message/alert.dart';
 import 'package:webrtc_dart/src/dtls/record/const.dart';
 import 'package:webrtc_dart/src/dtls/record/header.dart';
 import 'package:webrtc_dart/src/dtls/record/record.dart';
+
+final _log = WebRtcLogging.dtlsRecord;
 
 /// DTLS Record Layer
 /// Handles record framing, encryption, and decryption
@@ -143,15 +147,15 @@ class DtlsRecordLayer {
         // Check epoch
         if (record.epoch > dtlsContext.readEpoch) {
           // Future epoch - might be retransmission, buffer it
-          print(
-              '[RECORD] Skipping record with epoch ${record.epoch} (readEpoch=${dtlsContext.readEpoch})');
+          _log.fine(
+              'Skipping record with epoch ${record.epoch} (readEpoch=${dtlsContext.readEpoch})');
           continue;
         }
 
         if (record.epoch < dtlsContext.readEpoch) {
           // Old epoch - ignore
-          print(
-              '[RECORD] Ignoring old record with epoch ${record.epoch} (readEpoch=${dtlsContext.readEpoch})');
+          _log.fine(
+              'Ignoring old record with epoch ${record.epoch} (readEpoch=${dtlsContext.readEpoch})');
           continue;
         }
 
@@ -188,16 +192,16 @@ class DtlsRecordLayer {
         // Check epoch
         if (record.epoch > dtlsContext.readEpoch) {
           // Future epoch - buffer the raw record for later processing
-          print(
-              '[RECORD] Buffering future-epoch record with epoch ${record.epoch} (readEpoch=${dtlsContext.readEpoch}), type=${record.contentType}');
+          _log.fine(
+              'Buffering future-epoch record with epoch ${record.epoch} (readEpoch=${dtlsContext.readEpoch}), type=${record.contentType}');
           futureEpochBuffer.add(record.serialize());
           continue;
         }
 
         if (record.epoch < dtlsContext.readEpoch) {
           // Old epoch - ignore
-          print(
-              '[RECORD] Ignoring old record with epoch ${record.epoch} (readEpoch=${dtlsContext.readEpoch})');
+          _log.fine(
+              'Ignoring old record with epoch ${record.epoch} (readEpoch=${dtlsContext.readEpoch})');
           continue;
         }
 
@@ -212,7 +216,7 @@ class DtlsRecordLayer {
         ));
       } catch (e) {
         // Record processing failed - continue with others
-        print('[RECORD] Error processing record: $e');
+        _log.fine('Error processing record: $e');
         continue;
       }
     }

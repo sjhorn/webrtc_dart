@@ -3,6 +3,7 @@ import 'dart:io';
 import 'dart:typed_data';
 
 import 'package:webrtc_dart/src/common/crypto.dart';
+import 'package:webrtc_dart/src/common/logging.dart';
 import 'package:webrtc_dart/src/ice/candidate.dart';
 import 'package:webrtc_dart/src/ice/candidate_pair.dart';
 import 'package:webrtc_dart/src/ice/mdns.dart';
@@ -11,8 +12,9 @@ import 'package:webrtc_dart/src/ice/utils.dart';
 import 'package:webrtc_dart/src/stun/attributes.dart' show Address;
 import 'package:webrtc_dart/src/stun/const.dart';
 import 'package:webrtc_dart/src/stun/message.dart';
-import 'package:webrtc_dart/src/stun/protocol.dart';
 import 'package:webrtc_dart/src/turn/turn_client.dart';
+
+final _log = WebRtcLogging.ice;
 
 /// ICE connection state
 /// See RFC 5245
@@ -241,6 +243,9 @@ class IceConnectionImpl implements IceConnection {
 
   final IceOptions options;
 
+  /// Debug label for tracing (e.g., "audio" or "video")
+  final String debugLabel;
+
   final _stateController = StreamController<IceState>.broadcast();
   final _candidateController = StreamController<Candidate>.broadcast();
   final _dataController = StreamController<Uint8List>.broadcast();
@@ -248,6 +253,7 @@ class IceConnectionImpl implements IceConnection {
   IceConnectionImpl({
     required bool iceControlling,
     this.options = const IceOptions(),
+    this.debugLabel = '',
   })  : _iceControlling = iceControlling,
         _localUsername = randomString(4),
         _localPassword = randomString(22) {
@@ -326,6 +332,8 @@ class IceConnectionImpl implements IceConnection {
 
   void _setState(IceState newState) {
     if (_state != newState) {
+      final labelStr = debugLabel.isNotEmpty ? ':$debugLabel' : '';
+      _log.fine('$labelStr State: $_state -> $newState');
       _state = newState;
       _stateController.add(newState);
     }
@@ -340,6 +348,8 @@ class IceConnectionImpl implements IceConnection {
     _remoteIsLite = iceLite;
     _remoteUsername = usernameFragment;
     _remotePassword = password;
+    _log.fine(
+        '[ICE] setRemoteParams: iceLite=$iceLite, ufrag=$usernameFragment, pwd=${password.substring(0, 8)}...');
   }
 
   @override
@@ -430,7 +440,13 @@ class IceConnectionImpl implements IceConnection {
 
       // Gather server reflexive candidates via STUN
       if (options.stunServer != null) {
+        _log.fine(
+            '[ICE] Gathering reflexive candidates from STUN server: ${options.stunServer}');
         await _gatherReflexiveCandidates();
+        _log.fine(
+            '[ICE] Finished STUN gathering, local candidates: ${_localCandidates.length}');
+      } else {
+        _log.fine(' No STUN server configured');
       }
 
       // Gather relay candidates via TURN
@@ -454,51 +470,90 @@ class IceConnectionImpl implements IceConnection {
     if (options.stunServer == null) return;
 
     final (stunHost, stunPort) = options.stunServer!;
+    _log.fine(' STUN: Resolving $stunHost:$stunPort');
 
     // Resolve STUN server address
     List<InternetAddress> stunAddresses;
     try {
       stunAddresses = await InternetAddress.lookup(stunHost);
+      _log.fine(
+          '[ICE] STUN: Resolved to ${stunAddresses.map((a) => a.address).toList()}');
     } catch (e) {
       // DNS resolution failed, skip reflexive candidate gathering
+      _log.fine(' STUN: DNS resolution failed: $e');
       return;
     }
 
-    if (stunAddresses.isEmpty) return;
+    if (stunAddresses.isEmpty) {
+      _log.fine(' STUN: No addresses found');
+      return;
+    }
 
     final stunAddress = stunAddresses.first;
+    _log.fine(' STUN: Using address ${stunAddress.address}');
 
     // Create a copy to avoid concurrent modification
     final hostCandidates =
         _localCandidates.where((c) => c.type == 'host').toList();
+    _log.fine(
+        '[ICE] STUN: Found ${hostCandidates.length} host candidates to probe');
 
     // Try to get reflexive candidates for each host candidate
     for (final hostCandidate in hostCandidates) {
+      _log.fine(
+          '[ICE] STUN: Probing from ${hostCandidate.host}:${hostCandidate.port}');
       try {
         final socket = _sockets[hostCandidate.foundation];
-        if (socket == null) continue;
+        if (socket == null) {
+          _log.fine(
+              '[ICE] STUN: No socket for foundation ${hostCandidate.foundation}');
+          continue;
+        }
 
-        // Create STUN protocol instance bound to this socket
-        final stun = StunProtocol(
-          socket: socket,
-          serverAddress: stunAddress,
-          serverPort: stunPort,
+        // Create STUN binding request
+        final request = StunMessage(
+          method: StunMethod.binding,
+          messageClass: StunClass.request,
         );
 
-        // Perform STUN binding request
-        final response = await stun.sendBindingRequest(
-          timeout: Duration(seconds: 3),
-        );
+        // Register pending transaction
+        final tid = request.transactionIdHex;
+        final completer = Completer<StunMessage>();
+        _pendingStunTransactions[tid] = completer;
+
+        // Send binding request directly via socket
+        _log.fine(
+            '[ICE] STUN: Sending binding request to ${stunAddress.address}:$stunPort (tid=$tid)');
+        final bytes = request.toBytes();
+        socket.send(bytes, stunAddress, stunPort);
+
+        // Wait for response with timeout
+        StunMessage response;
+        try {
+          response = await completer.future.timeout(
+            const Duration(seconds: 3),
+            onTimeout: () {
+              _pendingStunTransactions.remove(tid);
+              throw TimeoutException('STUN request timed out');
+            },
+          );
+        } catch (e) {
+          _pendingStunTransactions.remove(tid);
+          rethrow;
+        }
+        _log.fine(' STUN: Got response class=${response.messageClass}');
 
         // Extract mapped address from response
         if (response.messageClass == StunClass.successResponse) {
           final xorMapped =
               response.getAttribute(StunAttributeType.xorMappedAddress);
           final mapped = response.getAttribute(StunAttributeType.mappedAddress);
+          _log.fine(' STUN: xorMapped=$xorMapped, mapped=$mapped');
 
           final address = xorMapped ?? mapped;
           if (address != null) {
             final (mappedHost, mappedPort) = address as (String, int);
+            _log.fine(' STUN: Got reflexive address $mappedHost:$mappedPort');
 
             // Create server reflexive candidate
             final foundation =
@@ -537,10 +592,10 @@ class IceConnectionImpl implements IceConnection {
             _checkList.sort((a, b) => b.priority.compareTo(a.priority));
           }
         }
-
-        // Note: We don't close the StunProtocol here because we're reusing the socket
       } catch (e) {
         // Failed to get reflexive candidate for this host, continue
+        _log.fine(
+            '[ICE] STUN: Failed for ${hostCandidate.host}:${hostCandidate.port}: $e');
         continue;
       }
     }
@@ -702,6 +757,64 @@ class IceConnectionImpl implements IceConnection {
     });
   }
 
+  /// Generate a TCP active candidate to pair with a remote TCP passive candidate
+  /// RFC 6544: Active candidates have port 9 (discard port) as a placeholder
+  /// since the actual port is only known after connection establishment.
+  Future<void> _generateTcpActiveCandidate(Candidate remotePassive) async {
+    // Determine which local IP to use based on the remote candidate's IP version
+    final remoteIsV4 =
+        InternetAddress(remotePassive.host).type == InternetAddressType.IPv4;
+
+    // Get local addresses
+    final addresses = await getHostAddresses(
+      useIpv4: options.useIpv4,
+      useIpv6: options.useIpv6,
+      useLinkLocalAddress: false,
+    );
+    String? localHost;
+
+    for (final addr in addresses) {
+      final isV4 = InternetAddress(addr).type == InternetAddressType.IPv4;
+      if (isV4 == remoteIsV4) {
+        localHost = addr;
+        break;
+      }
+    }
+
+    if (localHost == null) {
+      _log.fine(
+          '[ICE-TCP] No matching local address for TCP active candidate (need ${remoteIsV4 ? 'IPv4' : 'IPv6'})');
+      return;
+    }
+
+    // Create TCP active candidate
+    // RFC 6544: Active candidates use port 9 (discard) as placeholder
+    final foundation = candidateFoundation('host', 'tcp', localHost);
+    final activeCandidate = Candidate(
+      foundation: foundation,
+      component: 1,
+      transport: 'tcp',
+      priority: candidatePriority('host',
+          transportPreference: 6), // TCP has lower preference than UDP
+      host: localHost,
+      port: 9, // RFC 6544: Active candidates use port 9
+      type: 'host',
+      tcpType: 'active',
+    );
+
+    // Check if we already have this candidate
+    final exists = _localCandidates.any((c) =>
+        c.transport.toLowerCase() == 'tcp' &&
+        c.tcpType == 'active' &&
+        c.host == localHost);
+
+    if (!exists) {
+      _localCandidates.add(activeCandidate);
+      _log.fine(
+          '[ICE-TCP] Generated TCP active candidate: ${activeCandidate.host}:${activeCandidate.port} tcptype=active');
+    }
+  }
+
   /// Handle data received through TURN relay
   void _handleTurnData(Address peerAddress, Uint8List data) {
     final (host, port) = peerAddress;
@@ -713,7 +826,7 @@ class IceConnectionImpl implements IceConnection {
     }
 
     // Non-STUN data - deliver to application layer
-    print(
+    _log.fine(
         '[ICE] Delivering ${data.length} bytes of TURN-relayed data to application');
     _dataController.add(data);
   }
@@ -723,6 +836,14 @@ class IceConnectionImpl implements IceConnection {
     if (_state != IceState.checking) {
       await gatherCandidates();
     }
+
+    _log.fine(
+        '[ICE] connect() called, local candidates: ${_localCandidates.length}, remote candidates: ${_remoteCandidates.length}');
+    _log.fine(
+        '[ICE] Local candidates: ${_localCandidates.map((c) => '${c.type}:${c.host}:${c.port}').join(', ')}');
+    _log.fine(
+        '[ICE] Remote candidates: ${_remoteCandidates.map((c) => '${c.type}:${c.host}:${c.port}').join(', ')}');
+    _log.fine(' Check list size: ${_checkList.length}');
 
     // Transition to checking state before performing checks
     _setState(IceState.checking);
@@ -734,15 +855,25 @@ class IceConnectionImpl implements IceConnection {
   /// Perform connectivity checks on candidate pairs
   /// Uses multiple rounds with retries for trickle ICE scenarios
   Future<void> _performConnectivityChecks() async {
+    final labelStr = debugLabel.isNotEmpty ? ':$debugLabel' : '';
+
     // In trickle ICE, checklist may be empty initially
     // Don't fail immediately - wait for candidates to arrive
     if (_checkList.isEmpty) {
+      _log.fine('$labelStr Check list is EMPTY');
       if (_remoteCandidatesEnd) {
         // Only fail if we know no more candidates are coming
         _setState(IceState.failed);
       }
       // Otherwise, just stay in checking state and wait for trickle ICE candidates
       return;
+    }
+
+    _log.fine(
+        '$labelStr Starting connectivity checks with ${_checkList.length} pairs');
+    for (final pair in _checkList) {
+      _log.fine(
+          '$labelStr   - ${pair.localCandidate.host}:${pair.localCandidate.port} -> ${pair.remoteCandidate.host}:${pair.remoteCandidate.port}');
     }
 
     // RFC 5245: Perform checks with retries
@@ -752,7 +883,7 @@ class IceConnectionImpl implements IceConnection {
 
     for (var round = 0; round < maxRounds; round++) {
       if (round > 0) {
-        print('[ICE] Connectivity check round ${round + 1}/$maxRounds');
+        _log.fine('$labelStr Connectivity check round ${round + 1}/$maxRounds');
         await Future.delayed(delayBetweenRounds);
       }
 
@@ -774,12 +905,21 @@ class IceConnectionImpl implements IceConnection {
         }
 
         // Attempt connectivity check
+        final labelStr = debugLabel.isNotEmpty ? ':$debugLabel' : '';
+        final localAddr =
+            '${pair.localCandidate.host}:${pair.localCandidate.port}';
+        final remoteAddr =
+            '${pair.remoteCandidate.host}:${pair.remoteCandidate.port}';
+        _log.fine('$labelStr Checking pair $localAddr -> $remoteAddr');
         final success = await _performConnectivityCheck(pair);
+        _log.fine('$labelStr Check result: ${success ? 'SUCCESS' : 'FAILED'}');
 
         if (success) {
           pair.updateState(CandidatePairState.succeeded);
 
           // First successful pair transitions to connected
+          _log.fine(
+              '[ICE$labelStr] Current state=$_state, checking transition to connected');
           if (_state == IceState.checking) {
             _setState(IceState.connected);
           }
@@ -821,6 +961,8 @@ class IceConnectionImpl implements IceConnection {
       if (event == RawSocketEvent.read) {
         final datagram = socket.receive();
         if (datagram != null) {
+          _log.fine(
+              '[ICE] Socket received ${datagram.data.length} bytes from ${datagram.address.address}:${datagram.port}');
           _handleIncomingData(datagram.data, datagram.address, datagram.port);
         }
       }
@@ -837,7 +979,7 @@ class IceConnectionImpl implements IceConnection {
 
     // Non-STUN data - deliver to application layer
     // This would be DTLS data in a real WebRTC connection
-    print(
+    _log.fine(
         '[ICE] Delivering ${data.length} bytes of non-STUN data to application');
     _dataController.add(data);
   }
@@ -847,12 +989,12 @@ class IceConnectionImpl implements IceConnection {
     try {
       final message = parseStunMessage(data);
       if (message == null) {
-        print(
+        _log.fine(
             '[ICE] Failed to parse STUN message from ${address.address}:$port');
         return; // Invalid STUN message
       }
 
-      print(
+      _log.fine(
           '[ICE] Received STUN ${message.messageClass} from ${address.address}:$port');
 
       // Check if this is a response to a pending transaction
@@ -861,18 +1003,18 @@ class IceConnectionImpl implements IceConnection {
         final tid = message.transactionIdHex;
         final completer = _pendingStunTransactions.remove(tid);
         if (completer != null && !completer.isCompleted) {
-          print('[ICE] STUN response matched pending transaction');
+          _log.fine(' STUN response matched pending transaction');
           completer.complete(message);
         } else {
-          print('[ICE] STUN response for unknown transaction: $tid');
+          _log.fine(' STUN response for unknown transaction: $tid');
         }
       } else if (message.messageClass == StunClass.request) {
         // Handle incoming STUN requests (binding requests from remote peer)
-        print('[ICE] Processing incoming STUN binding request');
+        _log.fine(' Processing incoming STUN binding request');
         _handleStunRequest(message, address, port);
       }
     } catch (e) {
-      print('[ICE] Error handling STUN message: $e');
+      _log.fine(' Error handling STUN message: $e');
     }
   }
 
@@ -887,7 +1029,7 @@ class IceConnectionImpl implements IceConnection {
     );
 
     // Add XOR-MAPPED-ADDRESS with the source address/port
-    print(
+    _log.fine(
         '[ICE] Creating response with XOR-MAPPED-ADDRESS: (${address.address}, $port)');
     response.setAttribute(
       StunAttributeType.xorMappedAddress,
@@ -930,9 +1072,9 @@ class IceConnectionImpl implements IceConnection {
     if (sendSocket != null) {
       final responseBytes = response.toBytes();
       sendSocket.send(responseBytes, address, port);
-      print('[ICE] Sent STUN response to ${address.address}:$port');
+      _log.fine(' Sent STUN response to ${address.address}:$port');
     } else {
-      print('[ICE] No socket available to send STUN response');
+      _log.fine(' No socket available to send STUN response');
     }
   }
 
@@ -945,7 +1087,7 @@ class IceConnectionImpl implements IceConnection {
           pair.remoteCandidate.port == remotePort) {
         // Mark this pair as succeeded (we received a valid check and responded)
         if (pair.state != CandidatePairState.succeeded) {
-          print('[ICE] Triggered check succeeded for $remoteHost:$remotePort');
+          _log.fine(' Triggered check succeeded for $remoteHost:$remotePort');
           pair.updateState(CandidatePairState.succeeded);
 
           // First successful pair transitions to connected
@@ -966,7 +1108,7 @@ class IceConnectionImpl implements IceConnection {
     // No matching pair found - create peer reflexive candidate (RFC 5245 Section 7.2.1.3)
     // This handles the case where remote candidate was added with mDNS hostname (.local)
     // but binding request arrives from actual IP address
-    print(
+    _log.fine(
         '[ICE] Creating peer reflexive candidate for $remoteHost:$remotePort');
 
     // Create peer reflexive remote candidate
@@ -996,7 +1138,7 @@ class IceConnectionImpl implements IceConnection {
       _checkList.add(pair);
 
       // Mark this new pair as succeeded immediately
-      print(
+      _log.fine(
           '[ICE] Triggered check succeeded for prflx $remoteHost:$remotePort');
       pair.updateState(CandidatePairState.succeeded);
 
@@ -1041,8 +1183,14 @@ class IceConnectionImpl implements IceConnection {
       final localCandidate = pair.localCandidate;
       final remoteCandidate = pair.remoteCandidate;
 
-      print(
-          '[ICE] Checking ${localCandidate.host}:${localCandidate.port} -> ${remoteCandidate.host}:${remoteCandidate.port} (controlling: $_iceControlling)');
+      _log.fine(
+          '[ICE] Checking ${localCandidate.host}:${localCandidate.port} -> ${remoteCandidate.host}:${remoteCandidate.port} (transport=${localCandidate.transport}, controlling: $_iceControlling)');
+
+      // Check if this is a TCP candidate pair
+      final isTcp = localCandidate.transport.toLowerCase() == 'tcp';
+      if (isTcp) {
+        return _performTcpConnectivityCheck(pair);
+      }
 
       // For relay candidates, we need TURN client
       final isRelay = localCandidate.type == 'relay';
@@ -1055,9 +1203,9 @@ class IceConnectionImpl implements IceConnection {
       if (!isRelay) {
         socket = _sockets[localCandidate.foundation];
         if (socket == null) {
-          print(
+          _log.fine(
               '[ICE] ERROR: Socket not found for foundation ${localCandidate.foundation}');
-          print('[ICE] Available sockets: ${_sockets.keys.toList()}');
+          _log.fine(' Available sockets: ${_sockets.keys.toList()}');
           return false;
         }
       }
@@ -1099,6 +1247,9 @@ class IceConnectionImpl implements IceConnection {
         request.addMessageIntegrity(passwordBytes);
       }
 
+      // Add FINGERPRINT (required by RFC 8445 for ICE)
+      request.addFingerprint();
+
       // Register pending transaction
       final tid = request.transactionIdHex;
       final completer = Completer<StunMessage>();
@@ -1106,7 +1257,7 @@ class IceConnectionImpl implements IceConnection {
 
       // Send request - via TURN for relay candidates, direct for others
       final requestBytes = request.toBytes();
-      print(
+      _log.fine(
           '[ICE] Sending STUN request (${requestBytes.length} bytes) to ${remoteCandidate.host}:${remoteCandidate.port}');
       if (isRelay) {
         final peerAddress = (remoteCandidate.host, remoteCandidate.port);
@@ -1141,10 +1292,166 @@ class IceConnectionImpl implements IceConnection {
     }
   }
 
+  /// Perform TCP connectivity check for a candidate pair
+  /// RFC 6544: TCP ICE connectivity checks
+  Future<bool> _performTcpConnectivityCheck(CandidatePair pair) async {
+    final localCandidate = pair.localCandidate;
+    final remoteCandidate = pair.remoteCandidate;
+
+    _log.fine(
+        '[ICE-TCP] Checking ${localCandidate.host}:${localCandidate.port} (tcptype=${localCandidate.tcpType}) -> ${remoteCandidate.host}:${remoteCandidate.port} (tcptype=${remoteCandidate.tcpType})');
+
+    // Only active candidates can initiate TCP connections
+    if (localCandidate.tcpType != 'active') {
+      _log.fine(
+          '[ICE-TCP] Skipping check - local candidate is not active (tcptype=${localCandidate.tcpType})');
+      return false;
+    }
+
+    // Remote must be passive for active to connect
+    if (remoteCandidate.tcpType != 'passive') {
+      _log.fine(
+          '[ICE-TCP] Skipping check - remote candidate is not passive (tcptype=${remoteCandidate.tcpType})');
+      return false;
+    }
+
+    try {
+      // Create TCP connection to remote passive candidate
+      final tcpConnection = IceTcpConnection(
+        remoteAddress: InternetAddress(remoteCandidate.host),
+        remotePort: remoteCandidate.port,
+        localTcpType: IceTcpType.active,
+      );
+
+      _log.fine(
+          '[ICE-TCP] Connecting to ${remoteCandidate.host}:${remoteCandidate.port}...');
+
+      // Connect with timeout
+      await tcpConnection.connect().timeout(
+            const Duration(seconds: 10),
+            onTimeout: () => throw TimeoutException('TCP connection timed out'),
+          );
+
+      _log.fine('[TCP] TCP connection established!');
+
+      // Store the connection for later use
+      final connectionKey = '${remoteCandidate.host}:${remoteCandidate.port}';
+      _tcpConnections[connectionKey] = tcpConnection;
+
+      // Create STUN binding request with ICE credentials
+      final request = StunMessage(
+        method: StunMethod.binding,
+        messageClass: StunClass.request,
+      );
+
+      // Add USERNAME attribute (remote:local for requests)
+      request.setAttribute(
+        StunAttributeType.username,
+        '$_remoteUsername:$_localUsername',
+      );
+
+      // Add PRIORITY attribute
+      request.setAttribute(
+        StunAttributeType.priority,
+        localCandidate.priority,
+      );
+
+      // Add ICE-CONTROLLING or ICE-CONTROLLED attribute
+      if (_iceControlling) {
+        request.setAttribute(StunAttributeType.iceControlling, _tieBreaker);
+        request.setAttribute(StunAttributeType.useCandidate, null);
+      } else {
+        request.setAttribute(StunAttributeType.iceControlled, _tieBreaker);
+      }
+
+      // Add MESSAGE-INTEGRITY
+      if (_remotePassword.isNotEmpty) {
+        final passwordBytes = Uint8List.fromList(_remotePassword.codeUnits);
+        request.addMessageIntegrity(passwordBytes);
+      }
+
+      // Add FINGERPRINT
+      request.addFingerprint();
+
+      // Register pending transaction
+      final tid = request.transactionIdHex;
+      final completer = Completer<StunMessage>();
+      _pendingStunTransactions[tid] = completer;
+
+      // Set up listener for STUN responses over TCP
+      final subscription = tcpConnection.onMessage.listen((data) {
+        if (_isStunMessage(data)) {
+          final response = parseStunMessage(data);
+          if (response != null &&
+              (response.messageClass == StunClass.successResponse ||
+                  response.messageClass == StunClass.errorResponse)) {
+            final responseTid = response.transactionIdHex;
+            final pendingCompleter = _pendingStunTransactions[responseTid];
+            if (pendingCompleter != null && !pendingCompleter.isCompleted) {
+              _pendingStunTransactions.remove(responseTid);
+              pendingCompleter.complete(response);
+            }
+          }
+        }
+      });
+
+      // Send STUN request over TCP
+      final requestBytes = request.toBytes();
+      _log.fine(
+          '[ICE-TCP] Sending STUN request (${requestBytes.length} bytes) over TCP');
+      await tcpConnection.send(requestBytes);
+
+      // Wait for response
+      try {
+        final response = await completer.future.timeout(
+          const Duration(seconds: 5),
+          onTimeout: () {
+            _pendingStunTransactions.remove(tid);
+            throw TimeoutException('STUN TCP connectivity check timed out');
+          },
+        );
+
+        await subscription.cancel();
+
+        if (response.messageClass == StunClass.successResponse) {
+          _log.fine('[TCP] Connectivity check SUCCEEDED!');
+          pair.stats.packetsReceived++;
+
+          // Set up listener for application data
+          tcpConnection.onMessage.listen((data) {
+            if (!_isStunMessage(data)) {
+              if (!_dataController.isClosed) {
+                _dataController.add(data);
+              }
+            }
+          });
+
+          return true;
+        }
+
+        _log.fine('[TCP] Connectivity check failed - not a success response');
+        await tcpConnection.close();
+        _tcpConnections.remove(connectionKey);
+        return false;
+      } catch (e) {
+        _log.fine('[TCP] Connectivity check failed: $e');
+        await subscription.cancel();
+        _pendingStunTransactions.remove(tid);
+        await tcpConnection.close();
+        _tcpConnections.remove(connectionKey);
+        return false;
+      }
+    } catch (e) {
+      _log.fine('[TCP] TCP connectivity check failed: $e');
+      return false;
+    }
+  }
+
   @override
   Future<void> addRemoteCandidate(Candidate? candidate) async {
     if (candidate == null) {
       _remoteCandidatesEnd = true;
+      _log.fine(' Remote candidate end-of-candidates marker received');
       return;
     }
 
@@ -1153,6 +1460,15 @@ class IceConnectionImpl implements IceConnection {
 
     // Add to remote candidates
     _remoteCandidates.add(candidate);
+    _log.fine(
+        '[ICE] Added remote candidate: ${candidate.type} ${candidate.transport} ${candidate.host}:${candidate.port} tcptype=${candidate.tcpType}');
+
+    // For TCP passive remote candidates, generate a TCP active local candidate
+    // RFC 6544: Active candidates initiate connections to passive candidates
+    if (candidate.transport.toLowerCase() == 'tcp' &&
+        candidate.tcpType?.toLowerCase() == 'passive') {
+      await _generateTcpActiveCandidate(candidate);
+    }
 
     // Create pairs with local candidates
     final newPairs = <CandidatePair>[];
@@ -1166,8 +1482,15 @@ class IceConnectionImpl implements IceConnection {
         );
         _checkList.add(pair);
         newPairs.add(pair);
+        _log.fine(
+            '[ICE] Created pair: ${local.type}:${local.transport}:${local.host}:${local.port} (tcptype=${local.tcpType}) <-> ${candidate.type}:${candidate.transport}:${candidate.host}:${candidate.port} (tcptype=${candidate.tcpType})');
+      } else {
+        _log.fine(
+            '[ICE] Cannot pair: ${local.type}:${local.transport}:${local.host} (comp=${local.component}, tcptype=${local.tcpType}) with ${candidate.type}:${candidate.transport}:${candidate.host} (comp=${candidate.component}, tcptype=${candidate.tcpType})');
       }
     }
+    _log.fine(
+        '[ICE] Created ${newPairs.length} new pairs, total checklist size: ${_checkList.length}');
 
     // Sort pairs by priority
     _checkList.sort((a, b) => b.priority.compareTo(a.priority));

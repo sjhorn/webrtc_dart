@@ -1,5 +1,8 @@
 import 'dart:typed_data';
+
 import 'package:pointycastle/export.dart' as pc;
+
+import 'package:webrtc_dart/src/common/logging.dart';
 import 'package:webrtc_dart/src/dtls/cipher/const.dart';
 import 'package:webrtc_dart/src/dtls/cipher/key_derivation.dart';
 import 'package:webrtc_dart/src/dtls/context/cipher_context.dart';
@@ -21,6 +24,8 @@ import 'package:webrtc_dart/src/dtls/handshake/message/client_key_exchange.dart'
 import 'package:webrtc_dart/src/dtls/handshake/message/finished.dart';
 import 'package:webrtc_dart/src/dtls/record/const.dart';
 import 'package:webrtc_dart/src/dtls/record/record_layer.dart';
+
+final _log = WebRtcLogging.dtlsFlight;
 
 /// Flight 1: Initial ClientHello (without cookie)
 class ClientFlight1 extends Flight {
@@ -218,11 +223,11 @@ class ClientFlight3 extends Flight {
         // Send actual certificate
         final certMessage = Certificate.single(certToSend);
         certBody = certMessage.serialize();
-        print('[CLIENT] Sending Certificate with ${certToSend.length} bytes');
+        _log.fine('Sending Certificate with ${certToSend.length} bytes');
       } else {
         // Fallback to empty certificate (should not happen in WebRTC)
         certBody = Uint8List(3); // 3 zero bytes = empty certificate list
-        print('[CLIENT] Warning: Sending empty Certificate message');
+        _log.warning('Sending empty Certificate message');
       }
 
       final certSeq = dtlsContext.getNextHandshakeMessageSeq();
@@ -234,7 +239,7 @@ class ClientFlight3 extends Flight {
       // Add full message with header to handshake buffer
       dtlsContext.addHandshakeMessage(certMsg);
       messages.add(recordLayer.wrapHandshake(certMsg).serialize());
-      print('[CLIENT] Sent Certificate message (seq=$certSeq)');
+      _log.fine('Sent Certificate message (seq=$certSeq)');
     }
 
     // 3. ClientKeyExchange
@@ -252,15 +257,15 @@ class ClientFlight3 extends Flight {
       // Add full message with header to handshake buffer
       dtlsContext.addHandshakeMessage(ckeMsg);
       messages.add(recordLayer.wrapHandshake(ckeMsg).serialize());
-      print('[CLIENT] Sent ClientKeyExchange (seq=$ckeSeq)');
+      _log.fine('Sent ClientKeyExchange (seq=$ckeSeq)');
     }
 
     // 4. Derive master secret and initialize ciphers
     // This must happen AFTER Certificate and ClientKeyExchange are in the buffer
     // (required for extended master secret per RFC 7627)
     if (dtlsContext.masterSecret == null) {
-      print(
-          '[CLIENT] Deriving master secret (extended=${dtlsContext.useExtendedMasterSecret})');
+      _log.fine(
+          'Deriving master secret (extended=${dtlsContext.useExtendedMasterSecret})');
       final masterSecret = KeyDerivation.deriveMasterSecret(
         dtlsContext,
         cipherContext,
@@ -289,14 +294,14 @@ class ClientFlight3 extends Flight {
         cipherContext.localSigningKey != null) {
       // Get all handshake messages concatenated for signing
       final handshakeData = dtlsContext.getAllHandshakeMessages();
-      print(
-          '[CLIENT] CertificateVerify: signing ${handshakeData.length} bytes of handshake data');
-      print(
-          '[CLIENT] Handshake messages count: ${dtlsContext.handshakeMessages.length}');
+      _log.fine(
+          'CertificateVerify: signing ${handshakeData.length} bytes of handshake data');
+      _log.fine(
+          'Handshake messages count: ${dtlsContext.handshakeMessages.length}');
       for (var i = 0; i < dtlsContext.handshakeMessages.length; i++) {
         final msg = dtlsContext.handshakeMessages[i];
         final msgType = msg.isNotEmpty ? msg[0] : -1;
-        print('[CLIENT]   Message $i: type=$msgType, length=${msg.length}');
+        _log.fine('  Message $i: type=$msgType, length=${msg.length}');
       }
 
       // Sign the handshake hash with our private key
@@ -318,8 +323,8 @@ class ClientFlight3 extends Flight {
       // Add to handshake buffer (needed for Finished calculation)
       dtlsContext.addHandshakeMessage(certVerifyMsg);
       messages.add(recordLayer.wrapHandshake(certVerifyMsg).serialize());
-      print(
-          '[CLIENT] Sent CertificateVerify (seq=$certVerifySeq, signature=${signature.length} bytes)');
+      _log.fine(
+          'Sent CertificateVerify (seq=$certVerifySeq, signature=${signature.length} bytes)');
     }
 
     // 6. ChangeCipherSpec
@@ -348,8 +353,8 @@ class ClientFlight3 extends Flight {
     );
     // Add full message with header to handshake buffer (AFTER computing verify_data)
     dtlsContext.addHandshakeMessage(finishedMsg);
-    print(
-        '[CLIENT] Sending Finished (seq=$finishedSeq, verify_data=${verifyData.length} bytes)');
+    _log.fine(
+        'Sending Finished (seq=$finishedSeq, verify_data=${verifyData.length} bytes)');
 
     // Finished message should be encrypted
     final finishedRecord = recordLayer.wrapHandshake(finishedMsg);

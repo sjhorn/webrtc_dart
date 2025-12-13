@@ -70,6 +70,11 @@ class FlightState {
     lastSentTime = DateTime.now();
   }
 
+  /// Mark as not sent (for retransmission)
+  void markNotSent() {
+    sent = false;
+  }
+
   /// Mark as retransmitted
   void markRetransmitted() {
     retransmitCount++;

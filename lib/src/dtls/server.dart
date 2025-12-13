@@ -1,14 +1,18 @@
 import 'dart:typed_data';
+
+import 'package:webrtc_dart/src/common/logging.dart';
 import 'package:webrtc_dart/src/dtls/cipher/const.dart';
 import 'package:webrtc_dart/src/dtls/cipher/key_derivation.dart';
 import 'package:webrtc_dart/src/dtls/context/cipher_context.dart';
 import 'package:webrtc_dart/src/dtls/handshake/const.dart';
-import 'package:webrtc_dart/src/dtls/handshake/handshake_header.dart';
 import 'package:webrtc_dart/src/dtls/handshake/message/alert.dart';
 import 'package:webrtc_dart/src/dtls/record/const.dart';
+import 'package:webrtc_dart/src/dtls/record/fragment.dart';
 import 'package:webrtc_dart/src/dtls/record/record_layer.dart';
 import 'package:webrtc_dart/src/dtls/server_handshake.dart';
 import 'package:webrtc_dart/src/dtls/socket.dart';
+
+final _log = WebRtcLogging.dtlsServer;
 
 /// DTLS Server
 /// Responds to DTLS handshake as the server
@@ -36,6 +40,10 @@ class DtlsServer extends DtlsSocket {
 
   /// Buffer for future-epoch records
   final List<Uint8List> _futureEpochBuffer = [];
+
+  /// Buffer for handshake fragment reassembly
+  /// Key: (messageSeq, messageType) -> list of fragments
+  final Map<(int, int), List<FragmentedHandshake>> _fragmentBuffer = {};
 
   DtlsServer({
     required super.transport,
@@ -67,6 +75,7 @@ class DtlsServer extends DtlsSocket {
     _handshakeCoordinator = ServerHandshakeCoordinator(
       dtlsContext: dtlsContext,
       cipherContext: this.cipherContext,
+      srtpContext: srtpContext,
       recordLayer: _recordLayer,
       flightManager: flightManager,
       cipherSuites: this.cipherSuites,
@@ -124,13 +133,13 @@ class DtlsServer extends DtlsSocket {
 
             case ContentType.changeCipherSpec:
               // CCS received - increment read epoch for decryption
-              print('[SERVER] Received ChangeCipherSpec');
+              _log.fine('Received ChangeCipherSpec');
               dtlsContext.readEpoch++;
 
               // Reprocess buffered future-epoch records
               if (_futureEpochBuffer.isNotEmpty) {
-                print(
-                  '[SERVER] Reprocessing ${_futureEpochBuffer.length} buffered records',
+                _log.fine(
+                  'Reprocessing ${_futureEpochBuffer.length} buffered records',
                 );
                 final buffered = List<Uint8List>.from(_futureEpochBuffer);
                 _futureEpochBuffer.clear();
@@ -164,11 +173,13 @@ class DtlsServer extends DtlsSocket {
         }
 
         // Check if handshake is complete
+        _log.fine(
+            'Checking handshake: isComplete=${_handshakeCoordinator.isComplete}, isConnected=$isConnected');
         if (_handshakeCoordinator.isComplete && !isConnected) {
           _onHandshakeComplete();
         }
       } catch (e) {
-        print('[SERVER] Error processing data: $e');
+        _log.warning('Error processing data: $e');
         errorController.add(e);
         setState(DtlsSocketState.failed);
       }
@@ -177,23 +188,74 @@ class DtlsServer extends DtlsSocket {
 
   /// Process handshake record
   /// Note: A single record may contain multiple handshake messages
+  /// Handles fragmented messages by buffering and reassembling
   Future<void> _processHandshakeRecord(Uint8List data) async {
-    // Parse all handshake messages from the record
-    final messages = HandshakeMessage.parseMultiple(data);
+    // Parse all handshake fragments from the record
+    var offset = 0;
+    while (offset < data.length) {
+      if (data.length - offset < 12) break;
 
-    // Process each message via coordinator
-    for (final handshakeMsg in messages) {
-      // Pass the full message (header + body) for handshake buffer
-      // Use rawBytes if available to preserve original bytes for handshake hash
-      await _handshakeCoordinator.processHandshakeWithType(
-        handshakeMsg.header.messageType,
-        handshakeMsg.body,
-        fullMessage: handshakeMsg.rawBytes ?? handshakeMsg.serialize(),
-      );
+      final fragment = FragmentedHandshake.deserialize(data.sublist(offset));
+      offset += 12 + fragment.fragmentLength;
+
+      _log.fine(
+          'Received fragment: type=${fragment.msgType}, seq=${fragment.messageSeq}, '
+          'offset=${fragment.fragmentOffset}/${fragment.length}, fragLen=${fragment.fragmentLength}');
+
+      // Check if this is a complete message (not fragmented)
+      if (fragment.fragmentOffset == 0 &&
+          fragment.fragmentLength == fragment.length) {
+        // Complete message - process immediately
+        await _processCompleteHandshake(fragment);
+      } else {
+        // Fragmented message - buffer and reassemble
+        final key = (fragment.messageSeq, fragment.msgType);
+        _fragmentBuffer.putIfAbsent(key, () => []);
+        _fragmentBuffer[key]!.add(fragment);
+
+        // Check if we have all fragments
+        final fragments = _fragmentBuffer[key]!;
+        final totalReceived =
+            fragments.fold<int>(0, (sum, f) => sum + f.fragmentLength);
+
+        if (totalReceived >= fragment.length) {
+          // We have all fragments - reassemble
+          _log.fine(
+              'Reassembling ${fragments.length} fragments for message ${fragment.msgType}');
+          final assembled = FragmentedHandshake.assemble(fragments);
+          _fragmentBuffer.remove(key);
+          await _processCompleteHandshake(assembled);
+        }
+      }
     }
 
     // Send any pending flights
     await _sendPendingFlights();
+  }
+
+  /// Process a complete (reassembled) handshake message
+  Future<void> _processCompleteHandshake(FragmentedHandshake fragment) async {
+    final messageType = HandshakeType.fromValue(fragment.msgType);
+    if (messageType == null) {
+      _log.warning('Unknown handshake type: ${fragment.msgType}');
+      return;
+    }
+
+    // Create full message bytes for handshake hash (header + body)
+    final fullMessage = FragmentedHandshake(
+      msgType: fragment.msgType,
+      length: fragment.length,
+      messageSeq: fragment.messageSeq,
+      fragmentOffset: 0,
+      fragmentLength: fragment.length,
+      fragment: fragment.fragment,
+    ).serialize();
+
+    await _handshakeCoordinator.processHandshakeWithType(
+      messageType,
+      fragment.fragment,
+      fullMessage: fullMessage,
+    );
   }
 
   /// Send pending flights
@@ -202,8 +264,8 @@ class DtlsServer extends DtlsSocket {
     if (currentFlight != null &&
         !currentFlight.sent &&
         currentFlight.messages.isNotEmpty) {
-      print(
-        '[SERVER] Sending flight ${currentFlight.flight.flightNumber} with ${currentFlight.messages.length} messages',
+      _log.fine(
+        'Sending flight ${currentFlight.flight.flightNumber} with ${currentFlight.messages.length} messages',
       );
       for (final message in currentFlight.messages) {
         await transport.send(message);
@@ -214,17 +276,45 @@ class DtlsServer extends DtlsSocket {
 
   /// Called when handshake completes
   void _onHandshakeComplete() {
-    print('[SERVER] Handshake complete!');
+    _log.info('Handshake complete!');
 
-    // Export SRTP keys
-    final srtpKeyMaterial = KeyDerivation.exportSrtpKeys(
-      dtlsContext,
-      60, // Standard SRTP key material length
-      false, // isClient
-    );
+    // Export SRTP keys if profile was negotiated
+    if (srtpContext.profile != null) {
+      final srtpKeyMaterial = KeyDerivation.exportSrtpKeys(
+        dtlsContext,
+        srtpContext.keyMaterialLength,
+        false, // isClient
+      );
 
-    // Store in SRTP context
-    srtpContext.keyMaterial = srtpKeyMaterial;
+      // Store raw material and extract individual keys
+      srtpContext.keyMaterial = srtpKeyMaterial;
+      srtpContext.extractKeys(srtpKeyMaterial, false);
+
+      _log.fine('Exported SRTP keys for profile ${srtpContext.profile}');
+      _log.fine(
+          'Local key: ${srtpContext.localMasterKey?.length} bytes, salt: ${srtpContext.localMasterSalt?.length} bytes');
+      _log.fine(
+          'Remote key: ${srtpContext.remoteMasterKey?.length} bytes, salt: ${srtpContext.remoteMasterSalt?.length} bytes');
+      // Debug: print actual keys
+      final localKeyHex = srtpContext.localMasterKey
+          ?.map((b) => b.toRadixString(16).padLeft(2, '0'))
+          .join(' ');
+      final localSaltHex = srtpContext.localMasterSalt
+          ?.map((b) => b.toRadixString(16).padLeft(2, '0'))
+          .join(' ');
+      final remoteKeyHex = srtpContext.remoteMasterKey
+          ?.map((b) => b.toRadixString(16).padLeft(2, '0'))
+          .join(' ');
+      final remoteSaltHex = srtpContext.remoteMasterSalt
+          ?.map((b) => b.toRadixString(16).padLeft(2, '0'))
+          .join(' ');
+      _log.fine('localMasterKey: $localKeyHex');
+      _log.fine('localMasterSalt: $localSaltHex');
+      _log.fine('remoteMasterKey: $remoteKeyHex');
+      _log.fine('remoteMasterSalt: $remoteSaltHex');
+    } else {
+      _log.fine('No SRTP profile negotiated, skipping key export');
+    }
 
     // Mark as connected
     dtlsContext.handshakeComplete = true;
@@ -235,21 +325,21 @@ class DtlsServer extends DtlsSocket {
   Future<void> _processAlert(Uint8List data) async {
     try {
       final alert = Alert.parse(data);
-      print('[SERVER] Received alert: $alert');
+      _log.fine('Received alert: $alert');
 
       if (alert.isFatal) {
-        print('[SERVER] Fatal alert received, closing connection');
+        _log.warning('Fatal alert received, closing connection');
         errorController.add(Exception('Fatal alert: ${alert.description}'));
         setState(DtlsSocketState.failed);
         await close();
       } else if (alert.description == AlertDescription.closeNotify) {
-        print('[SERVER] Close notify received, closing connection');
+        _log.fine('Close notify received, closing connection');
         await close();
       } else {
-        print('[SERVER] Warning alert: ${alert.description}');
+        _log.warning('Alert: ${alert.description}');
       }
     } catch (e) {
-      print('[SERVER] Error processing alert: $e');
+      _log.warning('Error processing alert: $e');
       errorController.add(e);
     }
   }
@@ -260,9 +350,9 @@ class DtlsServer extends DtlsSocket {
       final alertRecord = _recordLayer.wrapAlert(alert);
       final serialized = await _recordLayer.encryptRecord(alertRecord);
       await transport.send(serialized);
-      print('[SERVER] Sent alert: $alert');
+      _log.fine('Sent alert: $alert');
     } catch (e) {
-      print('[SERVER] Error sending alert: $e');
+      _log.warning('Error sending alert: $e');
     }
   }
 }

@@ -1,20 +1,25 @@
 import 'dart:typed_data';
+
+import 'package:pointycastle/export.dart';
+import 'package:webrtc_dart/src/common/logging.dart';
 import 'package:webrtc_dart/src/dtls/cipher/const.dart';
 import 'package:webrtc_dart/src/dtls/cipher/ecdh.dart';
 import 'package:webrtc_dart/src/dtls/cipher/key_derivation.dart';
 import 'package:webrtc_dart/src/dtls/context/cipher_context.dart';
 import 'package:webrtc_dart/src/dtls/context/dtls_context.dart';
+import 'package:webrtc_dart/src/dtls/context/srtp_context.dart';
 import 'package:webrtc_dart/src/dtls/flight/client_flights.dart';
 import 'package:webrtc_dart/src/dtls/flight/flight.dart';
 import 'package:webrtc_dart/src/dtls/handshake/const.dart';
 import 'package:webrtc_dart/src/dtls/handshake/message/certificate.dart';
+import 'package:webrtc_dart/src/dtls/handshake/message/finished.dart';
 import 'package:webrtc_dart/src/dtls/handshake/message/hello_verify_request.dart';
 import 'package:webrtc_dart/src/dtls/handshake/message/server_hello.dart';
 import 'package:webrtc_dart/src/dtls/handshake/message/server_hello_done.dart';
 import 'package:webrtc_dart/src/dtls/handshake/message/server_key_exchange.dart';
-import 'package:webrtc_dart/src/dtls/handshake/message/finished.dart';
 import 'package:webrtc_dart/src/dtls/record/record_layer.dart';
-import 'package:pointycastle/export.dart';
+
+final _log = WebRtcLogging.dtlsClient;
 
 /// Client handshake state
 enum ClientHandshakeState {
@@ -34,6 +39,7 @@ enum ClientHandshakeState {
 class ClientHandshakeCoordinator {
   final DtlsContext dtlsContext;
   final CipherContext cipherContext;
+  final SrtpContext? srtpContext;
   final DtlsRecordLayer recordLayer;
   final FlightManager flightManager;
   final List<CipherSuite> cipherSuites;
@@ -46,6 +52,7 @@ class ClientHandshakeCoordinator {
   ClientHandshakeCoordinator({
     required this.dtlsContext,
     required this.cipherContext,
+    this.srtpContext,
     required this.recordLayer,
     required this.flightManager,
     required this.cipherSuites,
@@ -96,7 +103,7 @@ class ClientHandshakeCoordinator {
     Uint8List body, {
     Uint8List? fullMessage,
   }) async {
-    print('[CLIENT] Processing $messageType in state $_state');
+    _log.fine('Processing $messageType in state $_state');
     switch (messageType) {
       case HandshakeType.helloVerifyRequest:
         await _processHelloVerifyRequest(body);
@@ -164,20 +171,20 @@ class ClientHandshakeCoordinator {
     // RFC 6347 Section 4.2.1: HelloVerifyRequest is optional
     // Server may skip it and send ServerHello directly
     if (_state == ClientHandshakeState.waitingForHelloVerifyRequest) {
-      print('[CLIENT] Server skipped HelloVerifyRequest, proceeding directly');
+      _log.fine('Server skipped HelloVerifyRequest, proceeding directly');
       // Mark Flight 1 as complete
       flightManager.moveToNextFlight();
       _state = ClientHandshakeState.waitingForServerHello;
 
       // Important: The ClientHello is already in the handshake buffer from Flight 1
       // Server will include it in its verify_data calculation
-      print(
-          '[CLIENT] Handshake buffer has ${dtlsContext.handshakeMessages.length} messages after ClientHello');
+      _log.fine(
+          'Handshake buffer has ${dtlsContext.handshakeMessages.length} messages after ClientHello');
     }
 
     if (_state != ClientHandshakeState.waitingForServerHello) {
       // DTLS retransmission - silently ignore duplicate messages from previous flights
-      print('[CLIENT] Ignoring retransmitted ServerHello in state $_state');
+      _log.fine('Ignoring retransmitted ServerHello in state $_state');
       return;
     }
 
@@ -188,17 +195,25 @@ class ClientHandshakeCoordinator {
 
     // Store selected cipher suite
     cipherContext.cipherSuite = serverHello.cipherSuite;
-    print('[CLIENT] Selected cipher suite: ${serverHello.cipherSuite}');
+    _log.fine('Selected cipher suite: ${serverHello.cipherSuite}');
 
     // Check if server echoed extended master secret extension
     dtlsContext.useExtendedMasterSecret = serverHello.hasExtendedMasterSecret;
-    print(
-        '[CLIENT] Extended master secret: ${dtlsContext.useExtendedMasterSecret}');
+    _log.fine('Extended master secret: ${dtlsContext.useExtendedMasterSecret}');
+
+    // Extract negotiated SRTP profile from ServerHello
+    final negotiatedSrtpProfile = serverHello.srtpProfile;
+    if (negotiatedSrtpProfile != null && srtpContext != null) {
+      srtpContext!.profile = negotiatedSrtpProfile;
+      _log.fine('Negotiated SRTP profile: $negotiatedSrtpProfile');
+    } else if (srtpContext != null) {
+      _log.fine('No SRTP profile in ServerHello');
+    }
 
     // Add to handshake messages (use fullMessage if available, includes header)
     dtlsContext.addHandshakeMessage(fullMessage ?? data);
-    print(
-        '[CLIENT] Added ServerHello to buffer, now ${dtlsContext.handshakeMessages.length} messages');
+    _log.fine(
+        'Added ServerHello to buffer, now ${dtlsContext.handshakeMessages.length} messages');
 
     _state = ClientHandshakeState.waitingForCertificate;
   }
@@ -209,7 +224,7 @@ class ClientHandshakeCoordinator {
     // Ignore retransmissions from previous flights
     if (_state == ClientHandshakeState.waitingForServerFinished ||
         _state == ClientHandshakeState.completed) {
-      print('[CLIENT] Ignoring retransmitted Certificate in state $_state');
+      _log.fine('Ignoring retransmitted Certificate in state $_state');
       return;
     }
 
@@ -222,8 +237,8 @@ class ClientHandshakeCoordinator {
 
     // Parse Certificate message
     _serverCertificate = Certificate.parse(data);
-    print(
-        '[CLIENT] Received certificate with ${_serverCertificate!.certificates.length} certificate(s)');
+    _log.fine(
+        'Received certificate with ${_serverCertificate!.certificates.length} certificate(s)');
 
     // Note: Certificate chain validation is not performed here (matching werift:
     // packages/dtls/src/flight/client/flight5.ts - just stores remoteCertificate).
@@ -241,8 +256,7 @@ class ClientHandshakeCoordinator {
     // Ignore retransmissions from previous flights
     if (_state == ClientHandshakeState.waitingForServerFinished ||
         _state == ClientHandshakeState.completed) {
-      print(
-          '[CLIENT] Ignoring retransmitted ServerKeyExchange in state $_state');
+      _log.fine('Ignoring retransmitted ServerKeyExchange in state $_state');
       return;
     }
 
@@ -251,8 +265,7 @@ class ClientHandshakeCoordinator {
         _state != ClientHandshakeState.waitingForCertificate &&
         _state != ClientHandshakeState.waitingForServerHello) {
       // DTLS retransmission - silently ignore duplicate messages from previous flights
-      print(
-          '[CLIENT] Ignoring retransmitted ServerKeyExchange in state $_state');
+      _log.fine('Ignoring retransmitted ServerKeyExchange in state $_state');
       return;
     }
 
@@ -263,8 +276,8 @@ class ClientHandshakeCoordinator {
     cipherContext.remotePublicKey = ske.publicKey;
     cipherContext.namedCurve = ske.curve;
     cipherContext.signatureScheme = ske.signatureScheme;
-    print('[CLIENT] Selected curve: ${ske.curve}');
-    print('[CLIENT] Server public key: ${ske.publicKey.length} bytes');
+    _log.fine('Selected curve: ${ske.curve}');
+    _log.fine('Server public key: ${ske.publicKey.length} bytes');
 
     // Verify signature if we have a certificate
     if (_serverCertificate != null &&
@@ -277,12 +290,11 @@ class ClientHandshakeCoordinator {
         certificate: _serverCertificate!,
       );
       if (!isValid) {
-        print(
-            '[CLIENT] Warning: ServerKeyExchange signature verification failed');
+        _log.warning('ServerKeyExchange signature verification failed');
         // In a production system, you would fail the handshake here
         // throw StateError('ServerKeyExchange signature verification failed');
       } else {
-        print('[CLIENT] ServerKeyExchange signature verified');
+        _log.fine('ServerKeyExchange signature verified');
       }
     }
 
@@ -298,18 +310,16 @@ class ClientHandshakeCoordinator {
     // Ignore retransmissions from previous flights
     if (_state == ClientHandshakeState.waitingForServerFinished ||
         _state == ClientHandshakeState.completed) {
-      print(
-          '[CLIENT] Ignoring retransmitted CertificateRequest in state $_state');
+      _log.fine('Ignoring retransmitted CertificateRequest in state $_state');
       return;
     }
 
     // CertificateRequest can arrive after ServerKeyExchange
     if (_state != ClientHandshakeState.waitingForServerHelloDone) {
-      print(
-          '[CLIENT] CertificateRequest received unexpectedly in state $_state');
+      _log.fine('CertificateRequest received unexpectedly in state $_state');
     }
 
-    print('[CLIENT] Server requested client certificate');
+    _log.fine('Server requested client certificate');
     _certificateRequested = true;
 
     // Add to handshake messages
@@ -324,7 +334,7 @@ class ClientHandshakeCoordinator {
     // Ignore retransmissions from previous flights
     if (_state == ClientHandshakeState.waitingForServerFinished ||
         _state == ClientHandshakeState.completed) {
-      print('[CLIENT] Ignoring retransmitted ServerHelloDone in state $_state');
+      _log.fine('Ignoring retransmitted ServerHelloDone in state $_state');
       return;
     }
 
@@ -333,7 +343,7 @@ class ClientHandshakeCoordinator {
         _state != ClientHandshakeState.waitingForServerKeyExchange &&
         _state != ClientHandshakeState.waitingForCertificate) {
       // DTLS retransmission - silently ignore duplicate messages from previous flights
-      print('[CLIENT] Ignoring retransmitted ServerHelloDone in state $_state');
+      _log.fine('Ignoring retransmitted ServerHelloDone in state $_state');
       return;
     }
 
@@ -374,7 +384,7 @@ class ClientHandshakeCoordinator {
     if (_state != ClientHandshakeState.waitingForServerFinished) {
       // DTLS retransmission - silently ignore duplicate Finished messages
       // This can happen if our final ACK was lost and server retransmits
-      print('[CLIENT] Ignoring retransmitted Finished in state $_state');
+      _log.fine('Ignoring retransmitted Finished in state $_state');
       return;
     }
 
@@ -474,7 +484,7 @@ class ClientHandshakeCoordinator {
       final publicKey =
           _extractPublicKeyFromCertificate(certificate.entityCertificate!);
       if (publicKey == null) {
-        print('[CLIENT] Could not extract public key from certificate');
+        _log.fine('Could not extract public key from certificate');
         return false;
       }
 
@@ -485,13 +495,13 @@ class ClientHandshakeCoordinator {
       // Parse DER signature
       final ecSignature = _parseDerSignature(ske.signature);
       if (ecSignature == null) {
-        print('[CLIENT] Could not parse DER signature');
+        _log.fine('Could not parse DER signature');
         return false;
       }
 
       return signer.verifySignature(hash, ecSignature);
     } catch (e) {
-      print('[CLIENT] Signature verification error: $e');
+      _log.warning('Signature verification error: $e');
       return false;
     }
   }
@@ -527,7 +537,7 @@ class ClientHandshakeCoordinator {
       }
       return null;
     } catch (e) {
-      print('[CLIENT] Error extracting public key: $e');
+      _log.warning('Error extracting public key: $e');
       return null;
     }
   }
@@ -563,7 +573,7 @@ class ClientHandshakeCoordinator {
 
       return ECSignature(r, s);
     } catch (e) {
-      print('[CLIENT] Error parsing DER signature: $e');
+      _log.warning('Error parsing DER signature: $e');
       return null;
     }
   }

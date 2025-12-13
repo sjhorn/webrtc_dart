@@ -45,7 +45,7 @@ RING_REFRESH_TOKEN=your_token_here
 Or manually:
 ```bash
 source .env
-dart run recv-via-webrtc.dart
+dart run recv_via_webrtc.dart
 ```
 
 ### 4. View in Browser
@@ -56,7 +56,7 @@ Open http://localhost:8080 in Chrome or Safari.
 
 ```
 example/ring/
-├── recv-via-webrtc.dart   # Main server (matches werift recv-via-webrtc.ts)
+├── recv_via_webrtc.dart   # Main server (matches werift recv-via-webrtc.ts)
 ├── peer.dart              # CustomPeerConnection (matches werift peer.ts)
 ├── run.sh                 # Simple runner script
 ├── .env                   # Ring credentials (not committed)

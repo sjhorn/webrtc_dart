@@ -60,7 +60,7 @@ sleep 1
 log "Starting Dart server..."
 cd "$SCRIPT_DIR"
 source .env
-dart run recv-via-webrtc.dart > /tmp/ring_server.log 2>&1 &
+dart run recv_via_webrtc.dart > /tmp/ring_server.log 2>&1 &
 DART_PID=$!
 log "Dart server started with PID $DART_PID"
 

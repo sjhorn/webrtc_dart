@@ -1,6 +1,6 @@
-# WebRTC Signaling Examples
+# DataChannel Examples
 
-These examples demonstrate WebRTC connections using WebSocket signaling.
+These examples demonstrate WebRTC DataChannel connections using WebSocket signaling.
 
 ## Files
 
@@ -8,6 +8,10 @@ These examples demonstrate WebRTC connections using WebSocket signaling.
 - `offer.dart` - Dart WebRTC peer that creates offers
 - `answer.dart` - Dart WebRTC peer that answers offers
 - `answer.html` - Browser-based answerer (works with Dart offer)
+- `local.dart` - Local DataChannel test (two peers, same process)
+- `string.dart` - String message DataChannel example
+- `manual.dart` - Manual offer/answer exchange example
+- `quickstart.dart` - Simple quickstart DataChannel example
 
 ## Usage
 
@@ -15,32 +19,32 @@ These examples demonstrate WebRTC connections using WebSocket signaling.
 
 1. Start the signaling server:
    ```bash
-   dart run examples/signaling/signaling_server.dart
+   dart run example/datachannel/signaling_server.dart
    ```
 
 2. In another terminal, start the offer:
    ```bash
-   dart run examples/signaling/offer.dart
+   dart run example/datachannel/offer.dart
    ```
 
 3. In another terminal, start the answer:
    ```bash
-   dart run examples/signaling/answer.dart
+   dart run example/datachannel/answer.dart
    ```
 
 ### Dart-to-Browser
 
 1. Start the signaling server:
    ```bash
-   dart run examples/signaling/signaling_server.dart
+   dart run example/datachannel/signaling_server.dart
    ```
 
 2. Start the Dart offer:
    ```bash
-   dart run examples/signaling/offer.dart
+   dart run example/datachannel/offer.dart
    ```
 
-3. Open `examples/signaling/answer.html` in a browser and click "Connect"
+3. Open `example/datachannel/answer.html` in a browser and click "Connect"
 
 ## How It Works
 
@@ -68,6 +72,6 @@ These examples demonstrate WebRTC connections using WebSocket signaling.
 Both offer and answer accept a signaling server URL as an argument:
 
 ```bash
-dart run examples/signaling/offer.dart ws://my-server:9999
-dart run examples/signaling/answer.dart ws://my-server:9999
+dart run example/datachannel/offer.dart ws://my-server:9999
+dart run example/datachannel/answer.dart ws://my-server:9999
 ```

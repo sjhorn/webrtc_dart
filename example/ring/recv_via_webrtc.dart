@@ -223,11 +223,8 @@ class RingVideoServer {
     });
 
     // Subscribe to audio RTP packets
-    var audioPacketsReceived = 0;
     var audioLogged = false;
     _audioRtpSubscription = _ringPc!.onAudioRtp.listen((rtp) {
-      audioPacketsReceived++;
-
       if (!audioLogged) {
         audioLogged = true;
         print('[Ring] Receiving audio');

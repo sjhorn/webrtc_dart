@@ -1,11 +1,3 @@
-import 'dart:async';
-import 'dart:convert';
-import 'dart:io';
-import 'dart:typed_data';
-
-import 'package:webrtc_dart/webrtc_dart.dart';
-import 'package:webrtc_dart/src/nonstandard/media/track.dart' as nonstandard;
-
 /// Simple RTP Forward Test Server
 ///
 /// This server tests the nonstandard track writeRtp -> browser flow:
@@ -14,6 +6,15 @@ import 'package:webrtc_dart/src/nonstandard/media/track.dart' as nonstandard;
 /// 3. Browser accepts and sends answer
 /// 4. Server writes synthetic RTP packets to the track
 /// 5. Test verifies browser receives the video track (connection + track event)
+library;
+
+import 'dart:async';
+import 'dart:convert';
+import 'dart:io';
+import 'dart:typed_data';
+
+import 'package:webrtc_dart/webrtc_dart.dart';
+import 'package:webrtc_dart/src/nonstandard/media/track.dart' as nonstandard;
 
 class RtpForwardTestServer {
   HttpServer? _httpServer;

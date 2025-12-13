@@ -44,4 +44,4 @@ echo ""
 echo -e "${GREEN}========================================${NC}"
 echo ""
 
-dart run recv-via-webrtc.dart
+dart run recv_via_webrtc.dart

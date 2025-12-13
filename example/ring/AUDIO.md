@@ -35,7 +35,7 @@ RING_DEBUG=1 ./start_server.sh
 
 ## Changes Made
 
-### 1. recv-via-webrtc.dart
+### 1. recv_via_webrtc.dart
 
 ```dart
 // Create both video and audio tracks

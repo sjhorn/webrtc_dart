@@ -1,9 +1,8 @@
-/// Test SRTCP decryption with various key configurations
-/// to debug Ring camera interop issue
-
 import 'dart:typed_data';
 import 'package:pointycastle/export.dart';
 
+/// Test SRTCP decryption with various key configurations
+/// to debug Ring camera interop issue
 // From fresh debug output:
 // Remote master key: 20 a2 70 36 1f 60 1e 94 b5 1f 17 1e 50 c2 a3 0b
 // Remote master salt: 65 ed f6 00 d4 c4 df 83 47 cf 57 68

@@ -4,6 +4,8 @@ import 'package:webrtc_dart/src/rtp/rtp_session.dart';
 import 'package:webrtc_dart/src/srtp/rtp_packet.dart';
 import 'package:webrtc_dart/src/srtp/rtcp_packet.dart';
 import 'package:webrtc_dart/src/rtp/rtcp_reports.dart';
+import 'package:webrtc_dart/src/srtp/srtp_session.dart';
+import 'package:webrtc_dart/src/dtls/handshake/extensions/use_srtp.dart';
 
 void main() {
   group('RtpSession', () {
@@ -330,6 +332,301 @@ void main() {
       // Wait and verify no more reports sent
       await Future.delayed(Duration(milliseconds: 200));
       expect(sentRtcpPackets.length, 0);
+
+      session.dispose();
+    });
+  });
+
+  group('RtpSession sendRawRtpPacket (Ring forwarding regression)', () {
+    // Test vectors for SRTP
+    final masterKey = Uint8List.fromList([
+      0x00,
+      0x01,
+      0x02,
+      0x03,
+      0x04,
+      0x05,
+      0x06,
+      0x07,
+      0x08,
+      0x09,
+      0x0a,
+      0x0b,
+      0x0c,
+      0x0d,
+      0x0e,
+      0x0f,
+    ]);
+    final masterSalt = Uint8List.fromList([
+      0xa0,
+      0xa1,
+      0xa2,
+      0xa3,
+      0xa4,
+      0xa5,
+      0xa6,
+      0xa7,
+      0xa8,
+      0xa9,
+      0xaa,
+      0xab,
+    ]);
+
+    test('drops packets when SRTP session not set', () async {
+      final sentPackets = <Uint8List>[];
+      final session = RtpSession(
+        localSsrc: 0x12345678,
+        onSendRtp: (data) async {
+          sentPackets.add(data);
+        },
+      );
+      // No srtpSession set
+
+      final packet = RtpPacket(
+        payloadType: 96,
+        sequenceNumber: 100,
+        timestamp: 1000,
+        ssrc: 0xAABBCCDD,
+        payload: Uint8List.fromList([1, 2, 3, 4]),
+      );
+
+      await session.sendRawRtpPacket(packet);
+
+      // Packet should be dropped silently
+      expect(sentPackets.length, 0);
+
+      session.dispose();
+    });
+
+    test('rewrites payload type correctly', () async {
+      final sentPackets = <Uint8List>[];
+      final session = RtpSession(
+        localSsrc: 0x12345678,
+        srtpSession: SrtpSession(
+          profile: SrtpProtectionProfile.srtpAeadAes128Gcm,
+          localMasterKey: masterKey,
+          localMasterSalt: masterSalt,
+          remoteMasterKey: masterKey,
+          remoteMasterSalt: masterSalt,
+        ),
+        onSendRtp: (data) async {
+          sentPackets.add(data);
+        },
+      );
+
+      // Ring sends PT=96, we want to forward as PT=111
+      final packet = RtpPacket(
+        payloadType: 96,
+        sequenceNumber: 100,
+        timestamp: 1000,
+        ssrc: 0xAABBCCDD,
+        payload: Uint8List.fromList([1, 2, 3, 4]),
+      );
+
+      await session.sendRawRtpPacket(packet, payloadType: 111);
+
+      expect(sentPackets.length, 1);
+
+      // Parse encrypted packet header (not encrypted in SRTP, only payload)
+      final encrypted = sentPackets.first;
+      // Byte 1 contains marker bit (MSB) and payload type (lower 7 bits)
+      final ptInPacket = encrypted[1] & 0x7F;
+      expect(ptInPacket, 111,
+          reason: 'Payload type should be rewritten to 111');
+
+      session.dispose();
+    });
+
+    test('replaces SSRC with local SSRC', () async {
+      final sentPackets = <Uint8List>[];
+      final localSsrc = 0x12345678;
+      final session = RtpSession(
+        localSsrc: localSsrc,
+        srtpSession: SrtpSession(
+          profile: SrtpProtectionProfile.srtpAeadAes128Gcm,
+          localMasterKey: masterKey,
+          localMasterSalt: masterSalt,
+          remoteMasterKey: masterKey,
+          remoteMasterSalt: masterSalt,
+        ),
+        onSendRtp: (data) async {
+          sentPackets.add(data);
+        },
+      );
+
+      // Incoming packet has different SSRC (Ring camera's SSRC)
+      final packet = RtpPacket(
+        payloadType: 96,
+        sequenceNumber: 100,
+        timestamp: 1000,
+        ssrc: 0xAABBCCDD, // Ring's SSRC
+        payload: Uint8List.fromList([1, 2, 3, 4]),
+      );
+
+      await session.sendRawRtpPacket(packet);
+
+      expect(sentPackets.length, 1);
+
+      // Parse SSRC from encrypted packet (bytes 8-11)
+      final encrypted = sentPackets.first;
+      final ssrcInPacket = ByteData.sublistView(encrypted).getUint32(8);
+      expect(ssrcInPacket, localSsrc,
+          reason: 'SSRC should be replaced with local SSRC');
+
+      session.dispose();
+    });
+
+    test('preserves SSRC when replaceSsrc=false', () async {
+      final sentPackets = <Uint8List>[];
+      final originalSsrc = 0xAABBCCDD;
+      final session = RtpSession(
+        localSsrc: 0x12345678,
+        srtpSession: SrtpSession(
+          profile: SrtpProtectionProfile.srtpAeadAes128Gcm,
+          localMasterKey: masterKey,
+          localMasterSalt: masterSalt,
+          remoteMasterKey: masterKey,
+          remoteMasterSalt: masterSalt,
+        ),
+        onSendRtp: (data) async {
+          sentPackets.add(data);
+        },
+      );
+
+      final packet = RtpPacket(
+        payloadType: 96,
+        sequenceNumber: 100,
+        timestamp: 1000,
+        ssrc: originalSsrc,
+        payload: Uint8List.fromList([1, 2, 3, 4]),
+      );
+
+      await session.sendRawRtpPacket(packet, replaceSsrc: false);
+
+      expect(sentPackets.length, 1);
+
+      // SSRC should be preserved
+      final encrypted = sentPackets.first;
+      final ssrcInPacket = ByteData.sublistView(encrypted).getUint32(8);
+      expect(ssrcInPacket, originalSsrc,
+          reason: 'Original SSRC should be preserved');
+
+      session.dispose();
+    });
+
+    test('preserves marker bit', () async {
+      final sentPackets = <Uint8List>[];
+      final session = RtpSession(
+        localSsrc: 0x12345678,
+        srtpSession: SrtpSession(
+          profile: SrtpProtectionProfile.srtpAeadAes128Gcm,
+          localMasterKey: masterKey,
+          localMasterSalt: masterSalt,
+          remoteMasterKey: masterKey,
+          remoteMasterSalt: masterSalt,
+        ),
+        onSendRtp: (data) async {
+          sentPackets.add(data);
+        },
+      );
+
+      // Packet with marker bit set (end of frame)
+      final packet = RtpPacket(
+        payloadType: 96,
+        sequenceNumber: 100,
+        timestamp: 1000,
+        ssrc: 0xAABBCCDD,
+        marker: true,
+        payload: Uint8List.fromList([1, 2, 3, 4]),
+      );
+
+      await session.sendRawRtpPacket(packet);
+
+      expect(sentPackets.length, 1);
+
+      // Check marker bit (MSB of byte 1)
+      final encrypted = sentPackets.first;
+      final markerBit = (encrypted[1] & 0x80) != 0;
+      expect(markerBit, true, reason: 'Marker bit should be preserved');
+
+      session.dispose();
+    });
+
+    test('preserves extension header for GCM AAD', () async {
+      final sentPackets = <Uint8List>[];
+      final session = RtpSession(
+        localSsrc: 0x12345678,
+        srtpSession: SrtpSession(
+          profile: SrtpProtectionProfile.srtpAeadAes128Gcm,
+          localMasterKey: masterKey,
+          localMasterSalt: masterSalt,
+          remoteMasterKey: masterKey,
+          remoteMasterSalt: masterSalt,
+        ),
+        onSendRtp: (data) async {
+          sentPackets.add(data);
+        },
+      );
+
+      // Packet with extension header (like mid extension)
+      final midExtension = Uint8List.fromList([0x10, 0x31, 0x00, 0x00]);
+      final packet = RtpPacket(
+        payloadType: 96,
+        sequenceNumber: 100,
+        timestamp: 1000,
+        ssrc: 0xAABBCCDD,
+        extension: true,
+        extensionHeader: RtpExtension(
+          profile: 0xBEDE,
+          data: midExtension,
+        ),
+        payload: Uint8List.fromList([1, 2, 3, 4]),
+      );
+
+      await session.sendRawRtpPacket(packet);
+
+      expect(sentPackets.length, 1);
+
+      // Check extension bit is set (bit 4 of byte 0)
+      final encrypted = sentPackets.first;
+      final hasExtension = (encrypted[0] & 0x10) != 0;
+      expect(hasExtension, true, reason: 'Extension bit should be preserved');
+
+      // Check extension profile at bytes 12-13
+      final extProfile = ByteData.sublistView(encrypted).getUint16(12);
+      expect(extProfile, 0xBEDE, reason: 'Extension profile should be 0xBEDE');
+
+      session.dispose();
+    });
+
+    test('updates sender statistics', () async {
+      final session = RtpSession(
+        localSsrc: 0x12345678,
+        srtpSession: SrtpSession(
+          profile: SrtpProtectionProfile.srtpAeadAes128Gcm,
+          localMasterKey: masterKey,
+          localMasterSalt: masterSalt,
+          remoteMasterKey: masterKey,
+          remoteMasterSalt: masterSalt,
+        ),
+        onSendRtp: (data) async {},
+      );
+
+      final packet = RtpPacket(
+        payloadType: 96,
+        sequenceNumber: 100,
+        timestamp: 1000,
+        ssrc: 0xAABBCCDD,
+        payload: Uint8List.fromList([1, 2, 3, 4, 5, 6, 7, 8, 9, 10]),
+      );
+
+      await session.sendRawRtpPacket(packet);
+      await session.sendRawRtpPacket(packet);
+      await session.sendRawRtpPacket(packet);
+
+      final stats = session.getSenderStatistics();
+      expect(stats.packetsSent, 3);
+      expect(stats.bytesSent, 30);
 
       session.dispose();
     });

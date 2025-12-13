@@ -94,6 +94,55 @@ class RtpPacket {
     return totalSize;
   }
 
+  /// Serialize only the RTP header (without payload)
+  Uint8List serializeHeader() {
+    final size = headerSize;
+    final result = Uint8List(size);
+    final buffer = ByteData.sublistView(result);
+    var offset = 0;
+
+    // Byte 0: V(2), P(1), X(1), CC(4)
+    int byte0 = (version << 6) |
+        (padding ? 1 << 5 : 0) |
+        (extension ? 1 << 4 : 0) |
+        (csrcCount & 0x0F);
+    buffer.setUint8(offset++, byte0);
+
+    // Byte 1: M(1), PT(7)
+    int byte1 = (marker ? 1 << 7 : 0) | (payloadType & 0x7F);
+    buffer.setUint8(offset++, byte1);
+
+    // Bytes 2-3: Sequence number
+    buffer.setUint16(offset, sequenceNumber);
+    offset += 2;
+
+    // Bytes 4-7: Timestamp
+    buffer.setUint32(offset, timestamp);
+    offset += 4;
+
+    // Bytes 8-11: SSRC
+    buffer.setUint32(offset, ssrc);
+    offset += 4;
+
+    // CSRCs
+    for (final csrc in csrcs) {
+      buffer.setUint32(offset, csrc);
+      offset += 4;
+    }
+
+    // Extension header
+    if (extension && extensionHeader != null) {
+      final ext = extensionHeader!;
+      buffer.setUint16(offset, ext.profile);
+      offset += 2;
+      buffer.setUint16(offset, (ext.data.length / 4).floor());
+      offset += 2;
+      result.setRange(offset, offset + ext.data.length, ext.data);
+    }
+
+    return result;
+  }
+
   /// Serialize RTP packet to bytes
   Uint8List serialize() {
     final size = this.size;

@@ -7,7 +7,10 @@ import 'package:pointycastle/export.dart';
 /// SRTP uses a Key Derivation Function (KDF) to derive session keys
 /// from the master key and salt.
 ///
-/// The KDF uses AES in Counter Mode to generate key material.
+/// This implementation matches werift-webrtc's approach:
+/// - XOR labelAndIndexOverKdr with the end of masterSalt
+/// - Pad to 16 bytes
+/// - Encrypt with AES-ECB
 class SrtpKeyDerivation {
   /// Key derivation labels (RFC 3711 Section 4.3.1)
   static const int labelSrtpEncryption = 0x00;
@@ -17,12 +20,178 @@ class SrtpKeyDerivation {
   static const int labelSrtcpAuthentication = 0x04;
   static const int labelSrtcpSalt = 0x05;
 
-  /// Derive session key
-  /// RFC 3711 Section 4.3.1
-  ///
-  /// key_id = <label> || r
-  /// x = key_id XOR master_salt
-  /// session_key = AES(master_key, x)
+  /// Generate session key (16 bytes)
+  /// Matches werift's generateSessionKey
+  static Uint8List generateSessionKey({
+    required Uint8List masterKey,
+    required Uint8List masterSalt,
+    required int label,
+  }) {
+    // Pad masterSalt to 14 bytes if needed
+    final paddedSalt = _padSaltTo14Bytes(masterSalt);
+
+    // Create sessionKey as copy of padded salt
+    final sessionKey = Uint8List.fromList(paddedSalt);
+
+    // labelAndIndexOverKdr: [label, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00]
+    final labelAndIndexOverKdr = Uint8List.fromList([
+      label,
+      0x00,
+      0x00,
+      0x00,
+      0x00,
+      0x00,
+      0x00,
+    ]);
+
+    // XOR from the end: sessionKey[j] ^= labelAndIndexOverKdr[i]
+    var i = labelAndIndexOverKdr.length - 1;
+    var j = sessionKey.length - 1;
+    while (i >= 0) {
+      sessionKey[j] = sessionKey[j] ^ labelAndIndexOverKdr[i];
+      i--;
+      j--;
+    }
+
+    // Pad to 16 bytes with [0x00, 0x00]
+    final block = Uint8List(16);
+    block.setRange(0, 14, sessionKey);
+    block[14] = 0x00;
+    block[15] = 0x00;
+
+    // Encrypt with AES-ECB
+    final aes = AESEngine();
+    aes.init(true, KeyParameter(masterKey));
+    final output = Uint8List(16);
+    aes.processBlock(block, 0, output, 0);
+
+    return output;
+  }
+
+  /// Generate session salt (14 bytes)
+  /// Matches werift's generateSessionSalt
+  static Uint8List generateSessionSalt({
+    required Uint8List masterKey,
+    required Uint8List masterSalt,
+    required int label,
+  }) {
+    // Pad masterSalt to 14 bytes if needed
+    final paddedSalt = _padSaltTo14Bytes(masterSalt);
+
+    // Create sessionSalt as copy of padded salt
+    final sessionSalt = Uint8List.fromList(paddedSalt);
+
+    // labelAndIndexOverKdr: [label, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00]
+    final labelAndIndexOverKdr = Uint8List.fromList([
+      label,
+      0x00,
+      0x00,
+      0x00,
+      0x00,
+      0x00,
+      0x00,
+    ]);
+
+    // XOR from the end
+    var i = labelAndIndexOverKdr.length - 1;
+    var j = sessionSalt.length - 1;
+    while (i >= 0) {
+      sessionSalt[j] = sessionSalt[j] ^ labelAndIndexOverKdr[i];
+      i--;
+      j--;
+    }
+
+    // Pad to 16 bytes with [0x00, 0x00]
+    final block = Uint8List(16);
+    block.setRange(0, 14, sessionSalt);
+    block[14] = 0x00;
+    block[15] = 0x00;
+
+    // Encrypt with AES-ECB
+    final aes = AESEngine();
+    aes.init(true, KeyParameter(masterKey));
+    final output = Uint8List(16);
+    aes.processBlock(block, 0, output, 0);
+
+    // Return only first 14 bytes
+    return output.sublist(0, 14);
+  }
+
+  /// Generate session auth tag (20 bytes)
+  /// Matches werift's generateSessionAuthTag
+  static Uint8List generateSessionAuthTag({
+    required Uint8List masterKey,
+    required Uint8List masterSalt,
+    required int label,
+  }) {
+    // Pad masterSalt to 14 bytes if needed
+    final paddedSalt = _padSaltTo14Bytes(masterSalt);
+
+    // Create sessionAuthTag as copy of padded salt
+    final sessionAuthTag = Uint8List.fromList(paddedSalt);
+
+    // labelAndIndexOverKdr: [label, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00]
+    final labelAndIndexOverKdr = Uint8List.fromList([
+      label,
+      0x00,
+      0x00,
+      0x00,
+      0x00,
+      0x00,
+      0x00,
+    ]);
+
+    // XOR from the end
+    var i = labelAndIndexOverKdr.length - 1;
+    var j = sessionAuthTag.length - 1;
+    while (i >= 0) {
+      sessionAuthTag[j] = sessionAuthTag[j] ^ labelAndIndexOverKdr[i];
+      i--;
+      j--;
+    }
+
+    // First run: pad with [0x00, 0x00]
+    final firstBlock = Uint8List(16);
+    firstBlock.setRange(0, 14, sessionAuthTag);
+    firstBlock[14] = 0x00;
+    firstBlock[15] = 0x00;
+
+    // Second run: pad with [0x00, 0x01]
+    final secondBlock = Uint8List(16);
+    secondBlock.setRange(0, 14, sessionAuthTag);
+    secondBlock[14] = 0x00;
+    secondBlock[15] = 0x01;
+
+    // Encrypt both with AES-ECB
+    final aes = AESEngine();
+    aes.init(true, KeyParameter(masterKey));
+
+    final firstOutput = Uint8List(16);
+    aes.processBlock(firstBlock, 0, firstOutput, 0);
+
+    final secondOutput = Uint8List(16);
+    aes.processBlock(secondBlock, 0, secondOutput, 0);
+
+    // Concatenate: firstOutput (16 bytes) + secondOutput first 4 bytes = 20 bytes
+    final result = Uint8List(20);
+    result.setRange(0, 16, firstOutput);
+    result.setRange(16, 20, secondOutput);
+
+    return result;
+  }
+
+  /// Pad salt to 14 bytes (required for werift compatibility)
+  static Uint8List _padSaltTo14Bytes(Uint8List salt) {
+    if (salt.length >= 14) {
+      return salt.sublist(0, 14);
+    }
+    final padded = Uint8List(14);
+    padded.setRange(0, salt.length, salt);
+    return padded;
+  }
+
+  /// Legacy method for backwards compatibility
+  /// Uses new algorithm internally
   static Uint8List deriveKey({
     required Uint8List masterKey,
     required Uint8List masterSalt,
@@ -30,57 +199,30 @@ class SrtpKeyDerivation {
     required int indexOverKdr,
     required int keyLength,
   }) {
-    // Build key_id: label (8 bits) || index/key_derivation_rate (48 bits) || 0x00 (padding to 128 bits)
-    final keyId = Uint8List(16);
-
-    // Label at byte 7
-    keyId[7] = label & 0xFF;
-
-    // Index/KDR at bytes 8-13 (48 bits)
-    keyId[8] = (indexOverKdr >> 40) & 0xFF;
-    keyId[9] = (indexOverKdr >> 32) & 0xFF;
-    keyId[10] = (indexOverKdr >> 24) & 0xFF;
-    keyId[11] = (indexOverKdr >> 16) & 0xFF;
-    keyId[12] = (indexOverKdr >> 8) & 0xFF;
-    keyId[13] = indexOverKdr & 0xFF;
-
-    // XOR with master_salt (first 14 bytes, as salt is 112 bits)
-    for (var i = 0; i < masterSalt.length && i < 14; i++) {
-      keyId[i] ^= masterSalt[i];
+    // Route to appropriate new method based on label
+    if (label == labelSrtpEncryption || label == labelSrtcpEncryption) {
+      return generateSessionKey(
+        masterKey: masterKey,
+        masterSalt: masterSalt,
+        label: label,
+      );
+    } else if (label == labelSrtpSalt || label == labelSrtcpSalt) {
+      return generateSessionSalt(
+        masterKey: masterKey,
+        masterSalt: masterSalt,
+        label: label,
+      );
+    } else {
+      return generateSessionAuthTag(
+        masterKey: masterKey,
+        masterSalt: masterSalt,
+        label: label,
+      );
     }
-
-    // Encrypt key_id with master_key using AES-CTR to generate session key
-    final cipher = SICStreamCipher(AESEngine());
-    cipher.init(
-      true,
-      ParametersWithIV(
-        KeyParameter(masterKey),
-        Uint8List(16), // Zero IV for key derivation
-      ),
-    );
-
-    // Generate enough key material
-    final numBlocks = (keyLength + 15) ~/ 16;
-    final keyMaterial = Uint8List(numBlocks * 16);
-
-    var offset = 0;
-    for (var i = 0; i < numBlocks; i++) {
-      // For each block, encrypt keyId with counter
-      final block = Uint8List.fromList(keyId);
-
-      // Increment counter in keyId (last 32 bits)
-      final counter = ByteData.sublistView(block, 12, 16);
-      counter.setUint32(0, i);
-
-      cipher.processBytes(block, 0, 16, keyMaterial, offset);
-      offset += 16;
-    }
-
-    // Return only the requested key length
-    return keyMaterial.sublist(0, keyLength);
   }
 
   /// Derive all session keys for SRTP
+  /// Uses werift-compatible algorithm
   static SrtpSessionKeys deriveSrtpKeys({
     required Uint8List masterKey,
     required Uint8List masterSalt,
@@ -88,35 +230,25 @@ class SrtpKeyDerivation {
     required int index,
     int keyDerivationRate = 0, // 0 means derive once
   }) {
-    // Calculate index/key_derivation_rate
-    final indexOverKdr =
-        keyDerivationRate == 0 ? 0 : index ~/ keyDerivationRate;
-
-    // Derive encryption key (same size as master key)
-    final encryptionKey = deriveKey(
+    // Derive encryption key (label 0)
+    final encryptionKey = generateSessionKey(
       masterKey: masterKey,
       masterSalt: masterSalt,
       label: labelSrtpEncryption,
-      indexOverKdr: indexOverKdr,
-      keyLength: masterKey.length,
     );
 
-    // Derive authentication key (160 bits for HMAC-SHA1)
-    final authenticationKey = deriveKey(
+    // Derive authentication key (label 1)
+    final authenticationKey = generateSessionAuthTag(
       masterKey: masterKey,
       masterSalt: masterSalt,
       label: labelSrtpAuthentication,
-      indexOverKdr: indexOverKdr,
-      keyLength: 20, // 160 bits
     );
 
-    // Derive salting key (112 bits, padded to 14 bytes)
-    final saltingKey = deriveKey(
+    // Derive salting key (label 2)
+    final saltingKey = generateSessionSalt(
       masterKey: masterKey,
       masterSalt: masterSalt,
       label: labelSrtpSalt,
-      indexOverKdr: indexOverKdr,
-      keyLength: 14, // 112 bits
     );
 
     return SrtpSessionKeys(
@@ -127,40 +259,32 @@ class SrtpKeyDerivation {
   }
 
   /// Derive all session keys for SRTCP
+  /// Uses werift-compatible algorithm
   static SrtpSessionKeys deriveSrtcpKeys({
     required Uint8List masterKey,
     required Uint8List masterSalt,
     required int ssrc,
     required int index,
   }) {
-    // SRTCP always uses index 0 for key derivation
-    const indexOverKdr = 0;
-
-    // Derive encryption key
-    final encryptionKey = deriveKey(
+    // Derive encryption key (label 3)
+    final encryptionKey = generateSessionKey(
       masterKey: masterKey,
       masterSalt: masterSalt,
       label: labelSrtcpEncryption,
-      indexOverKdr: indexOverKdr,
-      keyLength: masterKey.length,
     );
 
-    // Derive authentication key
-    final authenticationKey = deriveKey(
+    // Derive authentication key (label 4)
+    final authenticationKey = generateSessionAuthTag(
       masterKey: masterKey,
       masterSalt: masterSalt,
       label: labelSrtcpAuthentication,
-      indexOverKdr: indexOverKdr,
-      keyLength: 20,
     );
 
-    // Derive salting key
-    final saltingKey = deriveKey(
+    // Derive salting key (label 5)
+    final saltingKey = generateSessionSalt(
       masterKey: masterKey,
       masterSalt: masterSalt,
       label: labelSrtcpSalt,
-      indexOverKdr: indexOverKdr,
-      keyLength: 14,
     );
 
     return SrtpSessionKeys(

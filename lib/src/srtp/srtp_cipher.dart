@@ -6,11 +6,14 @@ import 'package:webrtc_dart/src/srtp/replay_protection.dart';
 
 /// SRTP Cipher for AES-GCM encryption/decryption
 /// RFC 7714 - AES-GCM Authenticated Encryption in SRTP
+///
+/// Note: This cipher expects pre-derived session keys, not master keys.
+/// Key derivation should be done by SrtpSession before passing to this cipher.
 class SrtpCipher {
-  /// Master key
+  /// Session encryption key (derived from master key)
   final Uint8List masterKey;
 
-  /// Master salt
+  /// Session salt (derived from master salt, 14 bytes truncated to 12 for GCM)
   final Uint8List masterSalt;
 
   /// Replay protection
@@ -170,28 +173,30 @@ class SrtpCipher {
   /// Build nonce (IV) for AES-GCM
   /// RFC 7714 Section 8.1
   ///
-  /// Nonce = (SSRC || ROC || SEQ) XOR salt
+  /// IV format: 00 || SSRC || ROC || SEQ, XOR with salt
+  /// Bytes: [0, 0, SSRC(4 bytes), ROC(4 bytes), SEQ(2 bytes)]
   Uint8List _buildNonce(Uint8List salt, int ssrc, int seq, int roc) {
     final nonce = Uint8List(12);
 
-    // Construct packet index: 48-bit (ROC || SEQ)
-    // SSRC (32-bit) at bytes 0-3
-    nonce[0] = (ssrc >> 24) & 0xFF;
-    nonce[1] = (ssrc >> 16) & 0xFF;
-    nonce[2] = (ssrc >> 8) & 0xFF;
-    nonce[3] = ssrc & 0xFF;
+    // First 2 bytes are zero
+    nonce[0] = 0;
+    nonce[1] = 0;
 
-    // ROC (32-bit) at bytes 4-7
-    nonce[4] = (roc >> 24) & 0xFF;
-    nonce[5] = (roc >> 16) & 0xFF;
-    nonce[6] = (roc >> 8) & 0xFF;
-    nonce[7] = roc & 0xFF;
+    // SSRC (32-bit) at bytes 2-5
+    nonce[2] = (ssrc >> 24) & 0xFF;
+    nonce[3] = (ssrc >> 16) & 0xFF;
+    nonce[4] = (ssrc >> 8) & 0xFF;
+    nonce[5] = ssrc & 0xFF;
 
-    // SEQ (16-bit) at bytes 8-9, pad with zeros at bytes 10-11
-    nonce[8] = (seq >> 8) & 0xFF;
-    nonce[9] = seq & 0xFF;
-    nonce[10] = 0;
-    nonce[11] = 0;
+    // ROC (32-bit) at bytes 6-9
+    nonce[6] = (roc >> 24) & 0xFF;
+    nonce[7] = (roc >> 16) & 0xFF;
+    nonce[8] = (roc >> 8) & 0xFF;
+    nonce[9] = roc & 0xFF;
+
+    // SEQ (16-bit) at bytes 10-11
+    nonce[10] = (seq >> 8) & 0xFF;
+    nonce[11] = seq & 0xFF;
 
     // XOR with salt
     for (var i = 0; i < 12; i++) {
@@ -202,43 +207,10 @@ class SrtpCipher {
   }
 
   /// Serialize RTP header for AAD (Additional Authenticated Data)
+  /// RFC 7714 Section 5: AAD includes the entire RTP header including extension
   Uint8List _serializeHeader(RtpPacket packet) {
-    // For simplicity, serialize a basic header
-    // In practice, we'd serialize the exact header from the packet
-    final header = Uint8List(12 + packet.csrcs.length * 4);
-    final buffer = ByteData.sublistView(header);
-
-    var offset = 0;
-    // Byte 0
-    int byte0 = (packet.version << 6) |
-        (packet.padding ? 1 << 5 : 0) |
-        (packet.extension ? 1 << 4 : 0) |
-        (packet.csrcCount & 0x0F);
-    buffer.setUint8(offset++, byte0);
-
-    // Byte 1
-    int byte1 = (packet.marker ? 1 << 7 : 0) | (packet.payloadType & 0x7F);
-    buffer.setUint8(offset++, byte1);
-
-    // Sequence number
-    buffer.setUint16(offset, packet.sequenceNumber);
-    offset += 2;
-
-    // Timestamp
-    buffer.setUint32(offset, packet.timestamp);
-    offset += 4;
-
-    // SSRC
-    buffer.setUint32(offset, packet.ssrc);
-    offset += 4;
-
-    // CSRCs
-    for (final csrc in packet.csrcs) {
-      buffer.setUint32(offset, csrc);
-      offset += 4;
-    }
-
-    return header;
+    // Use the packet's own serializeHeader method which handles extensions correctly
+    return packet.serializeHeader();
   }
 
   /// Find where RTP header ends in packet

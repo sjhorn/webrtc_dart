@@ -42,6 +42,12 @@ class Candidate {
   /// Username fragment
   final String? ufrag;
 
+  /// SDP m-line index (0-indexed) for bundlePolicy:disable routing
+  final int? sdpMLineIndex;
+
+  /// SDP media identifier (MID)
+  final String? sdpMid;
+
   Candidate({
     required this.foundation,
     required this.component,
@@ -55,14 +61,25 @@ class Candidate {
     this.tcpType,
     this.generation,
     this.ufrag,
+    this.sdpMLineIndex,
+    this.sdpMid,
   });
 
   /// Parse a candidate from SDP format
   /// Example: "6815297761 1 udp 659136 1.2.3.4 31102 typ host generation 0 ufrag b7l3"
+  /// Also accepts with "candidate:" prefix: "candidate:6815297761 1 udp ..."
   factory Candidate.fromSdp(String sdp) {
-    final bits = sdp.split(' ');
+    // Strip "candidate:" or "a=candidate:" prefix if present
+    var normalized = sdp.trim();
+    if (normalized.startsWith('a=candidate:')) {
+      normalized = normalized.substring(12);
+    } else if (normalized.startsWith('candidate:')) {
+      normalized = normalized.substring(10);
+    }
+
+    final bits = normalized.split(' ');
     if (bits.length < 8) {
-      throw ArgumentError('SDP does not have enough properties');
+      throw ArgumentError('SDP does not have enough properties: $sdp');
     }
 
     final kwargs = <String, dynamic>{
@@ -116,14 +133,66 @@ class Candidate {
   /// A local candidate is paired with a remote candidate if and only if
   /// the two candidates have the same component ID and have the same IP
   /// address version.
+  ///
+  /// For TCP candidates (RFC 6544), additional tcpType compatibility is required:
+  /// - active can pair with passive
+  /// - passive can pair with active
+  /// - so (simultaneous-open) can pair with so
   bool canPairWith(Candidate other) {
     final thisIsV4 = InternetAddress(host).type == InternetAddressType.IPv4;
     final otherIsV4 =
         InternetAddress(other.host).type == InternetAddressType.IPv4;
 
-    return component == other.component &&
-        transport.toLowerCase() == other.transport.toLowerCase() &&
-        thisIsV4 == otherIsV4;
+    // Basic requirements: same component and IP version
+    if (component != other.component || thisIsV4 != otherIsV4) {
+      return false;
+    }
+
+    // Transport must match (UDP with UDP, TCP with TCP)
+    final thisTransport = transport.toLowerCase();
+    final otherTransport = other.transport.toLowerCase();
+    if (thisTransport != otherTransport) {
+      return false;
+    }
+
+    // For TCP candidates, check tcpType compatibility (RFC 6544)
+    if (thisTransport == 'tcp') {
+      return _tcpTypesCompatible(tcpType, other.tcpType);
+    }
+
+    // UDP candidates don't have tcpType restrictions
+    return true;
+  }
+
+  /// Check if two TCP types are compatible for pairing (RFC 6544)
+  /// - active pairs with passive
+  /// - passive pairs with active
+  /// - so pairs with so
+  static bool _tcpTypesCompatible(String? local, String? remote) {
+    // If either tcpType is missing, allow pairing for backwards compatibility
+    if (local == null || remote == null) {
+      return true;
+    }
+
+    final localType = local.toLowerCase();
+    final remoteType = remote.toLowerCase();
+
+    // Active pairs with passive
+    if (localType == 'active' && remoteType == 'passive') {
+      return true;
+    }
+
+    // Passive pairs with active
+    if (localType == 'passive' && remoteType == 'active') {
+      return true;
+    }
+
+    // SO pairs with SO
+    if (localType == 'so' && remoteType == 'so') {
+      return true;
+    }
+
+    return false;
   }
 
   /// Convert candidate to SDP format
@@ -148,6 +217,41 @@ class Candidate {
     }
 
     return sdp;
+  }
+
+  /// Create a copy with modified fields
+  Candidate copyWith({
+    String? foundation,
+    int? component,
+    String? transport,
+    int? priority,
+    String? host,
+    int? port,
+    String? type,
+    String? relatedAddress,
+    int? relatedPort,
+    String? tcpType,
+    int? generation,
+    String? ufrag,
+    int? sdpMLineIndex,
+    String? sdpMid,
+  }) {
+    return Candidate(
+      foundation: foundation ?? this.foundation,
+      component: component ?? this.component,
+      transport: transport ?? this.transport,
+      priority: priority ?? this.priority,
+      host: host ?? this.host,
+      port: port ?? this.port,
+      type: type ?? this.type,
+      relatedAddress: relatedAddress ?? this.relatedAddress,
+      relatedPort: relatedPort ?? this.relatedPort,
+      tcpType: tcpType ?? this.tcpType,
+      generation: generation ?? this.generation,
+      ufrag: ufrag ?? this.ufrag,
+      sdpMLineIndex: sdpMLineIndex ?? this.sdpMLineIndex,
+      sdpMid: sdpMid ?? this.sdpMid,
+    );
   }
 
   @override

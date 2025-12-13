@@ -4,6 +4,7 @@ import 'package:webrtc_dart/src/dtls/cipher/const.dart';
 import 'package:webrtc_dart/src/dtls/client_handshake.dart';
 import 'package:webrtc_dart/src/dtls/context/cipher_context.dart';
 import 'package:webrtc_dart/src/dtls/context/dtls_context.dart';
+import 'package:webrtc_dart/src/dtls/context/srtp_context.dart';
 import 'package:webrtc_dart/src/dtls/flight/flight.dart';
 import 'package:webrtc_dart/src/dtls/handshake/message/client_hello.dart';
 import 'package:webrtc_dart/src/dtls/handshake/message/hello_verify_request.dart';
@@ -156,6 +157,7 @@ void main() {
       final coordinator = ServerHandshakeCoordinator(
         dtlsContext: dtlsContext,
         cipherContext: cipherContext,
+        srtpContext: SrtpContext(),
         recordLayer: recordLayer,
         flightManager: flightManager,
         cipherSuites: [CipherSuite.tlsEcdheEcdsaWithAes128GcmSha256],
@@ -179,6 +181,7 @@ void main() {
       final coordinator = ServerHandshakeCoordinator(
         dtlsContext: dtlsContext,
         cipherContext: cipherContext,
+        srtpContext: SrtpContext(),
         recordLayer: recordLayer,
         flightManager: flightManager,
         cipherSuites: [CipherSuite.tlsEcdheEcdsaWithAes128GcmSha256],

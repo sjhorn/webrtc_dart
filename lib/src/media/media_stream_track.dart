@@ -1,5 +1,8 @@
 import 'dart:async';
 
+import '../srtp/rtp_packet.dart';
+import '../srtp/rtcp_packet.dart';
+
 /// Media Track Kind
 enum MediaStreamTrackKind {
   audio,
@@ -47,6 +50,12 @@ abstract class MediaStreamTrack {
   /// Ended event stream
   final _endedController = StreamController<void>.broadcast();
 
+  /// Raw RTP packet stream (for raw RTP forwarding)
+  final _rtpController = StreamController<RtpPacket>.broadcast();
+
+  /// Raw RTCP packet stream
+  final _rtcpController = StreamController<RtcpPacket>.broadcast();
+
   MediaStreamTrack({
     required this.id,
     required this.label,
@@ -79,6 +88,13 @@ abstract class MediaStreamTrack {
   /// Stream of ended events
   Stream<void> get onEnded => _endedController.stream;
 
+  /// Stream of received RTP packets (raw packets before depacketization)
+  /// Use this for forwarding/relaying RTP to other destinations
+  Stream<RtpPacket> get onReceiveRtp => _rtpController.stream;
+
+  /// Stream of received RTCP packets
+  Stream<RtcpPacket> get onReceiveRtcp => _rtcpController.stream;
+
   /// Check if track is audio
   bool get isAudio => kind == MediaStreamTrackKind.audio;
 
@@ -105,12 +121,29 @@ abstract class MediaStreamTrack {
     }
   }
 
+  /// Called when RTP packet is received (internal use)
+  /// This emits the raw RTP packet before any depacketization
+  void receiveRtp(RtpPacket packet) {
+    if (_state == MediaStreamTrackState.live) {
+      _rtpController.add(packet);
+    }
+  }
+
+  /// Called when RTCP packet is received (internal use)
+  void receiveRtcp(RtcpPacket packet) {
+    if (_state == MediaStreamTrackState.live) {
+      _rtcpController.add(packet);
+    }
+  }
+
   /// Dispose resources
   void dispose() {
     stop();
     _stateController.close();
     _muteController.close();
     _endedController.close();
+    _rtpController.close();
+    _rtcpController.close();
   }
 
   @override

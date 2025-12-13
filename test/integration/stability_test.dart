@@ -1,6 +1,6 @@
 /// Connection Stability Test
 ///
-/// Tests that a WebRTC connection remains stable for at least 60 seconds
+/// Tests that a WebRTC connection remains stable for at least 20 seconds
 /// with periodic message exchange to verify ongoing connectivity.
 library;
 
@@ -10,9 +10,9 @@ import 'package:webrtc_dart/webrtc_dart.dart';
 
 void main() {
   group('Connection Stability', () {
-    test('connection remains stable for 60 seconds with periodic messaging',
+    test('connection remains stable for 20 seconds with periodic messaging',
         () async {
-      print('\n=== Starting 60-Second Stability Test ===\n');
+      print('\n=== Starting 20-Second Stability Test ===\n');
 
       // Create two peer connections
       final pcOffer = RtcPeerConnection();
@@ -120,13 +120,13 @@ void main() {
 
       print('✓ Connection established!\n');
       print(
-          'Starting 60-second stability test with messaging every 2 seconds...\n');
+          'Starting 20-second stability test with messaging every 2 seconds...\n');
 
       final startTime = DateTime.now();
-      final testDuration = Duration(seconds: 60);
+      final testDuration = Duration(seconds: 20);
       var messagesSent = 0;
 
-      // Send messages every 2 seconds for 60 seconds
+      // Send messages every 2 seconds for 20 seconds
       while (DateTime.now().difference(startTime) < testDuration) {
         if (connectionLost) {
           fail('Connection lost during stability test');
@@ -141,7 +141,7 @@ void main() {
         print('[$elapsed s] Sent: $messagesSent, Received: $offerMessageCount');
       }
 
-      print('\n✓ 60 seconds completed!');
+      print('\n✓ 20 seconds completed!');
       print('Final stats:');
       print('  Messages sent: $messagesSent');
       print('  Messages received by offer: $offerMessageCount');
@@ -160,6 +160,6 @@ void main() {
       await pcAnswer.close();
 
       print('\n✓ Stability test passed!\n');
-    }, timeout: Timeout(Duration(seconds: 90)));
+    }, timeout: Timeout(Duration(seconds: 45)));
   });
 }

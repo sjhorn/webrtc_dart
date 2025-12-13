@@ -2,6 +2,7 @@ import 'dart:typed_data';
 import 'package:webrtc_dart/src/dtls/cipher/const.dart';
 import 'package:webrtc_dart/src/dtls/handshake/const.dart';
 import 'package:webrtc_dart/src/dtls/handshake/extensions/extension.dart';
+import 'package:webrtc_dart/src/dtls/handshake/extensions/use_srtp.dart';
 import 'package:webrtc_dart/src/dtls/handshake/random.dart';
 import 'package:webrtc_dart/src/dtls/record/const.dart';
 
@@ -226,6 +227,16 @@ class ClientHello {
   bool get hasExtendedMasterSecret {
     return extensions
         .any((ext) => ext.type == ExtensionType.extendedMasterSecret);
+  }
+
+  /// Get SRTP protection profiles from use_srtp extension
+  List<SrtpProtectionProfile> get srtpProfiles {
+    for (final ext in extensions) {
+      if (ext.type == ExtensionType.useSrtp && ext is UseSrtpExtension) {
+        return ext.profiles;
+      }
+    }
+    return [];
   }
 
   @override

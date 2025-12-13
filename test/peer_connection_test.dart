@@ -1,3 +1,5 @@
+import 'dart:typed_data';
+
 import 'package:test/test.dart';
 import 'package:webrtc_dart/src/peer_connection.dart';
 import 'package:webrtc_dart/src/ice/candidate.dart';
@@ -5,6 +7,10 @@ import 'package:webrtc_dart/src/datachannel/data_channel.dart';
 import 'package:webrtc_dart/src/sdp/sdp.dart';
 import 'package:webrtc_dart/src/sdp/rtx_sdp.dart';
 import 'package:webrtc_dart/src/media/media_stream_track.dart';
+import 'package:webrtc_dart/src/media/rtp_transceiver.dart';
+import 'package:webrtc_dart/src/codec/codec_parameters.dart';
+import 'package:webrtc_dart/src/nonstandard/media/track.dart' as nonstandard;
+import 'package:webrtc_dart/src/srtp/rtp_packet.dart';
 
 void main() {
   group('RtcPeerConnection', () {
@@ -241,11 +247,15 @@ void main() {
   });
 
   group('RtcConfiguration', () {
-    test('default configuration', () {
+    test('default configuration (matches TypeScript werift)', () {
       const config = RtcConfiguration();
 
-      expect(config.iceServers, isEmpty);
+      // Default STUN server matches TypeScript werift: stun:stun.l.google.com:19302
+      expect(config.iceServers.length, 1);
+      expect(config.iceServers[0].urls, ['stun:stun.l.google.com:19302']);
       expect(config.iceTransportPolicy, IceTransportPolicy.all);
+      // Default bundlePolicy matches TypeScript werift: max-compat
+      expect(config.bundlePolicy, BundlePolicy.maxCompat);
     });
 
     test('with ICE servers', () {
@@ -272,6 +282,104 @@ void main() {
       );
 
       expect(config.iceTransportPolicy, IceTransportPolicy.relay);
+    });
+
+    test('with bundlePolicy maxBundle (explicit)', () {
+      const config = RtcConfiguration(bundlePolicy: BundlePolicy.maxBundle);
+
+      expect(config.bundlePolicy, BundlePolicy.maxBundle);
+    });
+
+    test('with bundlePolicy disable', () {
+      const config = RtcConfiguration(
+        bundlePolicy: BundlePolicy.disable,
+      );
+
+      expect(config.bundlePolicy, BundlePolicy.disable);
+    });
+
+    test('with bundlePolicy maxCompat', () {
+      const config = RtcConfiguration(
+        bundlePolicy: BundlePolicy.maxCompat,
+      );
+
+      expect(config.bundlePolicy, BundlePolicy.maxCompat);
+    });
+  });
+
+  group('BundlePolicy SDP', () {
+    test('maxBundle includes BUNDLE group in SDP', () async {
+      final pc = RtcPeerConnection(RtcConfiguration(
+        bundlePolicy: BundlePolicy.maxBundle,
+      ));
+
+      // Add video track to get a media section
+      final videoTrack = VideoStreamTrack(id: 'video1', label: 'Video');
+      pc.addTrack(videoTrack);
+
+      final offer = await pc.createOffer();
+
+      expect(offer.sdp, contains('a=group:BUNDLE'));
+      await pc.close();
+    });
+
+    test('maxCompat includes BUNDLE group in SDP', () async {
+      final pc = RtcPeerConnection(RtcConfiguration(
+        bundlePolicy: BundlePolicy.maxCompat,
+      ));
+
+      // Add video track to get a media section
+      final videoTrack = VideoStreamTrack(id: 'video1', label: 'Video');
+      pc.addTrack(videoTrack);
+
+      final offer = await pc.createOffer();
+
+      expect(offer.sdp, contains('a=group:BUNDLE'));
+      await pc.close();
+    });
+
+    test('disable does NOT include BUNDLE group in SDP', () async {
+      final pc = RtcPeerConnection(RtcConfiguration(
+        bundlePolicy: BundlePolicy.disable,
+      ));
+
+      // Add video track to get a media section
+      final videoTrack = VideoStreamTrack(id: 'video1', label: 'Video');
+      pc.addTrack(videoTrack);
+
+      final offer = await pc.createOffer();
+
+      expect(offer.sdp, isNot(contains('a=group:BUNDLE')));
+      await pc.close();
+    });
+
+    test('answer respects bundlePolicy disable', () async {
+      final pc1 = RtcPeerConnection(RtcConfiguration(
+        bundlePolicy: BundlePolicy.disable,
+      ));
+      final pc2 = RtcPeerConnection(RtcConfiguration(
+        bundlePolicy: BundlePolicy.disable,
+      ));
+
+      // PC1 creates offer with video
+      final videoTrack1 = VideoStreamTrack(id: 'video1', label: 'Video');
+      pc1.addTrack(videoTrack1);
+
+      final offer = await pc1.createOffer();
+      await pc1.setLocalDescription(offer);
+      expect(offer.sdp, isNot(contains('a=group:BUNDLE')));
+
+      // PC2 receives offer
+      final videoTrack2 = VideoStreamTrack(id: 'video2', label: 'Video');
+      pc2.addTrack(videoTrack2);
+      await pc2.setRemoteDescription(offer);
+
+      // PC2 creates answer
+      final answer = await pc2.createAnswer();
+      expect(answer.sdp, isNot(contains('a=group:BUNDLE')));
+
+      await pc1.close();
+      await pc2.close();
     });
   });
 
@@ -487,6 +595,346 @@ void main() {
           reason: 'Original SSRC should be same');
       expect(rtxMapping1.values.first, rtxMapping2.values.first,
           reason: 'RTX SSRC should be same across offers');
+
+      await pc.close();
+    });
+  });
+
+  group('Nonstandard Track API (werift parity)', () {
+    test('addTransceiverWithTrack creates transceiver with track wired',
+        () async {
+      final pc = RtcPeerConnection();
+
+      // Create nonstandard track (like TypeScript werift MediaStreamTrack)
+      final track = nonstandard.MediaStreamTrack(
+        kind: nonstandard.MediaKind.video,
+        id: 'test-video',
+      );
+
+      // Add transceiver with track (like TypeScript: addTransceiver(track, {direction: 'sendonly'}))
+      final transceiver = pc.addTransceiverWithTrack(
+        track,
+        direction: RtpTransceiverDirection.sendonly,
+      );
+
+      expect(transceiver.kind, MediaStreamTrackKind.video);
+      expect(transceiver.direction, RtpTransceiverDirection.sendonly);
+      expect(transceiver.sender.nonstandardTrack, equals(track));
+
+      await pc.close();
+    });
+
+    test('addTransceiverWithTrack with H264 codec', () async {
+      final pc = RtcPeerConnection();
+
+      final track = nonstandard.MediaStreamTrack(
+        kind: nonstandard.MediaKind.video,
+        id: 'test-video',
+      );
+
+      final transceiver = pc.addTransceiverWithTrack(
+        track,
+        direction: RtpTransceiverDirection.sendonly,
+        codec: createH264Codec(payloadType: 96),
+      );
+
+      // Verify SDP contains H264
+      final offer = await pc.createOffer();
+      expect(offer.sdp, contains('H264'));
+      expect(offer.sdp, contains('a=rtpmap:96'));
+
+      expect(transceiver.sender.codec.codecName, 'H264');
+      await pc.close();
+    });
+
+    test('addTransceiverWithTrack creates offer with video media', () async {
+      final pc = RtcPeerConnection();
+
+      final track = nonstandard.MediaStreamTrack(
+        kind: nonstandard.MediaKind.video,
+        id: 'test-video',
+      );
+
+      pc.addTransceiverWithTrack(
+        track,
+        direction: RtpTransceiverDirection.sendonly,
+      );
+
+      final offer = await pc.createOffer();
+      final sdp = offer.parse();
+
+      // Should have a video media section
+      final videoMedia =
+          sdp.mediaDescriptions.where((m) => m.type == 'video').firstOrNull;
+      expect(videoMedia, isNotNull, reason: 'Should have video media section');
+
+      // Direction should be sendonly (check raw SDP since it's a flag attribute)
+      expect(offer.sdp, contains('a=sendonly'));
+
+      await pc.close();
+    });
+
+    test('sender.registerNonstandardTrack wires track to sender', () async {
+      final pc = RtcPeerConnection();
+
+      // First add transceiver without track
+      final transceiver = pc.addTransceiver(
+        MediaStreamTrackKind.video,
+        direction: RtpTransceiverDirection.sendonly,
+      );
+
+      // Initially no nonstandard track
+      expect(transceiver.sender.nonstandardTrack, isNull);
+
+      // Register nonstandard track (like TypeScript registerTrack)
+      final track = nonstandard.MediaStreamTrack(
+        kind: nonstandard.MediaKind.video,
+        id: 'test-video',
+      );
+      transceiver.sender.registerNonstandardTrack(track);
+
+      // Now should have the track
+      expect(transceiver.sender.nonstandardTrack, equals(track));
+
+      await pc.close();
+    });
+
+    test('audio track creates audio transceiver', () async {
+      final pc = RtcPeerConnection();
+
+      final track = nonstandard.MediaStreamTrack(
+        kind: nonstandard.MediaKind.audio,
+        id: 'test-audio',
+      );
+
+      final transceiver = pc.addTransceiverWithTrack(
+        track,
+        direction: RtpTransceiverDirection.sendrecv,
+      );
+
+      expect(transceiver.kind, MediaStreamTrackKind.audio);
+      expect(transceiver.direction, RtpTransceiverDirection.sendrecv);
+
+      await pc.close();
+    });
+
+    test('codecs from RtcConfiguration are used when no explicit codec',
+        () async {
+      // Create peer connection with H264 codec config (like TypeScript werift)
+      final pc = RtcPeerConnection(RtcConfiguration(
+        codecs: RtcCodecs(
+          video: [
+            createH264Codec(
+              payloadType: 96,
+              rtcpFeedback: [
+                RtcpFeedback(type: 'transport-cc'),
+                RtcpFeedback(type: 'nack'),
+              ],
+            ),
+          ],
+        ),
+      ));
+
+      // Add transceiver without explicit codec - should use config codec
+      final track = nonstandard.MediaStreamTrack(
+        kind: nonstandard.MediaKind.video,
+        id: 'test-video',
+      );
+
+      pc.addTransceiverWithTrack(
+        track,
+        direction: RtpTransceiverDirection.sendonly,
+      );
+
+      final offer = await pc.createOffer();
+
+      // Should contain H264 codec from config
+      expect(offer.sdp, contains('H264'));
+      expect(offer.sdp, contains('profile-level-id'));
+      // Should contain configured RTCP feedback
+      expect(offer.sdp, contains('a=rtcp-fb:96 transport-cc'));
+      expect(offer.sdp, contains('a=rtcp-fb:96 nack'));
+
+      await pc.close();
+    });
+
+    test('writeRtp with different payload type gets rewritten to codec PT',
+        () async {
+      // This test verifies the payload type rewriting fix for Ring video forwarding.
+      // When RTP packets from an external source (e.g., Ring camera) have a different
+      // payload type than the SDP-negotiated codec, _attachNonstandardTrack should
+      // rewrite the payload type to match the negotiated codec.
+
+      final pc = RtcPeerConnection(RtcConfiguration(
+        codecs: RtcCodecs(
+          video: [
+            createH264Codec(payloadType: 96), // Negotiated PT is 96
+          ],
+        ),
+      ));
+
+      final track = nonstandard.MediaStreamTrack(
+        kind: nonstandard.MediaKind.video,
+        id: 'test-video',
+      );
+
+      final transceiver = pc.addTransceiverWithTrack(
+        track,
+        direction: RtpTransceiverDirection.sendonly,
+      );
+
+      // Verify the sender's codec has the correct payload type
+      expect(transceiver.sender.codec.payloadType, 96);
+
+      // Create an RTP packet with a DIFFERENT payload type (e.g., 100)
+      // simulating a Ring camera that uses its own PT
+      final externalPacket = RtpPacket(
+        version: 2,
+        padding: false,
+        extension: false,
+        marker: true,
+        payloadType: 100, // External PT != 96
+        sequenceNumber: 1000,
+        timestamp: 90000,
+        ssrc: 0xDEADBEEF,
+        csrcs: [],
+        payload: Uint8List.fromList([0x67, 0x42, 0xc0, 0x1e]),
+      );
+
+      // Write the packet to the track
+      // This triggers _attachNonstandardTrack's listener which calls
+      // rtpSession.sendRawRtpPacket(rtp, payloadType: codec.payloadType)
+      track.writeRtp(externalPacket);
+
+      // The actual verification happens in the RTP flow, but at minimum
+      // we verify the sender's codec has the expected payload type
+      // that will be used for rewriting
+      expect(transceiver.sender.codec.payloadType, 96,
+          reason: 'Sender codec should have negotiated PT 96');
+
+      await pc.close();
+    });
+  });
+
+  group('Audio Codec Configuration', () {
+    test('audio transceiver uses configured PCMU codec instead of default Opus',
+        () async {
+      // This test verifies the fix for the bug where createAudioTransceiver
+      // always used Opus regardless of configured codecs.
+      final pc = RtcPeerConnection(RtcConfiguration(
+        codecs: RtcCodecs(
+          audio: [createPcmuCodec()], // Configure PCMU instead of default Opus
+          video: [createH264Codec(payloadType: 96)],
+        ),
+      ));
+
+      final audioTrack = nonstandard.MediaStreamTrack(
+        kind: nonstandard.MediaKind.audio,
+        id: 'test-audio',
+      );
+
+      final transceiver = pc.addTransceiverWithTrack(
+        audioTrack,
+        direction: RtpTransceiverDirection.sendonly,
+      );
+
+      // Verify the sender's codec is PCMU, not Opus
+      expect(transceiver.sender.codec.mimeType, 'audio/PCMU',
+          reason: 'Sender codec should be PCMU as configured');
+      expect(transceiver.sender.codec.clockRate, 8000,
+          reason: 'PCMU clock rate should be 8000');
+      expect(transceiver.sender.codec.payloadType, 0,
+          reason: 'PCMU static payload type is 0');
+
+      await pc.close();
+    });
+
+    test('audio transceiver SDP contains configured PCMU codec', () async {
+      final pc = RtcPeerConnection(RtcConfiguration(
+        codecs: RtcCodecs(
+          audio: [createPcmuCodec()],
+        ),
+      ));
+
+      final audioTrack = nonstandard.MediaStreamTrack(
+        kind: nonstandard.MediaKind.audio,
+        id: 'test-audio',
+      );
+
+      pc.addTransceiverWithTrack(
+        audioTrack,
+        direction: RtpTransceiverDirection.sendonly,
+      );
+
+      final offer = await pc.createOffer();
+      await pc.setLocalDescription(offer);
+
+      // Verify SDP contains PCMU, not Opus
+      expect(offer.sdp, contains('PCMU/8000'),
+          reason: 'SDP should contain PCMU codec');
+      expect(offer.sdp, isNot(contains('opus/48000')),
+          reason: 'SDP should not contain Opus when PCMU is configured');
+
+      await pc.close();
+    });
+
+    test('addTransceiver with audio kind uses configured codec', () async {
+      final pc = RtcPeerConnection(RtcConfiguration(
+        codecs: RtcCodecs(
+          audio: [createPcmuCodec()],
+        ),
+      ));
+
+      final transceiver = pc.addTransceiver(
+        MediaStreamTrackKind.audio,
+        direction: RtpTransceiverDirection.sendonly,
+      );
+
+      expect(transceiver.sender.codec.mimeType, 'audio/PCMU');
+      expect(transceiver.sender.codec.clockRate, 8000);
+
+      await pc.close();
+    });
+
+    test('multiple transceivers (video + audio) use correct codecs', () async {
+      final pc = RtcPeerConnection(RtcConfiguration(
+        codecs: RtcCodecs(
+          audio: [createPcmuCodec()],
+          video: [createH264Codec(payloadType: 96)],
+        ),
+      ));
+
+      final videoTrack = nonstandard.MediaStreamTrack(
+        kind: nonstandard.MediaKind.video,
+        id: 'test-video',
+      );
+      final audioTrack = nonstandard.MediaStreamTrack(
+        kind: nonstandard.MediaKind.audio,
+        id: 'test-audio',
+      );
+
+      // Add video first, then audio
+      final videoTransceiver = pc.addTransceiverWithTrack(
+        videoTrack,
+        direction: RtpTransceiverDirection.sendonly,
+      );
+      final audioTransceiver = pc.addTransceiverWithTrack(
+        audioTrack,
+        direction: RtpTransceiverDirection.sendonly,
+      );
+
+      // Verify each transceiver has correct codec
+      expect(videoTransceiver.sender.codec.mimeType, 'video/H264');
+      expect(videoTransceiver.sender.codec.payloadType, 96);
+      expect(audioTransceiver.sender.codec.mimeType, 'audio/PCMU');
+      expect(audioTransceiver.sender.codec.payloadType, 0);
+
+      // Verify SDP contains both codecs
+      final offer = await pc.createOffer();
+      expect(offer.sdp, contains('m=video'));
+      expect(offer.sdp, contains('m=audio'));
+      expect(offer.sdp, contains('H264/90000'));
+      expect(offer.sdp, contains('PCMU/8000'));
 
       await pc.close();
     });

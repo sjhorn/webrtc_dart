@@ -36,6 +36,31 @@ void main() {
       expect(candidate.type, equals('host'));
     });
 
+    test('parses candidate with candidate: prefix', () {
+      final sdp =
+          'candidate:6815297761 1 udp 2130706431 192.168.1.1 54321 typ host';
+      final candidate = Candidate.fromSdp(sdp);
+
+      expect(candidate.foundation, equals('6815297761'));
+      expect(candidate.component, equals(1));
+      expect(candidate.transport, equals('udp'));
+      expect(candidate.priority, equals(2130706431));
+      expect(candidate.host, equals('192.168.1.1'));
+      expect(candidate.port, equals(54321));
+      expect(candidate.type, equals('host'));
+    });
+
+    test('parses candidate with a=candidate: prefix', () {
+      final sdp =
+          'a=candidate:6815297761 1 udp 2130706431 192.168.1.1 54321 typ host';
+      final candidate = Candidate.fromSdp(sdp);
+
+      expect(candidate.foundation, equals('6815297761'));
+      expect(candidate.component, equals(1));
+      expect(candidate.host, equals('192.168.1.1'));
+      expect(candidate.type, equals('host'));
+    });
+
     test('parses candidate with optional attributes', () {
       final sdp = '6815297761 1 udp 1694498815 10.0.0.1 54321 typ srflx '
           'raddr 192.168.1.1 rport 54321 generation 0 ufrag test';

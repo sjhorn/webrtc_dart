@@ -1,0 +1,10 @@
+# Dependencies
+.dart_tool/
+.packages
+pubspec.lock
+
+# Build outputs
+build/
+
+# Dont commit .env
+.env

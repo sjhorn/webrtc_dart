@@ -7,7 +7,10 @@ import 'package:webrtc_dart/src/codec/codec_parameters.dart';
 import 'package:webrtc_dart/src/codec/opus.dart';
 import 'package:webrtc_dart/src/codec/vp9.dart';
 import 'package:webrtc_dart/src/rtp/rtp_session.dart';
+import 'package:webrtc_dart/src/rtp/header_extension.dart';
 import 'package:webrtc_dart/src/srtp/rtp_packet.dart';
+import 'package:webrtc_dart/src/nonstandard/media/track.dart' as nonstandard;
+import 'package:webrtc_dart/src/transport/transport.dart';
 
 /// RTP Transceiver Direction
 enum RtpTransceiverDirection { sendrecv, sendonly, recvonly, inactive }
@@ -40,6 +43,14 @@ class RtpTransceiver {
   /// Callback when a new track is received (including simulcast layers)
   void Function(MediaStreamTrack track)? onTrack;
 
+  /// Associated transport (for bundlePolicy: disable support)
+  /// When bundlePolicy is disable, each transceiver has its own transport.
+  /// When bundlePolicy is max-bundle, all transceivers share the same transport.
+  MediaTransport? _transport;
+
+  /// M-line index in SDP (position in media sections)
+  int? mLineIndex;
+
   RtpTransceiver({
     required this.kind,
     required this.mid,
@@ -47,10 +58,21 @@ class RtpTransceiver {
     required this.receiver,
     RtpTransceiverDirection? direction,
     List<RTCRtpSimulcastParameters>? simulcast,
-  }) : _direction = direction ?? RtpTransceiverDirection.sendrecv {
+    MediaTransport? transport,
+    this.mLineIndex,
+  })  : _direction = direction ?? RtpTransceiverDirection.sendrecv,
+        _transport = transport {
     if (simulcast != null) {
       _simulcast.addAll(simulcast);
     }
+  }
+
+  /// Get the associated transport
+  MediaTransport? get transport => _transport;
+
+  /// Set the associated transport
+  void setTransport(MediaTransport transport) {
+    _transport = transport;
   }
 
   /// Get simulcast parameters
@@ -103,6 +125,9 @@ class RtpTransceiver {
 class RtpSender {
   /// Media track being sent (null if no track)
   MediaStreamTrack? _track;
+
+  /// Nonstandard track for pre-encoded RTP (like TypeScript werift)
+  nonstandard.MediaStreamTrack? _nonstandardTrack;
 
   /// RTP session for sending
   final RtpSession rtpSession;
@@ -370,6 +395,36 @@ class RtpSender {
   /// Get current track
   MediaStreamTrack? get track => _track;
 
+  /// Get nonstandard track (for pre-encoded RTP like werift)
+  nonstandard.MediaStreamTrack? get nonstandardTrack => _nonstandardTrack;
+
+  /// Register a nonstandard track for pre-encoded RTP
+  ///
+  /// This matches the TypeScript werift registerTrack() behavior:
+  /// subscribes to track.onReceiveRtp and forwards packets through sendRtp.
+  /// Used for forwarding pre-encoded RTP (e.g., from Ring cameras, FFmpeg).
+  ///
+  /// Example:
+  /// ```dart
+  /// final track = nonstandard.MediaStreamTrack(kind: nonstandard.MediaKind.video);
+  /// sender.registerNonstandardTrack(track);
+  /// // Later, from Ring camera:
+  /// ringCamera.onVideoRtp.listen((rtp) => track.writeRtp(rtp));
+  /// ```
+  void registerNonstandardTrack(nonstandard.MediaStreamTrack track) {
+    if (track.stopped) {
+      throw StateError('Track is already stopped');
+    }
+
+    // Detach any existing track
+    _detachTrack();
+    _track = null;
+    _nonstandardTrack = track;
+
+    // Attach the nonstandard track
+    _attachNonstandardTrack(track);
+  }
+
   /// Replace track
   /// Replaces the current track with a new one without renegotiation.
   /// The new track must be of the same kind (audio/video) as the original.
@@ -406,12 +461,82 @@ class RtpSender {
   }
 
   /// Attach track and start sending
+  ///
+  /// Matches TypeScript werift registerTrack() behavior:
+  /// - For nonstandard tracks: subscribes to onReceiveRtp and forwards to sendRtp
+  /// - For standard tracks: subscribes to onAudioFrame/onVideoFrame
   void _attachTrack(MediaStreamTrack track) {
     if (track is AudioStreamTrack) {
       _trackSubscription = track.onAudioFrame.listen(_handleAudioFrame);
     } else if (track is VideoStreamTrack) {
       _trackSubscription = track.onVideoFrame.listen(_handleVideoFrame);
     }
+  }
+
+  /// Attach a nonstandard track (for pre-encoded RTP)
+  ///
+  /// This matches the TypeScript werift registerTrack() behavior:
+  /// subscribes to track.onReceiveRtp and forwards packets through sendRtp.
+  /// Used for forwarding pre-encoded RTP (e.g., from Ring cameras, FFmpeg).
+  ///
+  /// Like TypeScript werift, we rewrite the payload type to match the negotiated
+  /// codec. This is essential because the source (e.g., Ring camera) may use
+  /// a different payload type than what was negotiated with the browser.
+  /// Debug flag: set to true to disable mid extension for testing
+  /// This helps isolate whether the mid extension is causing browser decode issues
+  static bool debugDisableMidExtension = false;
+
+  void _attachNonstandardTrack(nonstandard.MediaStreamTrack track) {
+    // Get the negotiated payload type from the codec
+    final negotiatedPayloadType = codec.payloadType;
+
+    // Pre-build the mid header extension if we have mid and midExtensionId
+    // This matches TypeScript werift rtpSender.ts:sendRtp which adds header extensions
+    RtpExtension? midExtension;
+    if (mid != null && midExtensionId != null && !debugDisableMidExtension) {
+      // Build the extension data: one-byte header format
+      // ID (4 bits) + L (4 bits) where length = L+1, followed by payload
+      final midBytes = serializeSdesMid(mid!);
+      final header = (midExtensionId! << 4) | ((midBytes.length - 1) & 0x0F);
+      final extData = Uint8List(4); // Minimum 4-byte aligned
+      extData[0] = header;
+      extData.setRange(1, 1 + midBytes.length, midBytes);
+      // Pad remaining bytes with 0
+      midExtension = RtpExtension(
+        profile: 0xBEDE, // One-byte header extension profile
+        data: extData,
+      );
+    }
+
+    _trackSubscription = track.onReceiveRtp.listen((event) async {
+      if (_stopped) return;
+
+      final (rtp, _) = event;
+
+      // If we have a mid extension, add it to the packet
+      RtpPacket packetToSend = rtp;
+      if (midExtension != null) {
+        packetToSend = RtpPacket(
+          version: rtp.version,
+          padding: rtp.padding,
+          extension: true, // Enable extension
+          marker: rtp.marker,
+          payloadType: rtp.payloadType,
+          sequenceNumber: rtp.sequenceNumber,
+          timestamp: rtp.timestamp,
+          ssrc: rtp.ssrc,
+          csrcs: rtp.csrcs,
+          extensionHeader: midExtension,
+          payload: rtp.payload,
+          paddingLength: rtp.paddingLength,
+        );
+      }
+
+      // Forward the RTP packet through the session, rewriting payload type
+      // to match the negotiated codec (like TypeScript werift sendRtp)
+      await rtpSession.sendRawRtpPacket(packetToSend,
+          payloadType: negotiatedPayloadType);
+    });
   }
 
   /// Detach track and stop sending
@@ -623,6 +748,9 @@ class RtpReceiver {
 
   /// Process an RTP packet and deliver to track
   void _processPacket(RtpPacket packet, MediaStreamTrack targetTrack) {
+    // Always emit raw RTP packet for forwarding/relaying use cases
+    targetTrack.receiveRtp(packet);
+
     // Depacketize RTP payload based on codec
     if (targetTrack is AudioStreamTrack &&
         codec.codecName.toLowerCase() == 'opus') {
@@ -779,13 +907,14 @@ RtpTransceiver createAudioTransceiver({
   MediaStreamTrack? sendTrack,
   RtpTransceiverDirection? direction,
   List<RTCRtpEncodingParameters>? sendEncodings,
+  RtpCodecParameters? codec,
 }) {
-  final codec = createOpusCodec(payloadType: 111);
+  final effectiveCodec = codec ?? createOpusCodec(payloadType: 111);
 
   final sender = RtpSender(
     track: sendTrack,
     rtpSession: rtpSession,
-    codec: codec,
+    codec: effectiveCodec,
     sendEncodings: sendEncodings,
   );
   sender.mid = mid;
@@ -799,7 +928,7 @@ RtpTransceiver createAudioTransceiver({
   final receiver = RtpReceiver(
     track: receiveTrack,
     rtpSession: rtpSession,
-    codec: codec,
+    codec: effectiveCodec,
   );
 
   return RtpTransceiver(
@@ -835,13 +964,14 @@ RtpTransceiver createVideoTransceiver({
   MediaStreamTrack? sendTrack,
   RtpTransceiverDirection? direction,
   List<RTCRtpEncodingParameters>? sendEncodings,
+  RtpCodecParameters? codec,
 }) {
-  final codec = createVp8Codec(payloadType: 96);
+  final effectiveCodec = codec ?? createVp8Codec(payloadType: 96);
 
   final sender = RtpSender(
     track: sendTrack,
     rtpSession: rtpSession,
-    codec: codec,
+    codec: effectiveCodec,
     sendEncodings: sendEncodings,
   );
   sender.mid = mid;
@@ -855,7 +985,7 @@ RtpTransceiver createVideoTransceiver({
   final receiver = RtpReceiver(
     track: receiveTrack,
     rtpSession: rtpSession,
-    codec: codec,
+    codec: effectiveCodec,
   );
 
   return RtpTransceiver(

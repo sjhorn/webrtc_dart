@@ -4,15 +4,21 @@ import 'package:webrtc_dart/src/srtp/const.dart';
 import 'package:webrtc_dart/src/srtp/rtcp_packet.dart';
 
 /// SRTCP Cipher for AES-GCM encryption/decryption
-/// RFC 3711 Section 3.4 - SRTCP
+/// RFC 7714 - AES-GCM Authenticated Encryption in SRTCP
 ///
-/// SRTCP adds an index and E-flag to encrypted RTCP packets:
-/// | Encrypted RTCP | SRTCP Index (31 bits) + E-flag (1 bit) | Auth Tag |
+/// SRTCP packet format (RFC 7714 Section 9):
+/// | RTCP Header (8 bytes) | Encrypted Payload | Auth Tag (16 bytes) | SRTCP Index (4 bytes) |
+///
+/// The SRTCP index has the E-flag (encryption flag) in the MSB.
+/// AAD (Additional Authenticated Data) = RTCP Header (8 bytes) + SRTCP Index with E-flag (4 bytes)
+///
+/// Note: This cipher expects pre-derived session keys, not master keys.
+/// Key derivation should be done by SrtpSession before passing to this cipher.
 class SrtcpCipher {
-  /// Master key
+  /// Session encryption key (derived from master key)
   final Uint8List masterKey;
 
-  /// Master salt
+  /// Session salt (derived from master salt, 14 bytes - only first 12 used for GCM IV)
   final Uint8List masterSalt;
 
   /// SRTCP index for each SSRC (packet counter)
@@ -29,26 +35,30 @@ class SrtcpCipher {
     // Get and increment SRTCP index for this SSRC
     final index = _getAndIncrementIndex(packet.ssrc);
 
-    // Derive session keys
-    final sessionKey = _deriveSessionKey(packet.ssrc, index);
-    final sessionSalt = _deriveSessionSalt(packet.ssrc, index);
-
     // Build nonce (IV) for SRTCP
-    final nonce = _buildNonce(sessionSalt, packet.ssrc, index);
+    final nonce = _buildNonce(masterSalt, packet.ssrc, index);
 
-    // Serialize RTCP header (first 8 bytes - authenticated but not encrypted)
-    final header = packet.serialize().sublist(0, RtcpPacket.headerSize);
+    // Serialize full RTCP packet
+    final fullRtcp = packet.serialize();
 
-    // Get payload (everything after header - will be encrypted)
-    final plaintext = packet.serialize().sublist(RtcpPacket.headerSize);
+    // Extract header (first 8 bytes) and payload
+    final header = fullRtcp.sublist(0, RtcpPacket.headerSize);
+    final plaintext = fullRtcp.sublist(RtcpPacket.headerSize);
+
+    // SRTCP Index with E-flag (encryption flag set)
+    final indexWithEFlag = index | srtcpEFlagBit;
+
+    // Build AAD: RTCP Header (8 bytes) + SRTCP Index with E-flag (4 bytes)
+    // Per RFC 7714 Section 17
+    final aad = _buildAad(header, indexWithEFlag);
 
     // Encrypt payload using AES-GCM
     final gcm = GCMBlockCipher(AESEngine());
     final params = AEADParameters(
-      KeyParameter(sessionKey),
+      KeyParameter(masterKey),
       128, // 128-bit auth tag
       nonce,
-      header, // Additional authenticated data (RTCP header)
+      aad,
     );
 
     gcm.init(true, params);
@@ -59,12 +69,9 @@ class SrtcpCipher {
 
     // Encrypt
     var outOff = gcm.processBytes(plaintext, 0, plaintext.length, encrypted, 0);
-    outOff += gcm.doFinal(encrypted, outOff);
+    gcm.doFinal(encrypted, outOff);
 
     // Build SRTCP packet: header + encrypted_payload + auth_tag + index
-    // Index includes E-flag in MSB
-    final indexWithEFlag = index | srtcpEFlagBit; // Set E-flag (encrypted)
-
     final result =
         Uint8List(header.length + encrypted.length + srtcpIndexLength);
     var offset = 0;
@@ -116,25 +123,25 @@ class SrtcpCipher {
     final headerBuffer = ByteData.sublistView(header);
     final ssrc = headerBuffer.getUint32(4);
 
-    // Extract encrypted data (everything between header and index, including auth tag)
+    // Extract encrypted data + auth tag (everything between header and index)
     final encryptedEnd = indexStart;
     final encryptedData =
         srtcpPacket.sublist(RtcpPacket.headerSize, encryptedEnd);
 
-    // Derive session keys
-    final sessionKey = _deriveSessionKey(ssrc, index);
-    final sessionSalt = _deriveSessionSalt(ssrc, index);
-
     // Build nonce (IV)
-    final nonce = _buildNonce(sessionSalt, ssrc, index);
+    final nonce = _buildNonce(masterSalt, ssrc, index);
+
+    // Build AAD: RTCP Header (8 bytes) + SRTCP Index with E-flag (4 bytes)
+    // Per RFC 7714 Section 17
+    final aad = _buildAad(header, indexWithEFlag);
 
     // Decrypt using AES-GCM
     final gcm = GCMBlockCipher(AESEngine());
     final params = AEADParameters(
-      KeyParameter(sessionKey),
+      KeyParameter(masterKey),
       128, // 128-bit auth tag
       nonce,
-      header, // Additional authenticated data
+      aad,
     );
 
     gcm.init(false, params);
@@ -147,7 +154,7 @@ class SrtcpCipher {
     try {
       var outOff = gcm.processBytes(
           encryptedData, 0, encryptedData.length, plaintext, 0);
-      outOff += gcm.doFinal(plaintext, outOff);
+      gcm.doFinal(plaintext, outOff);
 
       // Reconstruct full RTCP packet
       final fullPacket = Uint8List(header.length + plaintext.length);
@@ -160,6 +167,23 @@ class SrtcpCipher {
     }
   }
 
+  /// Build AAD (Additional Authenticated Data) for SRTCP
+  /// RFC 7714 Section 17: AAD = RTCP Header (8 bytes) + SRTCP Index (4 bytes)
+  Uint8List _buildAad(Uint8List header, int indexWithEFlag) {
+    final aad = Uint8List(RtcpPacket.headerSize + srtcpIndexLength);
+
+    // Copy header (8 bytes)
+    aad.setRange(0, RtcpPacket.headerSize, header);
+
+    // Append index with E-flag (4 bytes, big-endian)
+    aad[8] = (indexWithEFlag >> 24) & 0xFF;
+    aad[9] = (indexWithEFlag >> 16) & 0xFF;
+    aad[10] = (indexWithEFlag >> 8) & 0xFF;
+    aad[11] = indexWithEFlag & 0xFF;
+
+    return aad;
+  }
+
   /// Get and increment SRTCP index for an SSRC
   int _getAndIncrementIndex(int ssrc) {
     final current = _indexMap[ssrc] ?? 0;
@@ -168,44 +192,33 @@ class SrtcpCipher {
     return current;
   }
 
-  /// Derive session key from master key
-  /// RFC 3711 Section 4.3
-  Uint8List _deriveSessionKey(int ssrc, int index) {
-    // Simplified: In full implementation, use proper key derivation with label
-    // For now, use master key directly
-    return masterKey;
-  }
-
-  /// Derive session salt from master salt
-  /// RFC 3711 Section 4.3
-  Uint8List _deriveSessionSalt(int ssrc, int index) {
-    // Simplified: In full implementation, use proper salt derivation
-    // For now, use master salt directly
-    return masterSalt;
-  }
-
   /// Build nonce (IV) for AES-GCM
-  /// RFC 3711 Section 4.1.1
+  /// RFC 7714 Section 9.1
   ///
-  /// For SRTCP: Nonce = (SSRC || index) XOR salt
+  /// For SRTCP: IV = 00 || SSRC || 0000 || SRTCP_index, XOR with salt
+  /// Bytes: [0, 0, SSRC(4 bytes), 0, 0, index(4 bytes)]
   Uint8List _buildNonce(Uint8List salt, int ssrc, int index) {
     final nonce = Uint8List(12);
 
-    // SSRC (32-bit) at bytes 0-3
-    nonce[0] = (ssrc >> 24) & 0xFF;
-    nonce[1] = (ssrc >> 16) & 0xFF;
-    nonce[2] = (ssrc >> 8) & 0xFF;
-    nonce[3] = ssrc & 0xFF;
+    // First 2 bytes are zero
+    nonce[0] = 0;
+    nonce[1] = 0;
 
-    // Index (31-bit) at bytes 4-7, pad bytes 8-11
-    nonce[4] = (index >> 24) & 0xFF;
-    nonce[5] = (index >> 16) & 0xFF;
-    nonce[6] = (index >> 8) & 0xFF;
-    nonce[7] = index & 0xFF;
-    nonce[8] = 0;
-    nonce[9] = 0;
-    nonce[10] = 0;
-    nonce[11] = 0;
+    // SSRC (32-bit) at bytes 2-5
+    nonce[2] = (ssrc >> 24) & 0xFF;
+    nonce[3] = (ssrc >> 16) & 0xFF;
+    nonce[4] = (ssrc >> 8) & 0xFF;
+    nonce[5] = ssrc & 0xFF;
+
+    // 2 bytes zero padding at bytes 6-7
+    nonce[6] = 0;
+    nonce[7] = 0;
+
+    // SRTCP index (32-bit) at bytes 8-11
+    nonce[8] = (index >> 24) & 0xFF;
+    nonce[9] = (index >> 16) & 0xFF;
+    nonce[10] = (index >> 8) & 0xFF;
+    nonce[11] = index & 0xFF;
 
     // XOR with salt
     for (var i = 0; i < 12; i++) {

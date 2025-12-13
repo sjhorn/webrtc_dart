@@ -2,6 +2,45 @@
 
 All notable changes to this project will be documented in this file.
 
+## 0.22.6
+
+### Added
+
+- **Configurable logging** via Dart `logging` package:
+  - `WebRtcLogging` class with hierarchical loggers per component (ICE, DTLS, SCTP, RTP, etc.)
+  - `WebRtcLogging.enable()` / `WebRtcLogging.disable()` for global control
+  - Selective logging: `WebRtcLogging.ice.level = Level.FINE`
+  - Backward compatible: deprecated `webrtcDebug` flag still works
+
+- **Ring camera example** (`example/ring/`):
+  - Video streaming server connecting to Ring cameras via WebRTC
+  - Forwards video to browser clients
+  - Documentation for setup and audio/video handling
+
+- **SRTP-CTR cipher support** (AES_CM_128_HMAC_SHA1_80):
+  - Required for Ring camera compatibility
+  - Refactored SRTP key derivation for both GCM and CTR modes
+  - Fixed SRTCP index handling and authentication
+
+- **API enhancements**:
+  - `Candidate.copyWith()` for trickle ICE with sdpMLineIndex/sdpMid
+  - `RtpTransceiver` codec preference support
+  - `MediaStreamTrack.clone()` method
+
+### Changed
+
+- Migrated 284 debug call sites from custom `debugLog()` to standard logging
+- Improved SRTP cipher architecture with separate CTR and GCM implementations
+
+### Tests
+
+- SRTP CTR cipher tests (542 lines)
+- SRTP GCM cipher tests (541 lines)
+- SRTP RFC 7714 test vectors (476 lines)
+- Server handshake tests (406 lines)
+- Extended peer connection tests
+- Total: 2262 tests passing
+
 ## 0.22.5
 
 ### Added

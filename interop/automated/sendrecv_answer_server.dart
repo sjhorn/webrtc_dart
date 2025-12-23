@@ -13,7 +13,6 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 import 'package:webrtc_dart/webrtc_dart.dart';
-import 'package:webrtc_dart/src/rtp/rtp_session.dart' show HeaderExtensionConfig;
 
 class SendrecvAnswerServer {
   HttpServer? _server;
@@ -130,9 +129,10 @@ class SendrecvAnswerServer {
     ));
     print('[Sendrecv-Answer] PeerConnection created');
 
-    // DON'T pre-create transceiver - let setRemoteDescription create one from the offer
-    // This is different from werift which pre-creates, but let's test if it makes a difference
-    print('[Sendrecv-Answer] NOT pre-creating transceiver (will be created from offer)');
+    // DON'T pre-create a transceiver - the browser's offer will create one
+    // We'll use registerTrackForForward on the transceiver created from the offer
+    // This ensures the SSRC in our answer matches what we send
+    print('[Sendrecv-Answer] Not pre-creating transceiver (will use one from offer)');
 
     // Track connection state
     _subscriptions.add(_pc!.onConnectionStateChange.listen((state) {
@@ -159,39 +159,29 @@ class SendrecvAnswerServer {
       });
     }));
 
-    // Handle incoming tracks - use registerTrackForForward (like werift replaceTrack)
+    // Handle incoming tracks - echo RTP via registerTrackForForward on the SAME transceiver
+    // This is the key insight: we must use the transceiver that was created from the offer
+    // because its SSRC is what's advertised in our answer SDP
     _subscriptions.add(_pc!.onTrack.listen((transceiver) {
-      print('[Sendrecv-Answer] Received track: ${transceiver.kind}');
+      print('[Sendrecv-Answer] onTrack fired: kind=${transceiver.kind}, mid=${transceiver.mid}, '
+          'ssrc=${transceiver.sender.rtpSession.localSsrc}, direction=${transceiver.direction}');
       _trackReceived = true;
 
       if (transceiver.kind == MediaStreamTrackKind.video) {
         final receivedTrack = transceiver.receiver.track;
-        final rtpSession = transceiver.sender.rtpSession;
 
-        // Build extension config for RTP header regeneration
-        final extensionConfig = HeaderExtensionConfig(
-          sdesMidId: transceiver.sender.midExtensionId,
-          mid: transceiver.sender.mid,
-          absSendTimeId: transceiver.sender.absSendTimeExtensionId,
-          transportWideCCId: transceiver.sender.transportWideCCExtensionId,
-        );
+        print('[Sendrecv-Answer] Setting up echo via registerTrackForForward on same transceiver');
 
-        print('[Sendrecv-Answer] Setting up echo forwarding (mid=${transceiver.mid})');
-
-        // Forward received RTP packets back to browser (echo)
-        _subscriptions.add(receivedTrack.onReceiveRtp.listen((rtpPacket) async {
-          await rtpSession.sendRawRtpPacket(
-            rtpPacket,
-            replaceSsrc: true,
-            extensionConfig: extensionConfig,
-          );
-          _packetsEchoed++;
-        }));
+        // Use registerTrackForForward to echo RTP through THIS transceiver's sender
+        // This ensures the SSRC matches what's in the answer SDP
+        transceiver.sender.registerTrackForForward(receivedTrack);
         _echoStarted = true;
 
         // Count received packets for statistics
         _subscriptions.add(receivedTrack.onReceiveRtp.listen((rtpPacket) {
           _packetsReceived++;
+          _packetsEchoed++; // registerTrackForForward handles the echo
+
           if (_packetsReceived % 100 == 0) {
             print('[Sendrecv-Answer] Received=$_packetsReceived, Echoed=$_packetsEchoed');
           }
@@ -231,6 +221,17 @@ class SendrecvAnswerServer {
     final answer = await _pc!.createAnswer();
     await _pc!.setLocalDescription(answer);
     print('[Sendrecv-Answer] Created answer');
+
+    // Debug: Print answer SDP to see SSRC and header extensions
+    final sdpLines = answer.sdp.split('\n');
+    for (final line in sdpLines) {
+      if (line.startsWith('a=ssrc:') ||
+          line.startsWith('a=sendrecv') ||
+          line.startsWith('a=extmap:') ||
+          line.startsWith('m=video')) {
+        print('[Sendrecv-Answer] SDP: $line');
+      }
+    }
 
     // Wait briefly for ICE gathering
     await Future.delayed(Duration(milliseconds: 500));

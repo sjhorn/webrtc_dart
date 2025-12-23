@@ -182,10 +182,15 @@ This document tracks verification of each example against werift-webrtc behavior
 - Safari: **PARTIAL** - Same behavior as Chrome
 - Firefox: **SKIP** - getUserMedia fails in headless Playwright
 
-**Investigation Details:**
+**Investigation Details (Dec 2025):**
 - Compared with werift `examples/mediachannel/sendrecv/answer.ts` pattern
 - Werift creates transceiver BEFORE receiving offer: `pc.addTransceiver("video", { direction: "sendrecv" })`
 - Werift uses `replaceTrack(track)` which internally subscribes to `track.onReceiveRtp` and forwards via `sendRtp`
+
+**Investigation Attempts:**
+1. **Pre-creating transceiver like werift** - Tried creating transceiver before offer. Result: TWO transceivers created (pre-created MID=1 + offer-created MID=0), SSRC mismatch since pre-created SSRC didn't match answer SDP.
+2. **Using registerTrackForForward on offer-created transceiver** - Fixed SSRC mismatch (answer SDP SSRC matches sent SSRC). Still 0 frames displayed.
+3. **Header extension regeneration** - Verified mid (ID 9), abs-send-time (ID 2), transport-cc (ID 4) are set correctly on sender.
 
 **Library Improvements Made (Dec 2025):**
 1. **createAnswer extmap support** (`lib/src/peer_connection.dart`): Answer SDP now copies header extension mappings from remote offer - critical for browser to parse incoming RTP
@@ -196,10 +201,22 @@ This document tracks verification of each example against werift-webrtc behavior
 **Verified Working:**
 - SRTP session is established (confirmed after 2s delay)
 - Packets ARE being sent (350+ via senderStats.packetsSent)
-- SSRCs match between sender and SDP answer
+- SSRCs match between sender and SDP answer (e.g., 140817001 in both)
+- Header extension IDs extracted correctly from offer
 - No exceptions during forwarding
 
-**Known Issue**: Despite all diagnostics showing correct behavior on Dart side (packets sent, SSRCs match, SRTP set), browser shows 0 video frames. This may be a browser quirk with self-looped video on the same transceiver, or a subtle RTP timestamp/sequence handling issue. The offerer pattern works perfectly (see sendrecv/offer.dart tests).
+**Remaining Hypotheses:**
+1. **RTP sequence/timestamp discontinuity** - When echoing, sequence numbers might be non-contiguous or timestamps might be duplicated, causing browser decoder to drop frames
+2. **Payload type mismatch** - Though we copy from offer, browser might expect exact codec parameters
+3. **Browser loopback quirk** - Some browsers may have issues displaying video that originated from the same source (camera → send → receive back → display)
+4. **Missing PLI/keyframe handling** - Browser might need a keyframe request (PLI) to start decoding
+
+**Known Issue**: Despite all diagnostics showing correct behavior on Dart side (packets sent, SSRCs match, SRTP set), browser shows 0 video frames. The offerer pattern works perfectly (see sendrecv/offer.dart tests), suggesting the issue is specific to the answerer role.
+
+**Test Execution Notes:**
+- Interop tests use command-line arguments, not environment variables: `node sendrecv_answer_test.mjs chrome` (NOT `BROWSER=chrome node ...`)
+- Tests must be run from `interop/automated/` directory
+- Server must be started first: `dart run interop/automated/sendrecv_answer_server.dart`
 
 ### 5.2 Codec-Specific
 

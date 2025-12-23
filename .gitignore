@@ -35,5 +35,11 @@ build/
 # werift-webrtc/
 
 # Interop signal files (temporary)
-interop/signals/*.jsonlinterop/node_modules/
+interop/signals/*.jsonl
 interop/node_modules/
+
+# Debug/test recording artifacts
+*.rtp
+*.mp4
+dump-*.rtp
+recording-*.mp4

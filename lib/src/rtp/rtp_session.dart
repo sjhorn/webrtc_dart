@@ -4,6 +4,7 @@ import 'dart:typed_data';
 import 'package:webrtc_dart/src/common/logging.dart';
 import 'package:webrtc_dart/src/rtcp/nack.dart';
 import 'package:webrtc_dart/src/rtcp/psfb/psfb.dart';
+import 'package:webrtc_dart/src/rtp/header_extension.dart';
 import 'package:webrtc_dart/src/rtp/nack_handler.dart';
 import 'package:webrtc_dart/src/rtp/retransmission_buffer.dart';
 import 'package:webrtc_dart/src/rtp/rtcp_reports.dart';
@@ -16,6 +17,36 @@ import 'package:webrtc_dart/src/stats/rtc_stats.dart';
 import 'package:webrtc_dart/src/stats/rtp_stats.dart';
 
 final _log = WebRtcLogging.rtp;
+
+/// Configuration for header extension regeneration.
+///
+/// Used when forwarding RTP packets to regenerate header extensions with
+/// fresh values (e.g., abs-send-time, transport-cc, mid).
+/// Matches werift-webrtc rtpSender.ts:sendRtp header extension handling.
+class HeaderExtensionConfig {
+  /// Extension ID for abs-send-time (null if not negotiated)
+  final int? absSendTimeId;
+
+  /// Extension ID for transport-wide CC (null if not negotiated)
+  final int? transportWideCCId;
+
+  /// Extension ID for SDES MID (null if not negotiated)
+  final int? sdesMidId;
+
+  /// The media ID (mid) value to use for SDES MID extension
+  final String? mid;
+
+  const HeaderExtensionConfig({
+    this.absSendTimeId,
+    this.transportWideCCId,
+    this.sdesMidId,
+    this.mid,
+  });
+
+  /// Check if any extensions are configured
+  bool get hasExtensions =>
+      absSendTimeId != null || transportWideCCId != null || sdesMidId != null;
+}
 
 /// RTP Session
 /// Manages RTP/RTCP streams with encryption and statistics tracking
@@ -73,6 +104,57 @@ class RtpSession {
 
   /// Map of original payload type to RTX payload type
   final Map<int, int> _rtxPayloadTypeMap = {};
+
+  /// Transport-wide sequence number counter for TWCC extensions.
+  /// Matches werift-webrtc dtlsTransport.transportSequenceNumber.
+  int _transportSequenceNumber = 0;
+
+  /// Get the next transport-wide sequence number (with wrapping at 16-bit).
+  int _nextTransportSequenceNumber() {
+    _transportSequenceNumber = (_transportSequenceNumber + 1) & 0xFFFF;
+    return _transportSequenceNumber;
+  }
+
+  /// Sequence number offset for forwarding packets.
+  /// Matches werift rtpSender.ts seqOffset.
+  int _seqOffset = 0;
+
+  /// Timestamp offset for forwarding packets.
+  /// Matches werift rtpSender.ts timestampOffset.
+  int _timestampOffset = 0;
+
+  /// Last sent sequence number (for calculating offsets).
+  int? _lastSequenceNumber;
+
+  /// Last sent timestamp (for calculating offsets).
+  int? _lastTimestamp;
+
+  /// Whether offsets have been initialized for forwarding.
+  bool _offsetsInitialized = false;
+
+  /// Initialize offsets for packet forwarding.
+  /// This should be called when starting to forward packets from a new source.
+  /// Matches werift replaceTrack offset calculation.
+  void initializeForwardingOffsets(int firstSeqNum, int firstTimestamp) {
+    if (_lastSequenceNumber != null && _lastTimestamp != null) {
+      // Calculate offsets to continue from current position
+      // seqOffset = (lastSeqNum + 1) - firstSeqNum
+      _seqOffset = ((_lastSequenceNumber! + 1) - firstSeqNum) & 0xFFFF;
+      _timestampOffset = (_lastTimestamp! - firstTimestamp) & 0xFFFFFFFF;
+    } else {
+      // First time, no offset needed but use random start for sequence number
+      _seqOffset = 0;
+      _timestampOffset = 0;
+    }
+    _offsetsInitialized = true;
+  }
+
+  /// Reset forwarding offsets (for new forwarding sessions).
+  void resetForwardingOffsets() {
+    _offsetsInitialized = false;
+    _seqOffset = 0;
+    _timestampOffset = 0;
+  }
 
   RtpSession({
     required this.localSsrc,
@@ -172,14 +254,20 @@ class RtpSession {
   /// - [payloadType]: If provided, overrides the packet's payload type with this value.
   ///   This is essential when forwarding RTP from an external source (e.g., Ring camera)
   ///   to a browser, as the browser expects the negotiated payload type.
+  /// - [extensionConfig]: If provided, regenerates header extensions with fresh values.
+  ///   This is critical for echo/loopback scenarios where browsers expect updated
+  ///   abs-send-time and transport-cc values.
   ///
   /// Matches TypeScript werift rtpSender.ts:sendRtp behavior:
   /// - Rewrites SSRC to sender's SSRC
   /// - Rewrites payloadType to codec's payloadType
+  /// - Regenerates header extensions (abs-send-time, transport-cc, mid)
   Future<void> sendRawRtpPacket(
     RtpPacket packet, {
     bool replaceSsrc = true,
     int? payloadType,
+    HeaderExtensionConfig? extensionConfig,
+    bool applyOffsets = true,
   }) async {
     // Guard: Only send if SRTP session is established (DTLS complete)
     // This matches TypeScript werift rtpSender.ts:sendRtp check:
@@ -189,32 +277,64 @@ class RtpSession {
       return;
     }
 
-    // Determine if we need to modify the packet
-    final needsModification = (replaceSsrc && packet.ssrc != localSsrc) ||
-        (payloadType != null && payloadType != packet.payloadType);
-
-    // Create modified packet if needed, otherwise use original
-    final RtpPacket packetToSend;
-    if (needsModification) {
-      packetToSend = RtpPacket(
-        version: packet.version,
-        padding: packet.padding,
-        extension: packet.extension,
-        marker: packet.marker,
-        payloadType: payloadType ?? packet.payloadType,
-        sequenceNumber: packet.sequenceNumber,
-        timestamp: packet.timestamp,
-        ssrc: replaceSsrc ? localSsrc : packet.ssrc,
-        csrcs: packet.csrcs,
-        extensionHeader: packet.extensionHeader,
-        payload: packet.payload,
-      );
-    } else {
-      packetToSend = packet;
+    // Initialize forwarding offsets on first packet if not already done.
+    // This matches werift's replaceTrack behavior where offsets are calculated
+    // to ensure continuous sequence numbers when forwarding from a new source.
+    if (applyOffsets && !_offsetsInitialized) {
+      initializeForwardingOffsets(packet.sequenceNumber, packet.timestamp);
     }
 
-    // Update statistics
-    senderStats.updateSent(payloadSize: packet.payload.length);
+    // Apply sequence number and timestamp offsets for continuous stream.
+    // Matches werift rtpSender.ts:sendRtp:
+    //   header.timestamp = uint32Add(header.timestamp, this.timestampOffset);
+    //   header.sequenceNumber = uint16Add(header.sequenceNumber, this.seqOffset);
+    final int adjustedSeqNum;
+    final int adjustedTimestamp;
+    if (applyOffsets) {
+      adjustedSeqNum = (packet.sequenceNumber + _seqOffset) & 0xFFFF;
+      adjustedTimestamp = (packet.timestamp + _timestampOffset) & 0xFFFFFFFF;
+    } else {
+      adjustedSeqNum = packet.sequenceNumber;
+      adjustedTimestamp = packet.timestamp;
+    }
+
+    // Regenerate header extensions if config provided
+    // Matches werift rtpSender.ts:sendRtp extension regeneration
+    RtpExtension? newExtensionHeader = packet.extensionHeader;
+    if (extensionConfig != null && extensionConfig.hasExtensions) {
+      newExtensionHeader = _regenerateExtensions(
+        packet.extensionHeader,
+        extensionConfig,
+      );
+    }
+
+    // Create modified packet with all adjustments
+    final packetToSend = RtpPacket(
+      version: packet.version,
+      padding: packet.padding,
+      extension: newExtensionHeader != null,
+      marker: packet.marker,
+      payloadType: payloadType ?? packet.payloadType,
+      sequenceNumber: adjustedSeqNum,
+      timestamp: adjustedTimestamp,
+      ssrc: replaceSsrc ? localSsrc : packet.ssrc,
+      csrcs: packet.csrcs,
+      extensionHeader: newExtensionHeader,
+      payload: packet.payload,
+    );
+
+    // Track last sent values for future offset calculations.
+    // Matches werift: this.timestamp = header.timestamp; this.sequenceNumber = header.sequenceNumber;
+    _lastSequenceNumber = adjustedSeqNum;
+    _lastTimestamp = adjustedTimestamp;
+
+    // Update statistics with the actual packet values being sent
+    // This is critical for RTCP Sender Reports to report accurate timestamps
+    senderStats.updateSent(
+      payloadSize: packet.payload.length,
+      timestamp: adjustedTimestamp,
+      sequenceNumber: adjustedSeqNum,
+    );
 
     // Encrypt with SRTP
     final data = await srtpSession!.encryptRtp(packetToSend);
@@ -223,6 +343,70 @@ class RtpSession {
     if (onSendRtp != null) {
       await onSendRtp!(data);
     }
+  }
+
+  /// Regenerate header extensions for forwarded packets.
+  ///
+  /// This creates new extension header with fresh values for:
+  /// - abs-send-time: current NTP timestamp
+  /// - transport-cc: incrementing sequence number
+  /// - sdes-mid: the configured MID value
+  ///
+  /// Matches werift rtpSender.ts:sendRtp header extension regeneration.
+  RtpExtension? _regenerateExtensions(
+    RtpExtension? original,
+    HeaderExtensionConfig config,
+  ) {
+    // Build new extensions list
+    final extensions = <({int id, Uint8List payload})>[];
+
+    // Add abs-send-time with current NTP time
+    if (config.absSendTimeId != null) {
+      final ntpTimestamp = ntpTime();
+      final absPayload = serializeAbsSendTimeFromNtp(ntpTimestamp);
+      extensions.add((id: config.absSendTimeId!, payload: absPayload));
+    }
+
+    // Add transport-wide CC sequence number
+    if (config.transportWideCCId != null) {
+      final twccSeq = _nextTransportSequenceNumber();
+      final twccPayload = serializeTransportWideCC(twccSeq);
+      extensions.add((id: config.transportWideCCId!, payload: twccPayload));
+    }
+
+    // Add SDES MID
+    if (config.sdesMidId != null && config.mid != null) {
+      final midPayload = serializeSdesMid(config.mid!);
+      extensions.add((id: config.sdesMidId!, payload: midPayload));
+    }
+
+    if (extensions.isEmpty) {
+      return original;
+    }
+
+    // Build one-byte header extension format
+    // Profile = 0xBEDE for one-byte headers
+    final extensionData = <int>[];
+    for (final ext in extensions) {
+      if (ext.id < 1 || ext.id > 14) continue;
+      final length = ext.payload.length;
+      if (length < 1 || length > 16) continue;
+
+      // One-byte header: ID (4 bits) + L (4 bits), where length = L + 1
+      final header = (ext.id << 4) | ((length - 1) & 0x0F);
+      extensionData.add(header);
+      extensionData.addAll(ext.payload);
+    }
+
+    // Pad to 4-byte boundary
+    while (extensionData.length % 4 != 0) {
+      extensionData.add(0);
+    }
+
+    return RtpExtension(
+      profile: 0xBEDE, // One-byte header profile
+      data: Uint8List.fromList(extensionData),
+    );
   }
 
   /// Receive RTP/SRTP packet

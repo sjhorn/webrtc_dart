@@ -199,9 +199,23 @@ class RtpSenderStatistics {
   }
 
   /// Update with sent packet
-  void updateSent({required int payloadSize}) {
+  /// If [timestamp] and [sequenceNumber] are provided, they update the internal
+  /// tracking state. This is important for RTCP Sender Reports when forwarding
+  /// packets (e.g., in echo scenarios) where we're not generating new sequences.
+  void updateSent({
+    required int payloadSize,
+    int? timestamp,
+    int? sequenceNumber,
+  }) {
     packetsSent++;
     bytesSent += payloadSize;
+    // Update internal state if provided (for RTCP SR accuracy)
+    if (timestamp != null) {
+      this.timestamp = timestamp;
+    }
+    if (sequenceNumber != null) {
+      this.sequenceNumber = sequenceNumber;
+    }
   }
 
   /// Update with sent SR

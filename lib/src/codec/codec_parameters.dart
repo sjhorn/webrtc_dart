@@ -171,6 +171,43 @@ RtpCodecParameters createH264Codec({
   );
 }
 
+/// AV1 codec parameters
+/// https://aomediacodec.github.io/av1-rtp-spec/
+RtpCodecParameters createAv1Codec({
+  int? payloadType,
+  List<RtcpFeedback>? rtcpFeedback,
+}) {
+  return RtpCodecParameters(
+    mimeType: 'video/AV1',
+    clockRate: 90000,
+    payloadType: payloadType,
+    rtcpFeedback: rtcpFeedback ??
+        [
+          RtcpFeedbackTypes.nack,
+          RtcpFeedbackTypes.pli,
+          RtcpFeedbackTypes.remb,
+        ],
+  );
+}
+
+/// RTX (Retransmission) codec parameters
+/// RFC 4588 - RTP Retransmission Payload Format
+///
+/// RTX provides retransmission of lost packets using a separate SSRC
+/// and payload type. The associated payload type (apt) links it to
+/// the primary codec.
+RtpCodecParameters createRtxCodec({
+  int? payloadType,
+  int clockRate = 90000,
+}) {
+  return RtpCodecParameters(
+    mimeType: 'video/rtx',
+    clockRate: clockRate,
+    payloadType: payloadType,
+    rtcpFeedback: const [],
+  );
+}
+
 /// List of supported audio codecs
 final List<RtpCodecParameters> supportedAudioCodecs = [
   createOpusCodec(),

@@ -1,0 +1,618 @@
+// Multi-Client Recvonly Server for Automated Browser Testing
+//
+// This server receives video from multiple simultaneous browser clients:
+// 1. Each browser gets its own PeerConnection
+// 2. Browser sends camera video to Dart server
+// 3. Dart tracks RTP packets received from each client
+//
+// Pattern: Dart is OFFERER (recvonly), Browser is ANSWERER (sendonly)
+
+import 'dart:async';
+import 'dart:convert';
+import 'dart:io';
+import 'package:webrtc_dart/webrtc_dart.dart';
+
+class ClientConnection {
+  final String id;
+  final RtcPeerConnection pc;
+  final List<Map<String, dynamic>> candidates = [];
+  DateTime? connectedTime;
+  int rtpPacketsReceived = 0;
+  bool isConnected = false;
+  bool hasTrack = false;
+
+  ClientConnection(this.id, this.pc);
+}
+
+class MultiClientRecvonlyServer {
+  HttpServer? _server;
+  final Map<String, ClientConnection> _clients = {};
+  int _clientCounter = 0;
+  String _currentBrowser = 'unknown';
+  int _maxConcurrentClients = 0;
+
+  Future<void> start({int port = 8792}) async {
+    _server = await HttpServer.bind(InternetAddress.anyIPv4, port);
+    print('[MultiRecvonly] Started on http://localhost:$port');
+
+    await for (final request in _server!) {
+      _handleRequest(request);
+    }
+  }
+
+  Future<void> _handleRequest(HttpRequest request) async {
+    request.response.headers.add('Access-Control-Allow-Origin', '*');
+    request.response.headers
+        .add('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
+    request.response.headers
+        .add('Access-Control-Allow-Headers', 'Content-Type');
+
+    if (request.method == 'OPTIONS') {
+      request.response.statusCode = 200;
+      await request.response.close();
+      return;
+    }
+
+    final path = request.uri.path;
+    print('[MultiRecvonly] ${request.method} $path');
+
+    try {
+      switch (path) {
+        case '/':
+        case '/index.html':
+          await _serveTestPage(request);
+          break;
+        case '/start':
+          await _handleStart(request);
+          break;
+        case '/connect':
+          await _handleConnect(request);
+          break;
+        case '/offer':
+          await _handleOffer(request);
+          break;
+        case '/answer':
+          await _handleAnswer(request);
+          break;
+        case '/candidate':
+          await _handleCandidate(request);
+          break;
+        case '/candidates':
+          await _handleCandidates(request);
+          break;
+        case '/status':
+          await _handleStatus(request);
+          break;
+        case '/result':
+          await _handleResult(request);
+          break;
+        case '/reset':
+          await _handleReset(request);
+          break;
+        default:
+          request.response.statusCode = 404;
+          request.response.write('Not found');
+      }
+    } catch (e, st) {
+      print('[MultiRecvonly] Error: $e');
+      print(st);
+      request.response.statusCode = 500;
+      request.response.write('Error: $e');
+    }
+
+    await request.response.close();
+  }
+
+  Future<void> _serveTestPage(HttpRequest request) async {
+    request.response.headers.contentType = ContentType.html;
+    request.response.write(_testPageHtml);
+  }
+
+  Future<void> _handleStart(HttpRequest request) async {
+    _currentBrowser = request.uri.queryParameters['browser'] ?? 'unknown';
+    print('[MultiRecvonly] Starting test for: $_currentBrowser');
+
+    await _cleanupAll();
+    _clientCounter = 0;
+    _maxConcurrentClients = 0;
+
+    request.response.headers.contentType = ContentType.json;
+    request.response.write(jsonEncode({'status': 'ok'}));
+  }
+
+  Future<void> _handleConnect(HttpRequest request) async {
+    final clientId = 'client_${++_clientCounter}';
+    print('[MultiRecvonly] New connection: $clientId');
+
+    // Create peer connection for this client
+    final pc = RtcPeerConnection(RtcConfiguration(
+      iceServers: [IceServer(urls: ['stun:stun.l.google.com:19302'])],
+    ));
+
+    final client = ClientConnection(clientId, pc);
+    _clients[clientId] = client;
+
+    // Track max concurrent clients
+    if (_clients.length > _maxConcurrentClients) {
+      _maxConcurrentClients = _clients.length;
+    }
+    print('[MultiRecvonly] Active clients: ${_clients.length}');
+
+    pc.onConnectionStateChange.listen((state) {
+      print('[MultiRecvonly] [$clientId] Connection state: $state');
+      if (state == PeerConnectionState.connected) {
+        client.isConnected = true;
+        client.connectedTime = DateTime.now();
+      }
+    });
+
+    pc.onIceConnectionStateChange.listen((state) {
+      print('[MultiRecvonly] [$clientId] ICE state: $state');
+    });
+
+    pc.onIceCandidate.listen((candidate) {
+      print('[MultiRecvonly] [$clientId] ICE candidate: ${candidate.type}');
+      client.candidates.add({
+        'candidate': 'candidate:${candidate.toSdp()}',
+        'sdpMid': '0',
+        'sdpMLineIndex': 0,
+      });
+    });
+
+    // Handle incoming track
+    pc.onTrack.listen((transceiver) {
+      print('[MultiRecvonly] [$clientId] Received track: ${transceiver.kind}');
+      client.hasTrack = true;
+    });
+
+    // Add recvonly video transceiver
+    final transceiver = pc.addTransceiver(
+      MediaStreamTrackKind.video,
+      direction: RtpTransceiverDirection.recvonly,
+    );
+
+    // Listen for RTP packets on receiver track
+    transceiver.receiver.track.onReceiveRtp.listen((rtp) {
+      client.rtpPacketsReceived++;
+      if (client.rtpPacketsReceived % 100 == 0) {
+        print(
+            '[MultiRecvonly] [$clientId] Received ${client.rtpPacketsReceived} packets');
+      }
+    });
+
+    request.response.headers.contentType = ContentType.json;
+    request.response.write(jsonEncode({'clientId': clientId}));
+  }
+
+  Future<void> _handleOffer(HttpRequest request) async {
+    final clientId = request.uri.queryParameters['clientId'];
+    if (clientId == null) {
+      request.response.statusCode = 400;
+      request.response.write('Missing clientId');
+      return;
+    }
+
+    final client = _clients[clientId];
+    if (client == null) {
+      request.response.statusCode = 400;
+      request.response.write('Unknown client: $clientId');
+      return;
+    }
+
+    // Create and send offer
+    final offer = await client.pc.createOffer();
+    await client.pc.setLocalDescription(offer);
+    print('[MultiRecvonly] [$clientId] Created offer');
+
+    request.response.headers.contentType = ContentType.json;
+    request.response.write(jsonEncode({
+      'type': offer.type,
+      'sdp': offer.sdp,
+    }));
+  }
+
+  Future<void> _handleAnswer(HttpRequest request) async {
+    final body = await utf8.decodeStream(request);
+    final data = jsonDecode(body) as Map<String, dynamic>;
+    final clientId = data['clientId'] as String;
+
+    final client = _clients[clientId];
+    if (client == null) {
+      request.response.statusCode = 400;
+      request.response.write('Unknown client: $clientId');
+      return;
+    }
+
+    final answer = SessionDescription(
+      type: data['type'] as String,
+      sdp: data['sdp'] as String,
+    );
+
+    print('[MultiRecvonly] [$clientId] Received answer');
+    await client.pc.setRemoteDescription(answer);
+    print('[MultiRecvonly] [$clientId] Remote description set');
+
+    request.response.headers.contentType = ContentType.json;
+    request.response.write(jsonEncode({'status': 'ok'}));
+  }
+
+  Future<void> _handleCandidate(HttpRequest request) async {
+    final body = await utf8.decodeStream(request);
+    final data = jsonDecode(body) as Map<String, dynamic>;
+    final clientId = data['clientId'] as String;
+
+    final client = _clients[clientId];
+    if (client == null) {
+      request.response.statusCode = 400;
+      request.response.write('Unknown client: $clientId');
+      return;
+    }
+
+    String candidateStr = data['candidate'] as String? ?? '';
+
+    if (candidateStr.isEmpty || candidateStr.trim().isEmpty) {
+      request.response.headers.contentType = ContentType.json;
+      request.response.write(jsonEncode({'status': 'ok'}));
+      return;
+    }
+
+    if (candidateStr.startsWith('candidate:')) {
+      candidateStr = candidateStr.substring('candidate:'.length);
+    }
+
+    try {
+      final candidate = Candidate.fromSdp(candidateStr);
+      await client.pc.addIceCandidate(candidate);
+      print('[MultiRecvonly] [$clientId] Added candidate: ${candidate.type}');
+    } catch (e) {
+      print('[MultiRecvonly] [$clientId] Failed to add candidate: $e');
+    }
+
+    request.response.headers.contentType = ContentType.json;
+    request.response.write(jsonEncode({'status': 'ok'}));
+  }
+
+  Future<void> _handleCandidates(HttpRequest request) async {
+    final clientId = request.uri.queryParameters['clientId'];
+    if (clientId == null) {
+      request.response.headers.contentType = ContentType.json;
+      request.response.write(jsonEncode([]));
+      return;
+    }
+
+    final client = _clients[clientId];
+    if (client == null) {
+      request.response.headers.contentType = ContentType.json;
+      request.response.write(jsonEncode([]));
+      return;
+    }
+
+    request.response.headers.contentType = ContentType.json;
+    request.response.write(jsonEncode(client.candidates));
+  }
+
+  Future<void> _handleStatus(HttpRequest request) async {
+    final clientStatuses = _clients.entries.map((e) {
+      final c = e.value;
+      return {
+        'clientId': c.id,
+        'connected': c.isConnected,
+        'hasTrack': c.hasTrack,
+        'rtpPacketsReceived': c.rtpPacketsReceived,
+      };
+    }).toList();
+
+    request.response.headers.contentType = ContentType.json;
+    request.response.write(jsonEncode({
+      'clientCount': _clients.length,
+      'maxConcurrentClients': _maxConcurrentClients,
+      'clients': clientStatuses,
+    }));
+  }
+
+  Future<void> _handleResult(HttpRequest request) async {
+    final connectedClients = _clients.values.where((c) => c.isConnected).length;
+    final clientsWithTrack = _clients.values.where((c) => c.hasTrack).length;
+    final totalRtpReceived = _clients.values
+        .fold<int>(0, (sum, c) => sum + c.rtpPacketsReceived);
+
+    // Success if we had multiple clients connect and send video
+    final success = _maxConcurrentClients >= 2 &&
+        connectedClients >= 2 &&
+        totalRtpReceived > 0;
+
+    final result = {
+      'browser': _currentBrowser,
+      'success': success,
+      'maxConcurrentClients': _maxConcurrentClients,
+      'connectedClients': connectedClients,
+      'clientsWithTrack': clientsWithTrack,
+      'totalRtpPacketsReceived': totalRtpReceived,
+      'clients': _clients.entries.map((e) {
+        final c = e.value;
+        return {
+          'id': c.id,
+          'connected': c.isConnected,
+          'hasTrack': c.hasTrack,
+          'rtpReceived': c.rtpPacketsReceived,
+        };
+      }).toList(),
+    };
+
+    request.response.headers.contentType = ContentType.json;
+    request.response.write(jsonEncode(result));
+  }
+
+  Future<void> _handleReset(HttpRequest request) async {
+    await _cleanupAll();
+    request.response.headers.contentType = ContentType.json;
+    request.response.write(jsonEncode({'status': 'ok'}));
+  }
+
+  Future<void> _cleanupAll() async {
+    for (final client in _clients.values) {
+      await client.pc.close();
+    }
+    _clients.clear();
+  }
+
+  static const String _testPageHtml = '''
+<!DOCTYPE html>
+<html>
+<head>
+    <title>WebRTC Multi-Client Recvonly Test</title>
+    <style>
+        body { font-family: monospace; padding: 20px; background: #1a1a1a; color: #eee; }
+        #log { background: #0a0a0a; padding: 10px; height: 200px; overflow-y: auto; border: 1px solid #333; }
+        .info { color: #8af; }
+        .success { color: #8f8; }
+        .error { color: #f88; }
+        .client { color: #fa8; }
+        h1 { color: #8af; }
+        #status { margin: 10px 0; padding: 10px; background: #333; }
+        .badge { background: #0a8; color: #fff; padding: 2px 8px; border-radius: 4px; }
+        .stats { display: flex; gap: 20px; margin: 10px 0; flex-wrap: wrap; }
+        .stat { background: #333; padding: 10px; border-radius: 4px; }
+        .stat-value { font-size: 1.5em; color: #8f8; }
+        .stat-label { font-size: 0.8em; color: #888; }
+        .clients { display: flex; gap: 10px; flex-wrap: wrap; }
+        .client-card { background: #333; padding: 10px; border-radius: 4px; min-width: 150px; }
+        .client-id { font-weight: bold; color: #fa8; }
+    </style>
+</head>
+<body>
+    <h1>Multi-Client Recvonly Test <span class="badge">Upload</span></h1>
+    <p>Tests receiving video from multiple browser clients simultaneously.</p>
+    <div id="status">Status: Waiting to start...</div>
+    <div class="stats">
+        <div class="stat">
+            <div class="stat-label">Clients Connected</div>
+            <div id="clientCount" class="stat-value">0</div>
+        </div>
+        <div class="stat">
+            <div class="stat-label">Clients Sending</div>
+            <div id="sendingCount" class="stat-value">0</div>
+        </div>
+    </div>
+    <div id="clients" class="clients"></div>
+    <div id="log"></div>
+
+    <script>
+        const connections = new Map();
+        const serverBase = window.location.origin;
+        const NUM_CLIENTS = 3;
+
+        function log(msg, className = 'info') {
+            const logDiv = document.getElementById('log');
+            const line = document.createElement('div');
+            line.className = className;
+            line.textContent = '[' + new Date().toISOString().substr(11, 12) + '] ' + msg;
+            logDiv.appendChild(line);
+            logDiv.scrollTop = logDiv.scrollHeight;
+            console.log(msg);
+        }
+
+        function setStatus(msg) {
+            document.getElementById('status').textContent = 'Status: ' + msg;
+        }
+
+        function updateStats() {
+            const connected = Array.from(connections.values()).filter(c => c.connected).length;
+            const sending = Array.from(connections.values()).filter(c => c.sending).length;
+            document.getElementById('clientCount').textContent = connected;
+            document.getElementById('sendingCount').textContent = sending;
+
+            // Update client cards
+            const clientsDiv = document.getElementById('clients');
+            clientsDiv.innerHTML = '';
+            for (const [id, conn] of connections) {
+                const card = document.createElement('div');
+                card.className = 'client-card';
+                card.innerHTML = '<div class="client-id">' + id + '</div>' +
+                    '<div>' + (conn.connected ? '✓ Connected' : '○ Connecting') + '</div>' +
+                    '<div>' + (conn.sending ? '✓ Sending' : '○ Pending') + '</div>';
+                clientsDiv.appendChild(card);
+            }
+        }
+
+        async function createClient(index) {
+            log('Creating client ' + (index + 1) + '...', 'client');
+
+            const connectResp = await fetch(serverBase + '/connect');
+            const { clientId } = await connectResp.json();
+            log('[' + clientId + '] Connected');
+
+            const pc = new RTCPeerConnection({
+                iceServers: [{ urls: 'stun:stun.l.google.com:19302' }]
+            });
+
+            const conn = { pc, clientId, connected: false, sending: false, stream: null };
+            connections.set(clientId, conn);
+            updateStats();
+
+            pc.onicecandidate = async (e) => {
+                if (e.candidate) {
+                    await fetch(serverBase + '/candidate', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            clientId,
+                            candidate: e.candidate.candidate,
+                            sdpMid: e.candidate.sdpMid,
+                            sdpMLineIndex: e.candidate.sdpMLineIndex
+                        })
+                    });
+                }
+            };
+
+            pc.onconnectionstatechange = () => {
+                if (pc.connectionState === 'connected') {
+                    conn.connected = true;
+                    log('[' + clientId + '] Connected', 'success');
+                    updateStats();
+                }
+            };
+
+            // Get camera stream for this client (each gets unique stream)
+            const stream = await navigator.mediaDevices.getUserMedia({
+                video: { width: 640, height: 480 }
+            });
+            conn.stream = stream;
+
+            // Get offer from server (recvonly - server wants to receive)
+            const offerResp = await fetch(serverBase + '/offer?clientId=' + clientId);
+            const offer = await offerResp.json();
+            log('[' + clientId + '] Got offer');
+
+            await pc.setRemoteDescription(new RTCSessionDescription(offer));
+
+            // Add video track to send to server
+            const track = stream.getVideoTracks()[0];
+            pc.addTrack(track, stream);
+            conn.sending = true;
+            log('[' + clientId + '] Added video track', 'success');
+            updateStats();
+
+            const answer = await pc.createAnswer();
+            await pc.setLocalDescription(answer);
+
+            await fetch(serverBase + '/answer', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    clientId,
+                    type: answer.type,
+                    sdp: pc.localDescription.sdp
+                })
+            });
+
+            // Get server ICE candidates
+            for (let i = 0; i < 3; i++) {
+                await new Promise(r => setTimeout(r, 300));
+                const candidatesResp = await fetch(serverBase + '/candidates?clientId=' + clientId);
+                const candidates = await candidatesResp.json();
+                for (const c of candidates) {
+                    if (!c._added) {
+                        try {
+                            await pc.addIceCandidate(new RTCIceCandidate(c));
+                            c._added = true;
+                        } catch (e) {}
+                    }
+                }
+            }
+
+            return conn;
+        }
+
+        async function runTest() {
+            try {
+                const browser = detectBrowser();
+                log('Browser: ' + browser);
+                setStatus('Starting multi-client recvonly test...');
+
+                await fetch(serverBase + '/start?browser=' + browser);
+                log('Server started');
+
+                // Create multiple clients
+                setStatus('Creating ' + NUM_CLIENTS + ' clients...');
+                for (let i = 0; i < NUM_CLIENTS; i++) {
+                    await createClient(i);
+                    await new Promise(r => setTimeout(r, 200)); // Stagger connections
+                }
+
+                // Wait for connections
+                setStatus('Waiting for connections...');
+                await waitForConnections();
+                log('All clients connected!', 'success');
+
+                // Let video stream for a while
+                setStatus('Streaming video to server...');
+                await new Promise(r => setTimeout(r, 5000));
+
+                // Get results
+                const resultResp = await fetch(serverBase + '/result');
+                const result = await resultResp.json();
+
+                // Stop streams
+                for (const [_, conn] of connections) {
+                    if (conn.stream) {
+                        conn.stream.getTracks().forEach(t => t.stop());
+                    }
+                }
+
+                if (result.success) {
+                    log('TEST PASSED! ' + result.totalRtpPacketsReceived + ' total packets', 'success');
+                    setStatus('TEST PASSED');
+                } else {
+                    log('TEST FAILED', 'error');
+                    setStatus('TEST FAILED');
+                }
+
+                console.log('TEST_RESULT:' + JSON.stringify(result));
+                window.testResult = result;
+
+            } catch (e) {
+                log('Error: ' + e.message, 'error');
+                setStatus('ERROR: ' + e.message);
+                console.log('TEST_RESULT:' + JSON.stringify({ success: false, error: e.message }));
+                window.testResult = { success: false, error: e.message };
+            }
+        }
+
+        async function waitForConnections() {
+            return new Promise((resolve, reject) => {
+                const timeout = setTimeout(() => reject(new Error('Connection timeout')), 30000);
+                const check = () => {
+                    const allConnected = Array.from(connections.values()).every(c => c.connected);
+                    if (allConnected && connections.size === NUM_CLIENTS) {
+                        clearTimeout(timeout);
+                        resolve();
+                    } else {
+                        setTimeout(check, 100);
+                    }
+                };
+                check();
+            });
+        }
+
+        function detectBrowser() {
+            const ua = navigator.userAgent;
+            if (ua.includes('Firefox')) return 'firefox';
+            if (ua.includes('Safari') && !ua.includes('Chrome')) return 'safari';
+            if (ua.includes('Chrome')) return 'chrome';
+            return 'unknown';
+        }
+
+        window.addEventListener('load', () => {
+            setTimeout(runTest, 500);
+        });
+    </script>
+</body>
+</html>
+''';
+}
+
+void main() async {
+  final server = MultiClientRecvonlyServer();
+  await server.start(port: 8792);
+}

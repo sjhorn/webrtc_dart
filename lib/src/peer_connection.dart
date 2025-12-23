@@ -250,6 +250,11 @@ class RtcPeerConnection {
   /// Future that completes when async initialization is done
   late final Future<void> _initializationComplete;
 
+  /// Wait for the peer connection to complete async initialization.
+  /// Call this before createDataChannel if you need to create channels
+  /// immediately after constructing the PeerConnection.
+  Future<void> waitForReady() => _initializationComplete;
+
   RtcPeerConnection([this.configuration = const RtcConfiguration()]) {
     _debugLabel = 'PC${++_instanceCounter}';
 
@@ -681,6 +686,18 @@ class RtcPeerConnection {
           attributes.add(attr);
         }
 
+        // Copy extmap (header extensions) from remote offer
+        // This is critical for the browser to properly parse incoming RTP packets
+        for (final attr in remoteMedia.getAttributes('extmap')) {
+          attributes.add(attr);
+        }
+
+        // Copy rtcp-fb (RTCP feedback) from remote offer
+        // This is needed for NACK, PLI, and other feedback mechanisms
+        for (final attr in remoteMedia.getAttributes('rtcp-fb')) {
+          attributes.add(attr);
+        }
+
         // Add local SSRC if we have a transceiver for this media
         final transceiver =
             _transceivers.where((t) => t.mid == mid).firstOrNull;
@@ -1076,6 +1093,22 @@ class RtcPeerConnection {
       if (existingTransceiver != null) {
         // Transceiver already exists (we created it when adding a local track)
         // This is a sendrecv transceiver - it sends our local track and receives the remote track
+
+        // Extract header extension IDs from remote SDP and set on sender
+        // This is critical for extension regeneration when forwarding RTP
+        final headerExtensions = media.getHeaderExtensions();
+        for (final ext in headerExtensions) {
+          if (ext.uri == 'urn:ietf:params:rtp-hdrext:sdes:mid') {
+            existingTransceiver.sender.midExtensionId = ext.id;
+          } else if (ext.uri ==
+              'http://www.webrtc.org/experiments/rtp-hdrext/abs-send-time') {
+            existingTransceiver.sender.absSendTimeExtensionId = ext.id;
+          } else if (ext.uri ==
+              'http://www.ietf.org/id/draft-holmer-rmcat-transport-wide-cc-extensions-01') {
+            existingTransceiver.sender.transportWideCCExtensionId = ext.id;
+          }
+        }
+
         // Emit the transceiver so the application can listen to the received track
         _trackController.add(existingTransceiver);
         continue;
@@ -1169,24 +1202,53 @@ class RtcPeerConnection {
       rtpSession.start();
       _rtpSessions[mid] = rtpSession;
 
-      // Create receive-only transceiver
+      // Determine direction based on remote offer
+      // If remote is sendrecv, we should also be sendrecv to allow echo/bidirectional
+      // If remote is sendonly, we should be recvonly
+      // If remote is recvonly, we should be sendonly (though unusual for incoming offer)
+      var direction = RtpTransceiverDirection.recvonly;
+      if (media.hasAttribute('sendrecv')) {
+        direction = RtpTransceiverDirection.sendrecv;
+      } else if (media.hasAttribute('sendonly')) {
+        direction = RtpTransceiverDirection.recvonly;
+      } else if (media.hasAttribute('recvonly')) {
+        direction = RtpTransceiverDirection.sendonly;
+      }
+
+      // Create transceiver with appropriate direction
       if (media.type == 'audio') {
         transceiver = createAudioTransceiver(
           mid: mid,
           rtpSession: rtpSession,
-          sendTrack: null, // Receive-only
-          direction: RtpTransceiverDirection.recvonly,
+          sendTrack: null,
+          direction: direction,
         );
       } else {
         transceiver = createVideoTransceiver(
           mid: mid,
           rtpSession: rtpSession,
-          sendTrack: null, // Receive-only
-          direction: RtpTransceiverDirection.recvonly,
+          sendTrack: null,
+          direction: direction,
         );
       }
 
       _transceivers.add(transceiver);
+
+      // Extract header extension IDs from remote SDP and set on sender
+      // This is critical for extension regeneration when forwarding RTP
+      transceiver.sender.mid = mid;
+      final headerExtensions = media.getHeaderExtensions();
+      for (final ext in headerExtensions) {
+        if (ext.uri == 'urn:ietf:params:rtp-hdrext:sdes:mid') {
+          transceiver.sender.midExtensionId = ext.id;
+        } else if (ext.uri ==
+            'http://www.webrtc.org/experiments/rtp-hdrext/abs-send-time') {
+          transceiver.sender.absSendTimeExtensionId = ext.id;
+        } else if (ext.uri ==
+            'http://www.ietf.org/id/draft-holmer-rmcat-transport-wide-cc-extensions-01') {
+          transceiver.sender.transportWideCCExtensionId = ext.id;
+        }
+      }
 
       // Emit the transceiver via onTrack stream
       _trackController.add(transceiver);

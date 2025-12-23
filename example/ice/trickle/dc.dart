@@ -17,6 +17,9 @@ void main() async {
   // Create peer connection
   final pc = RtcPeerConnection();
 
+  // Wait for transport initialization
+  await Future.delayed(Duration(milliseconds: 500));
+
   // Track ICE candidates for trickle
   final candidates = <Candidate>[];
 
@@ -44,7 +47,7 @@ void main() async {
 
   var msgIndex = 0;
   dc.onMessage.listen((data) {
-    print('[DC] Received: ${String.fromCharCodes(data)}');
+    print('[DC] Received: ${data is String ? data : String.fromCharCodes(data)}');
     dc.sendString('pong${msgIndex++}');
   });
 

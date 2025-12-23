@@ -47,14 +47,16 @@ class SctpPacket {
 
   /// Serialize SCTP packet to bytes
   Uint8List serialize() {
-    // Calculate total size
+    // Calculate total size including padding
+    // RFC 4960: Chunks must be padded to 4-byte boundaries
     var size = SctpConstants.headerSize;
     final chunkData = <Uint8List>[];
 
     for (final chunk in chunks) {
       final data = chunk.serialize();
       chunkData.add(data);
-      size += data.length;
+      // Add padded length (round up to 4-byte boundary)
+      size += (data.length + 3) & ~3;
     }
 
     final result = Uint8List(size);
@@ -65,11 +67,12 @@ class SctpPacket {
     buffer.setUint16(2, destinationPort);
     buffer.setUint32(4, verificationTag);
 
-    // Write chunks
+    // Write chunks with padding
     var offset = SctpConstants.headerSize;
     for (final data in chunkData) {
       result.setRange(offset, offset + data.length, data);
-      offset += data.length;
+      // Advance by padded length (padding bytes are already zero in Uint8List)
+      offset += (data.length + 3) & ~3;
     }
 
     // Calculate and write checksum (little-endian per RFC 4960)

@@ -350,8 +350,13 @@ class SctpAssociation {
     }
 
     // Transmit if T3 is not running (otherwise wait for SACK)
+    _log.fine('[SCTP] sendData: streamId=$streamId, ppid=$ppid, data=${data.length} bytes, t3=${_t3Timer != null}');
     if (_t3Timer == null) {
+      _log.fine('[SCTP] sendData: calling _transmit()');
       await _transmit();
+      _log.fine('[SCTP] sendData: _transmit() completed');
+    } else {
+      _log.fine('[SCTP] sendData: T3 running, queuing for later');
     }
   }
 
@@ -386,16 +391,23 @@ class SctpAssociation {
       verificationTag: verificationTag ?? _remoteVerificationTag!,
       chunks: [chunk],
     );
-    await onSendPacket(packet.serialize());
+    final data = packet.serialize();
+    if (chunk.type == SctpChunkType.data) {
+      _log.fine('[SCTP] _sendChunk DATA: ${data.length} bytes');
+      _log.fine('[SCTP] _sendChunk DATA hex: ${data.map((b) => b.toRadixString(16).padLeft(2, '0')).join(' ')}');
+    }
+    await onSendPacket(data);
   }
 
   /// Transmit outbound data (RFC 4960 Section 6.1)
   Future<void> _transmit() async {
+    _log.fine('[SCTP] _transmit: outboundQueue=${_outboundQueue.length}, sentQueue=${_sentQueue.length}');
     // Calculate effective cwnd for this burst
     final burstSize = _fastRecoveryExit != null
         ? 2 * SctpConstants.userDataMaxLength
         : 4 * SctpConstants.userDataMaxLength;
     final cwnd = min(_flightSize + burstSize, _cwnd);
+    _log.fine('[SCTP] _transmit: cwnd=$cwnd, flightSize=$_flightSize');
 
     // First, retransmit marked chunks from sentQueue
     var retransmitEarliest = true;
@@ -430,7 +442,9 @@ class SctpAssociation {
       sentChunk.sentCount++;
       sentChunk.sentTime = DateTime.now().millisecondsSinceEpoch / 1000.0;
 
+      _log.fine('[SCTP] _transmit: sending DATA chunk tsn=${sentChunk.chunk.tsn}');
       await _sendChunk(sentChunk.chunk);
+      _log.fine('[SCTP] _transmit: DATA chunk sent');
 
       if (_t3Timer == null) {
         _t3Start();

@@ -19,9 +19,12 @@ void main() async {
   final pc1 = RtcPeerConnection();
   final pc2 = RtcPeerConnection();
 
-  // Track data channels
-  late DataChannel dc1;
-  late DataChannel dc2;
+  // Wait for transport initialization
+  await Future.delayed(Duration(milliseconds: 500));
+
+  // Track data channels (dynamic - can be DataChannel or ProxyDataChannel)
+  late dynamic dc1;
+  late dynamic dc2;
 
   final dc1Ready = Completer<void>();
   final dc2Ready = Completer<void>();
@@ -42,11 +45,12 @@ void main() async {
   // Handle incoming datachannel on pc2
   pc2.onDataChannel.listen((channel) {
     dc2 = channel;
-    print('[PC2] DataChannel received: ${channel.label}');
+    print('[PC2] DataChannel received: ${channel.label}, state: ${channel.state}, type: ${channel.runtimeType}');
 
     // Set up message handler
+    print('[PC2] Setting up message listener...');
     dc2.onMessage.listen((data) {
-      final message = utf8.decode(data);
+      final message = data is String ? data : utf8.decode(data);
       pc2ReceivedMessages.add(message);
       print('[PC2] Received: "$message"');
 
@@ -69,7 +73,7 @@ void main() async {
   });
 
   // Create datachannel on pc1 with protocol
-  dc1 = pc1.createDataChannel('chat', protocol: 'text') as DataChannel;
+  dc1 = pc1.createDataChannel('chat', protocol: 'text');
   print('[PC1] Created DataChannel: ${dc1.label} (protocol: ${dc1.protocol})');
 
   dc1.onStateChange.listen((state) {
@@ -81,7 +85,7 @@ void main() async {
 
   // Set up message handler for pc1
   dc1.onMessage.listen((data) {
-    final message = utf8.decode(data);
+    final message = data is String ? data : utf8.decode(data);
     pc1ReceivedMessages.add(message);
     print('[PC1] Received: "$message"');
   });
@@ -115,9 +119,10 @@ void main() async {
   ];
 
   print('--- Sending Messages ---');
+  print('[PC1] DC1 state before send: ${dc1.state}, isInitialized: ${(dc1 as dynamic).isInitialized}');
   for (final msg in messagesToSend) {
     print('[PC1] Sending: "$msg"');
-    dc1.sendString(msg);
+    await dc1.sendString(msg);
     // Small delay to allow processing
     await Future.delayed(Duration(milliseconds: 100));
   }

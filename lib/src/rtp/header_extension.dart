@@ -110,6 +110,7 @@ Uint8List serializeAudioLevel({required bool voice, required int level}) {
 }
 
 /// Serialize Absolute Send Time (24-bit, 6.18 fixed point seconds)
+/// Takes a pre-converted 24-bit timestamp value.
 Uint8List serializeAbsoluteSendTime(int timestamp24bit) {
   return Uint8List.fromList([
     (timestamp24bit >> 16) & 0xFF,
@@ -122,6 +123,48 @@ Uint8List serializeAbsoluteSendTime(int timestamp24bit) {
 int deserializeAbsoluteSendTime(Uint8List data) {
   if (data.length < 3) return 0;
   return (data[0] << 16) | (data[1] << 8) | data[2];
+}
+
+/// NTP epoch: January 1, 1900, 00:00:00 UTC
+/// Unix epoch: January 1, 1970, 00:00:00 UTC
+/// Difference in seconds: 2208988800
+const int _ntpUnixEpochDiff = 2208988800;
+
+/// Get current NTP time as a 64-bit value.
+///
+/// Returns NTP timestamp where:
+/// - Upper 32 bits: seconds since 1900
+/// - Lower 32 bits: fractional seconds
+///
+/// Matches werift-webrtc utils.ts:ntpTime behavior.
+int ntpTime() {
+  final now = DateTime.now().microsecondsSinceEpoch;
+  final seconds = now ~/ 1000000;
+  final micros = now % 1000000;
+
+  // Convert Unix epoch to NTP epoch
+  final ntpSeconds = seconds + _ntpUnixEpochDiff;
+
+  // Convert microseconds to NTP fractional seconds (2^32 / 10^6)
+  // fraction = micros * 4294967296 / 1000000 = micros * 4294.967296
+  final ntpFraction = (micros * 4294967296) ~/ 1000000;
+
+  return (ntpSeconds << 32) | (ntpFraction & 0xFFFFFFFF);
+}
+
+/// Serialize Absolute Send Time from NTP timestamp.
+///
+/// Takes a 64-bit NTP timestamp and converts to 24-bit format for RTP header.
+/// Matches werift-webrtc headerExtension.ts:serializeAbsSendTime behavior:
+/// `const time = (ntpTime >> 14n) & 0x00ffffffn;`
+Uint8List serializeAbsSendTimeFromNtp(int ntpTimestamp) {
+  // Shift right by 14 bits and mask to 24 bits
+  final time24 = (ntpTimestamp >> 14) & 0x00FFFFFF;
+  return Uint8List.fromList([
+    (time24 >> 16) & 0xFF,
+    (time24 >> 8) & 0xFF,
+    time24 & 0xFF,
+  ]);
 }
 
 /// Parsed RTP header extensions map

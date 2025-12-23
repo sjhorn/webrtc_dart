@@ -282,6 +282,7 @@ class IceToDtlsAdapter implements dtls_ctx.DtlsTransport {
     if (!_isOpen) {
       throw StateError('Transport is closed');
     }
+    _logDemux.fine(' Sending DTLS packet: ${data.length} bytes, firstByte=${data.isNotEmpty ? data[0] : "empty"}');
     await iceConnection.send(data);
   }
 
@@ -314,6 +315,10 @@ class IntegratedTransport {
   /// DTLS role (client or server)
   /// Can be set by peer connection based on SDP negotiation
   DtlsRole dtlsRole;
+
+  /// Effective DTLS role (after auto-detection)
+  /// Used for DataChannel stream ID allocation per RFC 8832
+  DtlsRole? _effectiveDtlsRole;
 
   /// Server certificate (required if acting as DTLS server)
   final CertificateKeyPair? serverCertificate;
@@ -431,6 +436,9 @@ class IntegratedTransport {
             '[TRANSPORT:$debugLabel] DTLS role preset: ${effectiveRole == DtlsRole.client ? "client" : "server"}');
       }
 
+      // Store effective role for DataChannel stream ID allocation per RFC 8832
+      _effectiveDtlsRole = effectiveRole;
+
       // Create DTLS socket based on role
       if (effectiveRole == DtlsRole.client) {
         // For WebRTC, client also needs certificate for mutual authentication
@@ -537,7 +545,7 @@ class IntegratedTransport {
       );
 
       // Listen for SCTP state changes
-      sctpAssociation!.onStateChange.listen((sctpState) {
+      sctpAssociation!.onStateChange.listen((sctpState) async {
         if (sctpState == SctpAssociationState.established) {
           _setState(TransportState.connected);
 
@@ -546,9 +554,12 @@ class IntegratedTransport {
         }
       });
 
-      // Create DataChannel manager
-      dataChannelManager =
-          dcm.DataChannelManager(association: sctpAssociation!);
+      // Create DataChannel manager with proper stream ID allocation
+      // Per RFC 8832: DTLS server uses odd stream IDs (1, 3, 5, ...)
+      dataChannelManager = dcm.DataChannelManager(
+        association: sctpAssociation!,
+        isDtlsServer: _effectiveDtlsRole == DtlsRole.server,
+      );
 
       // Forward new DataChannels to stream
       dataChannelManager!.onDataChannel.listen((channel) {
@@ -564,12 +575,18 @@ class IntegratedTransport {
       }
 
       // Start SCTP handshake
-      // Determine if we're client or server based on ICE role
+      // Following werift pattern: ICE controlling side initiates SCTP
+      // This aligns with the common case where ICE controlling is also DTLS client,
+      // but uses ICE role as the definitive signal (like werift does)
+      _log.fine('[$debugLabel] SCTP: dtlsRole=$_effectiveDtlsRole, iceControlling=${iceConnection.iceControlling}');
       if (iceConnection.iceControlling) {
-        // Controlling side initiates SCTP
+        // ICE controlling initiates SCTP (like werift)
+        _log.fine('[$debugLabel] SCTP: initiating as ICE controlling');
         await sctpAssociation!.connect();
+      } else {
+        // ICE controlled waits for INIT from remote
+        _log.fine('[$debugLabel] SCTP: waiting for INIT (ICE controlled)');
       }
-      // Controlled side waits for INIT from remote
     } catch (e) {
       // SCTP setup failed, but don't fail the whole transport
       // DataChannels may not be used
@@ -578,11 +595,15 @@ class IntegratedTransport {
 
   /// Initialize pending data channels after SCTP is established
   void _initializePendingDataChannels() {
+    _log.fine('[$debugLabel] _initializePendingDataChannels called, '
+        'pending=${_pendingDataChannels.length}, '
+        'manager=${dataChannelManager != null}');
     if (_pendingDataChannels.isEmpty || dataChannelManager == null) {
       return;
     }
 
     for (final config in _pendingDataChannels) {
+      _log.fine('[$debugLabel] Creating real DataChannel: ${config.label}');
       // Create the real channel now that SCTP is ready
       final realChannel = dataChannelManager!.createDataChannel(
         label: config.label,
@@ -592,8 +613,10 @@ class IntegratedTransport {
         maxPacketLifeTime: config.maxPacketLifeTime,
         priority: config.priority,
       );
+      _log.fine('[$debugLabel] Real channel created: $realChannel');
       // Wire up the proxy to the real channel
       config.proxy.initializeWithChannel(realChannel);
+      _log.fine('[$debugLabel] Proxy initialized');
     }
     _pendingDataChannels.clear();
   }

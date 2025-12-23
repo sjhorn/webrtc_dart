@@ -2,6 +2,33 @@
 
 All notable changes to this project will be documented in this file.
 
+## 0.22.7
+
+### Fixed
+
+- **SCTP RFC 4960 padding** - Chunks must be padded to 4-byte boundaries; fixes DataChannel failures with certain label lengths
+- **Analyzer warnings** - Removed unused fields, imports, and dead null-aware expressions across interop tests
+
+### Added
+
+- **`waitForReady()` API** - Wait for PeerConnection async initialization before createDataChannel
+- **createAnswer extmap support** - Answer SDP copies header extension mappings from offer (critical for browser RTP parsing)
+- **createAnswer rtcp-fb support** - Answer SDP copies RTCP feedback attributes from offer (NACK, PLI, transport-cc)
+- **Transceiver direction matching** - Creates transceivers with matching direction when remote is sendrecv
+- **Header extension ID extraction** - Sets mid/abs-send-time/transport-cc extension IDs on sender from remote SDP
+- **Comprehensive browser interop tests** - Playwright test suite for Chrome, Firefox, Safari
+
+### Changed
+
+- Improved RTP session handling for answerer pattern
+- Enhanced header extension regeneration for RTP forwarding
+
+### Tests
+
+- 2262 tests passing (up from previous release)
+- Browser interop: DataChannel, media sendonly/recvonly/sendrecv, save-to-disk, simulcast, TWCC
+- All major browsers verified: Chrome (full), Safari (full), Firefox (with browser-as-offerer pattern)
+
 ## 0.22.6
 
 ### Added

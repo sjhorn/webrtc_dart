@@ -7,7 +7,6 @@ import 'package:webrtc_dart/src/codec/codec_parameters.dart';
 import 'package:webrtc_dart/src/codec/opus.dart';
 import 'package:webrtc_dart/src/codec/vp9.dart';
 import 'package:webrtc_dart/src/rtp/rtp_session.dart';
-import 'package:webrtc_dart/src/rtp/header_extension.dart';
 import 'package:webrtc_dart/src/srtp/rtp_packet.dart';
 import 'package:webrtc_dart/src/nonstandard/media/track.dart' as nonstandard;
 import 'package:webrtc_dart/src/transport/transport.dart';
@@ -158,6 +157,12 @@ class RtpSender {
 
   /// MID header extension ID (set from SDP negotiation)
   int? midExtensionId;
+
+  /// Absolute Send Time header extension ID (set from SDP negotiation)
+  int? absSendTimeExtensionId;
+
+  /// Transport-Wide CC header extension ID (set from SDP negotiation)
+  int? transportWideCCExtensionId;
 
   /// Media ID (mid) for this sender
   String? mid;
@@ -425,6 +430,60 @@ class RtpSender {
     _attachNonstandardTrack(track);
   }
 
+  /// Register a track for RTP forwarding (echo/loopback)
+  ///
+  /// This matches the TypeScript werift registerTrack() behavior exactly:
+  /// subscribes to track.onReceiveRtp and forwards packets through sendRtp.
+  /// Used for echo/loopback scenarios where you want to forward received RTP
+  /// back to the sender.
+  ///
+  /// This is different from replaceTrack which subscribes to audio/video frames.
+  /// This method subscribes to raw RTP packets for forwarding.
+  ///
+  /// Example (echo server):
+  /// ```dart
+  /// pc.onTrack.listen((transceiver) {
+  ///   final receivedTrack = transceiver.receiver.track;
+  ///   transceiver.sender.registerTrackForForward(receivedTrack);
+  /// });
+  /// ```
+  void registerTrackForForward(MediaStreamTrack track) {
+    if (track.state == MediaStreamTrackState.ended) {
+      throw StateError('Track is already ended');
+    }
+
+    // Detach any existing track
+    _detachTrack();
+    _nonstandardTrack = null;
+    _track = track;
+
+    // Build header extension config for regeneration
+    // This matches TypeScript werift rtpSender.ts:sendRtp which regenerates extensions
+    final extensionConfig = HeaderExtensionConfig(
+      sdesMidId: midExtensionId,
+      mid: mid,
+      absSendTimeId: absSendTimeExtensionId,
+      transportWideCCId: transportWideCCExtensionId,
+    );
+
+    // Subscribe to onReceiveRtp and forward packets (like werift registerTrack)
+    _trackSubscription = track.onReceiveRtp.listen((rtpPacket) async {
+      if (_stopped) return;
+
+      // Forward the RTP packet through the session with extension regeneration
+      // sendRawRtpPacket will:
+      // - Rewrite SSRC to sender's SSRC
+      // - Rewrite payload type to negotiated value
+      // - Regenerate header extensions (mid, abs-send-time, transport-cc)
+      await rtpSession.sendRawRtpPacket(
+        rtpPacket,
+        replaceSsrc: true,
+        payloadType: codec.payloadType,
+        extensionConfig: extensionConfig,
+      );
+    });
+  }
+
   /// Replace track
   /// Replaces the current track with a new one without renegotiation.
   /// The new track must be of the same kind (audio/video) as the original.
@@ -482,60 +541,37 @@ class RtpSender {
   /// Like TypeScript werift, we rewrite the payload type to match the negotiated
   /// codec. This is essential because the source (e.g., Ring camera) may use
   /// a different payload type than what was negotiated with the browser.
-  /// Debug flag: set to true to disable mid extension for testing
-  /// This helps isolate whether the mid extension is causing browser decode issues
-  static bool debugDisableMidExtension = false;
-
+  ///
+  /// Header extensions (mid, abs-send-time, transport-cc) are regenerated using
+  /// HeaderExtensionConfig, matching werift rtpSender.ts:sendRtp behavior.
   void _attachNonstandardTrack(nonstandard.MediaStreamTrack track) {
     // Get the negotiated payload type from the codec
     final negotiatedPayloadType = codec.payloadType;
 
-    // Pre-build the mid header extension if we have mid and midExtensionId
-    // This matches TypeScript werift rtpSender.ts:sendRtp which adds header extensions
-    RtpExtension? midExtension;
-    if (mid != null && midExtensionId != null && !debugDisableMidExtension) {
-      // Build the extension data: one-byte header format
-      // ID (4 bits) + L (4 bits) where length = L+1, followed by payload
-      final midBytes = serializeSdesMid(mid!);
-      final header = (midExtensionId! << 4) | ((midBytes.length - 1) & 0x0F);
-      final extData = Uint8List(4); // Minimum 4-byte aligned
-      extData[0] = header;
-      extData.setRange(1, 1 + midBytes.length, midBytes);
-      // Pad remaining bytes with 0
-      midExtension = RtpExtension(
-        profile: 0xBEDE, // One-byte header extension profile
-        data: extData,
-      );
-    }
+    // Build header extension config for regeneration
+    // This matches TypeScript werift rtpSender.ts:sendRtp which regenerates extensions
+    final extensionConfig = HeaderExtensionConfig(
+      sdesMidId: midExtensionId,
+      mid: mid,
+      absSendTimeId: absSendTimeExtensionId,
+      transportWideCCId: transportWideCCExtensionId,
+    );
 
     _trackSubscription = track.onReceiveRtp.listen((event) async {
       if (_stopped) return;
 
       final (rtp, _) = event;
 
-      // If we have a mid extension, add it to the packet
-      RtpPacket packetToSend = rtp;
-      if (midExtension != null) {
-        packetToSend = RtpPacket(
-          version: rtp.version,
-          padding: rtp.padding,
-          extension: true, // Enable extension
-          marker: rtp.marker,
-          payloadType: rtp.payloadType,
-          sequenceNumber: rtp.sequenceNumber,
-          timestamp: rtp.timestamp,
-          ssrc: rtp.ssrc,
-          csrcs: rtp.csrcs,
-          extensionHeader: midExtension,
-          payload: rtp.payload,
-          paddingLength: rtp.paddingLength,
-        );
-      }
-
-      // Forward the RTP packet through the session, rewriting payload type
-      // to match the negotiated codec (like TypeScript werift sendRtp)
-      await rtpSession.sendRawRtpPacket(packetToSend,
-          payloadType: negotiatedPayloadType);
+      // Forward the RTP packet through the session with extension regeneration
+      // sendRawRtpPacket will:
+      // - Rewrite SSRC to sender's SSRC
+      // - Rewrite payload type to negotiated value
+      // - Regenerate header extensions (mid, abs-send-time, transport-cc)
+      await rtpSession.sendRawRtpPacket(
+        rtp,
+        payloadType: negotiatedPayloadType,
+        extensionConfig: extensionConfig,
+      );
     });
   }
 

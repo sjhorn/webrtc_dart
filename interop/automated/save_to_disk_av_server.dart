@@ -1,0 +1,675 @@
+// Save to Disk Audio+Video Server for Automated Browser Testing
+//
+// This server:
+// 1. Serves static HTML for browser to send camera+microphone (VP8+Opus)
+// 2. Creates a PeerConnection to receive both audio and video from browser
+// 3. Records the streams to a WebM file using MediaRecorder with lip sync
+// 4. Stops recording after a configurable duration
+//
+// Pattern: Dart is OFFERER (recvonly), Browser is ANSWERER (sendonly)
+// Output: WebM file with VP8 video + Opus audio
+
+import 'dart:async';
+import 'dart:convert';
+import 'dart:io';
+import 'package:webrtc_dart/webrtc_dart.dart';
+import 'package:webrtc_dart/src/nonstandard/recorder/media_recorder.dart';
+
+class SaveToDiskAVServer {
+  HttpServer? _server;
+  RtcPeerConnection? _pc;
+  MediaRecorder? _recorder;
+  final List<Map<String, dynamic>> _localCandidates = [];
+  Completer<void> _connectionCompleter = Completer();
+  DateTime? _startTime;
+  DateTime? _connectedTime;
+  String _currentBrowser = 'unknown';
+  int _videoPacketsReceived = 0;
+  int _audioPacketsReceived = 0;
+  String? _outputPath;
+  Timer? _recordingTimer;
+  final int _recordingDurationSeconds;
+  bool _recorderStarted = false;
+  int _tracksReceived = 0;
+
+  SaveToDiskAVServer({int recordingDurationSeconds = 5})
+      : _recordingDurationSeconds = recordingDurationSeconds;
+
+  Future<void> start({int port = 8773}) async {
+    _server = await HttpServer.bind(InternetAddress.anyIPv4, port);
+    print('[SaveToDisk-AV] Started on http://localhost:$port');
+
+    await for (final request in _server!) {
+      _handleRequest(request);
+    }
+  }
+
+  Future<void> _handleRequest(HttpRequest request) async {
+    request.response.headers.add('Access-Control-Allow-Origin', '*');
+    request.response.headers
+        .add('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
+    request.response.headers
+        .add('Access-Control-Allow-Headers', 'Content-Type');
+
+    if (request.method == 'OPTIONS') {
+      request.response.statusCode = 200;
+      await request.response.close();
+      return;
+    }
+
+    final path = request.uri.path;
+    print('[SaveToDisk-AV] ${request.method} $path');
+
+    try {
+      switch (path) {
+        case '/':
+        case '/index.html':
+          await _serveTestPage(request);
+          break;
+        case '/start':
+          await _handleStart(request);
+          break;
+        case '/offer':
+          await _handleOffer(request);
+          break;
+        case '/answer':
+          await _handleAnswer(request);
+          break;
+        case '/candidate':
+          await _handleCandidate(request);
+          break;
+        case '/candidates':
+          await _handleCandidates(request);
+          break;
+        case '/status':
+          await _handleStatus(request);
+          break;
+        case '/result':
+          await _handleResult(request);
+          break;
+        case '/shutdown':
+          await _handleShutdown(request);
+          break;
+        default:
+          request.response.statusCode = 404;
+          request.response.write('Not found');
+      }
+    } catch (e, st) {
+      print('[SaveToDisk-AV] Error: $e');
+      print(st);
+      request.response.statusCode = 500;
+      request.response.write('Error: $e');
+    }
+
+    await request.response.close();
+  }
+
+  Future<void> _serveTestPage(HttpRequest request) async {
+    request.response.headers.contentType = ContentType.html;
+    request.response.write(_testPageHtml);
+  }
+
+  Future<void> _handleStart(HttpRequest request) async {
+    _currentBrowser = request.uri.queryParameters['browser'] ?? 'unknown';
+    print('[SaveToDisk-AV] Starting A/V test for: $_currentBrowser');
+
+    await _cleanup();
+    _localCandidates.clear();
+    _startTime = DateTime.now();
+    _connectedTime = null;
+    _connectionCompleter = Completer();
+    _videoPacketsReceived = 0;
+    _audioPacketsReceived = 0;
+    _recorderStarted = false;
+    _tracksReceived = 0;
+    _outputPath =
+        './recording-av-${DateTime.now().millisecondsSinceEpoch}.webm';
+
+    // Create peer connection with VP8 video and Opus audio
+    _pc = RtcPeerConnection(RtcConfiguration(
+      iceServers: [IceServer(urls: ['stun:stun.l.google.com:19302'])],
+    ));
+    print('[SaveToDisk-AV] PeerConnection created');
+
+    _pc!.onConnectionStateChange.listen((state) {
+      print('[SaveToDisk-AV] Connection state: $state');
+      if (state == PeerConnectionState.connected &&
+          !_connectionCompleter.isCompleted) {
+        _connectedTime = DateTime.now();
+        _connectionCompleter.complete();
+      }
+    });
+
+    _pc!.onIceConnectionStateChange.listen((state) {
+      print('[SaveToDisk-AV] ICE state: $state');
+    });
+
+    _pc!.onIceCandidate.listen((candidate) {
+      print(
+          '[SaveToDisk-AV] Local ICE candidate: ${candidate.type} ${candidate.host}:${candidate.port}');
+      _localCandidates.add({
+        'candidate': 'candidate:${candidate.toSdp()}',
+        'sdpMid': '0',
+        'sdpMLineIndex': 0,
+      });
+    });
+
+    // Add recvonly video transceiver (VP8)
+    _pc!.addTransceiver(
+      MediaStreamTrackKind.video,
+      direction: RtpTransceiverDirection.recvonly,
+    );
+    print('[SaveToDisk-AV] Added video transceiver (recvonly)');
+
+    // Add recvonly audio transceiver (Opus)
+    _pc!.addTransceiver(
+      MediaStreamTrackKind.audio,
+      direction: RtpTransceiverDirection.recvonly,
+    );
+    print('[SaveToDisk-AV] Added audio transceiver (recvonly)');
+
+    // Track recording setup
+    final recordingTracks = <RecordingTrack>[];
+
+    _pc!.onTrack.listen((transceiver) async {
+      print('[SaveToDisk-AV] Received track: ${transceiver.kind}');
+      final track = transceiver.receiver.track;
+      _tracksReceived++;
+
+      if (transceiver.kind == MediaStreamTrackKind.video) {
+        recordingTracks.add(RecordingTrack(
+          kind: 'video',
+          codecName: 'VP8',
+          payloadType: 96,
+          clockRate: 90000,
+          onRtp: (handler) {
+            track.onReceiveRtp.listen((rtp) {
+              _videoPacketsReceived++;
+              handler(rtp);
+              if (_videoPacketsReceived % 100 == 0) {
+                print(
+                    '[SaveToDisk-AV] Video: $_videoPacketsReceived RTP packets');
+              }
+            });
+          },
+        ));
+      } else if (transceiver.kind == MediaStreamTrackKind.audio) {
+        recordingTracks.add(RecordingTrack(
+          kind: 'audio',
+          codecName: 'opus',
+          payloadType: 111,
+          clockRate: 48000,
+          onRtp: (handler) {
+            track.onReceiveRtp.listen((rtp) {
+              _audioPacketsReceived++;
+              handler(rtp);
+              if (_audioPacketsReceived % 100 == 0) {
+                print(
+                    '[SaveToDisk-AV] Audio: $_audioPacketsReceived RTP packets');
+              }
+            });
+          },
+        ));
+      }
+
+      // Start recorder when we have both tracks
+      if (_tracksReceived >= 2 && !_recorderStarted) {
+        _recorderStarted = true;
+        print('[SaveToDisk-AV] Both tracks received, starting recorder...');
+
+        _recorder = MediaRecorder(
+          tracks: recordingTracks,
+          path: _outputPath,
+          options: MediaRecorderOptions(
+            width: 640,
+            height: 480,
+            disableLipSync: false, // Enable lip sync for A/V
+            disableNtp: true,
+          ),
+        );
+
+        await _recorder!.start();
+        print('[SaveToDisk-AV] Recording started to: $_outputPath');
+
+        _recordingTimer =
+            Timer(Duration(seconds: _recordingDurationSeconds), () async {
+          print('[SaveToDisk-AV] Recording duration reached, stopping...');
+          await _stopRecording();
+        });
+      }
+    });
+
+    request.response.headers.contentType = ContentType.json;
+    request.response.write(jsonEncode({'status': 'ok'}));
+  }
+
+  Future<void> _stopRecording() async {
+    if (_recorder == null) return;
+
+    print('[SaveToDisk-AV] Stopping recorder...');
+    await _recorder!.stop();
+    _recorder = null;
+    print('[SaveToDisk-AV] Recording stopped');
+
+    if (_outputPath != null) {
+      final file = File(_outputPath!);
+      if (await file.exists()) {
+        final size = await file.length();
+        print('[SaveToDisk-AV] Output file: $_outputPath ($size bytes)');
+      } else {
+        print('[SaveToDisk-AV] WARNING: Output file not created!');
+      }
+    }
+  }
+
+  Future<void> _handleOffer(HttpRequest request) async {
+    if (_pc == null) {
+      request.response.statusCode = 400;
+      request.response.write('Call /start first');
+      return;
+    }
+
+    final offer = await _pc!.createOffer();
+    await _pc!.setLocalDescription(offer);
+    print('[SaveToDisk-AV] Created offer, local description set');
+
+    await Future.delayed(Duration(milliseconds: 500));
+
+    request.response.headers.contentType = ContentType.json;
+    request.response.write(jsonEncode({
+      'type': offer.type,
+      'sdp': offer.sdp,
+    }));
+    print('[SaveToDisk-AV] Sent offer to browser');
+  }
+
+  Future<void> _handleAnswer(HttpRequest request) async {
+    if (_pc == null) {
+      request.response.statusCode = 400;
+      request.response.write('Call /start first');
+      return;
+    }
+
+    final body = await utf8.decodeStream(request);
+    final data = jsonDecode(body) as Map<String, dynamic>;
+
+    final answer = SessionDescription(
+      type: data['type'] as String,
+      sdp: data['sdp'] as String,
+    );
+
+    print('[SaveToDisk-AV] Received answer from browser');
+    await _pc!.setRemoteDescription(answer);
+    print('[SaveToDisk-AV] Remote description set');
+
+    request.response.headers.contentType = ContentType.json;
+    request.response.write(jsonEncode({'status': 'ok'}));
+  }
+
+  Future<void> _handleCandidate(HttpRequest request) async {
+    if (_pc == null) {
+      request.response.statusCode = 400;
+      request.response.write('Call /start first');
+      return;
+    }
+
+    final body = await utf8.decodeStream(request);
+    final data = jsonDecode(body) as Map<String, dynamic>;
+
+    String candidateStr = data['candidate'] as String? ?? '';
+
+    if (candidateStr.isEmpty || candidateStr.trim().isEmpty) {
+      print('[SaveToDisk-AV] Skipping empty ICE candidate');
+      request.response.headers.contentType = ContentType.json;
+      request.response.write(jsonEncode({'status': 'ok'}));
+      return;
+    }
+
+    if (candidateStr.startsWith('candidate:')) {
+      candidateStr = candidateStr.substring('candidate:'.length);
+    }
+
+    try {
+      final candidate = Candidate.fromSdp(candidateStr);
+      await _pc!.addIceCandidate(candidate);
+      print('[SaveToDisk-AV] Added ICE candidate: ${candidate.type}');
+    } catch (e) {
+      print('[SaveToDisk-AV] Failed to add candidate: $e');
+    }
+
+    request.response.headers.contentType = ContentType.json;
+    request.response.write(jsonEncode({'status': 'ok'}));
+  }
+
+  Future<void> _handleCandidates(HttpRequest request) async {
+    request.response.headers.contentType = ContentType.json;
+    request.response.write(jsonEncode(_localCandidates));
+  }
+
+  Future<void> _handleStatus(HttpRequest request) async {
+    int? fileSize;
+    if (_outputPath != null) {
+      final file = File(_outputPath!);
+      if (await file.exists()) {
+        fileSize = await file.length();
+      }
+    }
+
+    request.response.headers.contentType = ContentType.json;
+    request.response.write(jsonEncode({
+      'connectionState': _pc?.connectionState.toString() ?? 'none',
+      'iceConnectionState': _pc?.iceConnectionState.toString() ?? 'none',
+      'videoPacketsReceived': _videoPacketsReceived,
+      'audioPacketsReceived': _audioPacketsReceived,
+      'outputFile': _outputPath,
+      'fileSize': fileSize,
+      'recording': _recorder != null,
+      'tracksReceived': _tracksReceived,
+      'codec': 'VP8+Opus',
+    }));
+  }
+
+  Future<void> _handleResult(HttpRequest request) async {
+    await _stopRecording();
+
+    final connectionTime = _connectedTime != null && _startTime != null
+        ? _connectedTime!.difference(_startTime!)
+        : Duration.zero;
+
+    int fileSize = 0;
+    bool fileCreated = false;
+    if (_outputPath != null) {
+      final file = File(_outputPath!);
+      if (await file.exists()) {
+        fileSize = await file.length();
+        fileCreated = fileSize > 0;
+      }
+    }
+
+    final result = {
+      'browser': _currentBrowser,
+      'success': _pc?.connectionState == PeerConnectionState.connected &&
+          _videoPacketsReceived > 0 &&
+          _audioPacketsReceived > 0 &&
+          fileCreated,
+      'videoPacketsReceived': _videoPacketsReceived,
+      'audioPacketsReceived': _audioPacketsReceived,
+      'outputFile': _outputPath,
+      'fileSize': fileSize,
+      'connectionTimeMs': connectionTime.inMilliseconds,
+      'codec': 'VP8+Opus',
+    };
+
+    request.response.headers.contentType = ContentType.json;
+    request.response.write(jsonEncode(result));
+  }
+
+  Future<void> _handleShutdown(HttpRequest request) async {
+    request.response.headers.contentType = ContentType.json;
+    request.response.write(jsonEncode({'status': 'shutting down'}));
+
+    await _cleanup();
+
+    Future.delayed(Duration(milliseconds: 100), () {
+      _server?.close();
+    });
+  }
+
+  Future<void> _cleanup() async {
+    _recordingTimer?.cancel();
+    _recordingTimer = null;
+    await _stopRecording();
+    await _pc?.close();
+    _pc = null;
+  }
+
+  static const String _testPageHtml = '''
+<!DOCTYPE html>
+<html>
+<head>
+    <title>WebRTC Save to Disk A/V Test</title>
+    <style>
+        body { font-family: monospace; padding: 20px; background: #1a1a1a; color: #eee; }
+        #log { background: #0a0a0a; padding: 10px; height: 200px; overflow-y: auto; border: 1px solid #333; }
+        .info { color: #8af; }
+        .success { color: #8f8; }
+        .error { color: #f88; }
+        h1 { color: #8af; }
+        #status { margin: 10px 0; padding: 10px; background: #333; }
+        .codec-badge { background: #a80; color: #fff; padding: 2px 8px; border-radius: 4px; margin-left: 5px; }
+        video { max-width: 320px; border: 1px solid #333; margin: 10px 0; }
+        #meter { width: 200px; height: 20px; background: #333; margin: 10px 0; display: inline-block; }
+        #meterBar { height: 100%; width: 0%; background: #0f0; transition: width 0.1s; }
+        .media-info { display: flex; gap: 20px; align-items: center; }
+    </style>
+</head>
+<body>
+    <h1>WebRTC Save to Disk Test <span class="codec-badge">VP8</span><span class="codec-badge">Opus</span></h1>
+    <p>Browser sends camera video + microphone audio to Dart, which records to a WebM file with lip sync.</p>
+    <div id="status">Status: Waiting to start...</div>
+    <div class="media-info">
+        <div>
+            <video id="preview" autoplay muted playsinline></video>
+        </div>
+        <div>
+            <div>Audio Level:</div>
+            <div id="meter"><div id="meterBar"></div></div>
+        </div>
+    </div>
+    <div id="log"></div>
+
+    <script>
+        let pc = null;
+        let localStream = null;
+        let audioContext = null;
+        let analyser = null;
+        const serverBase = window.location.origin;
+
+        function log(msg, className = 'info') {
+            const logDiv = document.getElementById('log');
+            const line = document.createElement('div');
+            line.className = className;
+            line.textContent = '[' + new Date().toISOString().substr(11, 12) + '] ' + msg;
+            logDiv.appendChild(line);
+            logDiv.scrollTop = logDiv.scrollHeight;
+            console.log(msg);
+        }
+
+        function setStatus(msg) {
+            document.getElementById('status').textContent = 'Status: ' + msg;
+        }
+
+        function updateMeter() {
+            if (!analyser) return;
+            const dataArray = new Uint8Array(analyser.frequencyBinCount);
+            analyser.getByteFrequencyData(dataArray);
+            const avg = dataArray.reduce((a, b) => a + b, 0) / dataArray.length;
+            const level = Math.min(100, avg / 128 * 100);
+            document.getElementById('meterBar').style.width = level + '%';
+            requestAnimationFrame(updateMeter);
+        }
+
+        async function runTest() {
+            try {
+                const browser = detectBrowser();
+                log('Browser detected: ' + browser);
+                setStatus('Starting A/V save_to_disk test for ' + browser);
+
+                // Get camera and microphone
+                setStatus('Getting camera and microphone access...');
+                try {
+                    localStream = await navigator.mediaDevices.getUserMedia({
+                        video: { width: 640, height: 480 },
+                        audio: true
+                    });
+                    log('Got camera + microphone stream');
+
+                    // Show preview
+                    document.getElementById('preview').srcObject = localStream;
+
+                    // Set up audio meter
+                    audioContext = new AudioContext();
+                    const source = audioContext.createMediaStreamSource(localStream);
+                    analyser = audioContext.createAnalyser();
+                    analyser.fftSize = 256;
+                    source.connect(analyser);
+                    updateMeter();
+                } catch (e) {
+                    throw new Error('Failed to get media: ' + e.message);
+                }
+
+                await fetch(serverBase + '/start?browser=' + browser);
+                log('Server peer started (VP8+Opus)');
+
+                pc = new RTCPeerConnection({
+                    iceServers: [{ urls: 'stun:stun.l.google.com:19302' }]
+                });
+
+                pc.onicecandidate = async (e) => {
+                    if (e.candidate) {
+                        log('Sending ICE candidate to Dart');
+                        await fetch(serverBase + '/candidate', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({
+                                candidate: e.candidate.candidate,
+                                sdpMid: e.candidate.sdpMid,
+                                sdpMLineIndex: e.candidate.sdpMLineIndex
+                            })
+                        });
+                    }
+                };
+
+                pc.oniceconnectionstatechange = () => {
+                    log('ICE state: ' + pc.iceConnectionState,
+                        pc.iceConnectionState === 'connected' ? 'success' : 'info');
+                };
+
+                pc.onconnectionstatechange = () => {
+                    log('Connection state: ' + pc.connectionState,
+                        pc.connectionState === 'connected' ? 'success' : 'info');
+                };
+
+                setStatus('Getting offer from Dart...');
+                const offerResp = await fetch(serverBase + '/offer');
+                const offer = await offerResp.json();
+                log('Received offer from Dart (VP8+Opus)');
+
+                await pc.setRemoteDescription(new RTCSessionDescription(offer));
+                log('Remote description set (offer)');
+
+                // Add both video and audio tracks
+                const videoTrack = localStream.getVideoTracks()[0];
+                const audioTrack = localStream.getAudioTracks()[0];
+                pc.addTrack(videoTrack, localStream);
+                pc.addTrack(audioTrack, localStream);
+                log('Added local video + audio tracks');
+
+                setStatus('Creating answer...');
+                const answer = await pc.createAnswer();
+                await pc.setLocalDescription(answer);
+                log('Local description set (answer)');
+
+                await new Promise(resolve => setTimeout(resolve, 500));
+
+                setStatus('Sending answer to Dart...');
+                await fetch(serverBase + '/answer', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ type: answer.type, sdp: pc.localDescription.sdp })
+                });
+                log('Sent answer to Dart');
+
+                setStatus('Exchanging ICE candidates...');
+                await new Promise(resolve => setTimeout(resolve, 500));
+
+                const candidatesResp = await fetch(serverBase + '/candidates');
+                const dartCandidates = await candidatesResp.json();
+                log('Received ' + dartCandidates.length + ' ICE candidates from Dart');
+
+                for (const c of dartCandidates) {
+                    try {
+                        await pc.addIceCandidate(new RTCIceCandidate(c));
+                        log('Added Dart ICE candidate');
+                    } catch (e) {
+                        log('Failed to add candidate: ' + e.message, 'error');
+                    }
+                }
+
+                setStatus('Waiting for connection...');
+                await waitForConnection();
+                log('Connection established!', 'success');
+
+                setStatus('Recording A/V (5 seconds)...');
+                log('Sending video + audio for recording...');
+
+                for (let i = 0; i < 7; i++) {
+                    await new Promise(resolve => setTimeout(resolve, 1000));
+                    const statusResp = await fetch(serverBase + '/status');
+                    const status = await statusResp.json();
+                    log('Status: video=' + status.videoPacketsReceived + ' audio=' + status.audioPacketsReceived + ' file=' + (status.fileSize || 0) + ' bytes');
+                }
+
+                setStatus('Getting results...');
+                const resultResp = await fetch(serverBase + '/result');
+                const result = await resultResp.json();
+
+                if (result.success) {
+                    log('TEST PASSED! A/V file created: ' + result.fileSize + ' bytes', 'success');
+                    setStatus('TEST PASSED - ' + result.fileSize + ' bytes recorded (VP8+Opus)');
+                } else {
+                    log('TEST FAILED', 'error');
+                    setStatus('TEST FAILED');
+                }
+
+                console.log('TEST_RESULT:' + JSON.stringify(result));
+                window.testResult = result;
+
+            } catch (e) {
+                log('Error: ' + e.message, 'error');
+                setStatus('ERROR: ' + e.message);
+                console.log('TEST_RESULT:' + JSON.stringify({ success: false, error: e.message }));
+                window.testResult = { success: false, error: e.message };
+            }
+        }
+
+        async function waitForConnection() {
+            return new Promise((resolve, reject) => {
+                const timeout = setTimeout(() => reject(new Error('Connection timeout')), 30000);
+
+                const check = () => {
+                    if (pc.connectionState === 'connected' || pc.iceConnectionState === 'connected') {
+                        clearTimeout(timeout);
+                        resolve();
+                    } else if (pc.connectionState === 'failed' || pc.iceConnectionState === 'failed') {
+                        clearTimeout(timeout);
+                        reject(new Error('Connection failed'));
+                    } else {
+                        setTimeout(check, 100);
+                    }
+                };
+                check();
+            });
+        }
+
+        function detectBrowser() {
+            const ua = navigator.userAgent;
+            if (ua.includes('Firefox')) return 'firefox';
+            if (ua.includes('Safari') && !ua.includes('Chrome')) return 'safari';
+            if (ua.includes('Chrome')) return 'chrome';
+            return 'unknown';
+        }
+
+        window.addEventListener('load', () => {
+            setTimeout(runTest, 500);
+        });
+    </script>
+</body>
+</html>
+''';
+}
+
+void main() async {
+  final server = SaveToDiskAVServer(recordingDurationSeconds: 5);
+  await server.start(port: 8773);
+}

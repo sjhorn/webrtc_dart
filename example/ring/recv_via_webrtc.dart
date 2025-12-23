@@ -80,10 +80,6 @@ void _runWithFilteredOutput(void Function() body) {
   }
 }
 
-/// Debug flag: Set to true to disable mid extension for testing
-/// To use: set environment variable DISABLE_MID_EXT=1
-final bool _disableMidExtension =
-    Platform.environment['DISABLE_MID_EXT'] == '1';
 
 /// Debug logging helper - only prints when RING_DEBUG=1
 void _log(String message) {
@@ -132,12 +128,6 @@ class RingVideoServer {
   StreamSubscription? _audioRtpSubscription;
 
   Future<void> start(String refreshToken) async {
-    // Apply debug settings
-    if (_disableMidExtension) {
-      RtpSender.debugDisableMidExtension = true;
-      _log('[Server] Mid extension DISABLED');
-    }
-
     // Start HTTP server for test page
     _httpServer = await HttpServer.bind('localhost', 8080);
     print('[Server] http://localhost:8080');

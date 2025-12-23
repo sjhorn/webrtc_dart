@@ -106,9 +106,11 @@ class DtlsServer extends DtlsSocket {
 
     // Create application data record
     final record = _recordLayer.wrapApplicationData(data);
+    _log.fine('DTLS send: data=${data.length} bytes, epoch=${record.epoch}, seq=${record.sequenceNumber}');
 
     // Encrypt and send
     final encrypted = await _recordLayer.encryptRecord(record);
+    _log.fine('DTLS send encrypted: ${encrypted.length} bytes');
     await transport.send(encrypted);
   }
 

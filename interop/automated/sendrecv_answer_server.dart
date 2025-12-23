@@ -18,7 +18,6 @@ import 'package:webrtc_dart/src/rtp/rtp_session.dart' show HeaderExtensionConfig
 class SendrecvAnswerServer {
   HttpServer? _server;
   RtcPeerConnection? _pc;
-  RtpTransceiver? _transceiver;
   final List<Map<String, dynamic>> _localCandidates = [];
   Completer<void> _connectionCompleter = Completer();
   DateTime? _startTime;
@@ -334,7 +333,6 @@ class SendrecvAnswerServer {
   Future<void> _cleanup() async {
     _testTimer?.cancel();
     _testTimer = null;
-    _transceiver = null;
 
     // Cancel all stream subscriptions to prevent interference between tests
     for (final sub in _subscriptions) {

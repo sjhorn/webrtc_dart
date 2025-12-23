@@ -1,8 +1,11 @@
 import 'dart:async';
 import 'dart:typed_data';
+import 'package:webrtc_dart/src/common/logging.dart';
 import 'package:webrtc_dart/src/sctp/association.dart';
 import 'package:webrtc_dart/src/sctp/const.dart';
 import 'package:webrtc_dart/src/datachannel/dcep.dart';
+
+final _log = WebRtcLogging.datachannel;
 
 /// Data Channel State
 enum DataChannelState {
@@ -82,6 +85,7 @@ class DataChannel {
 
   /// Open the data channel (send DCEP OPEN)
   Future<void> open() async {
+    _log.fine('DataChannel.open() called: label=$label, streamId=$streamId, state=$_state');
     if (_state != DataChannelState.connecting) {
       throw StateError('DataChannel already opened or closed');
     }
@@ -94,12 +98,14 @@ class DataChannel {
       protocol: protocol,
     );
 
+    _log.fine('Sending DCEP OPEN: streamId=$streamId, label=$label');
     await _association.sendData(
       streamId: streamId,
       data: openMessage.serialize(),
       ppid: SctpPpid.dcep.value,
       unordered: false,
     );
+    _log.fine('DCEP OPEN sent: streamId=$streamId');
   }
 
   /// Handle DCEP ACK
@@ -379,6 +385,9 @@ class ProxyDataChannel {
   /// Whether the channel has been initialized
   bool get isInitialized => _realChannel != null;
 
+  /// Track if we've been closed
+  bool _isClosed = false;
+
   /// Initialize with a real DataChannel (called when SCTP is ready)
   void initializeWithChannel(DataChannel channel) {
     if (_realChannel != null) return;
@@ -387,14 +396,20 @@ class ProxyDataChannel {
 
     // Forward events from real channel to our controllers
     channel.onMessage.listen((msg) {
-      _messageController.add(msg);
+      if (!_isClosed && !_messageController.isClosed) {
+        _messageController.add(msg);
+      }
     });
     channel.onError.listen((err) {
-      _errorController.add(err);
+      if (!_isClosed && !_errorController.isClosed) {
+        _errorController.add(err);
+      }
     });
     channel.onStateChange.listen((newState) {
       _state = newState;
-      _stateController.add(newState);
+      if (!_isClosed && !_stateController.isClosed) {
+        _stateController.add(newState);
+      }
 
       // Send queued messages when channel opens
       if (newState == DataChannelState.open && _pendingMessages.isNotEmpty) {
@@ -454,11 +469,14 @@ class ProxyDataChannel {
   }
 
   Future<void> close() async {
+    _isClosed = true;
     if (_realChannel != null) {
       await _realChannel!.close();
     } else {
       _state = DataChannelState.closed;
-      _stateController.add(_state);
+      if (!_stateController.isClosed) {
+        _stateController.add(_state);
+      }
     }
     await _messageController.close();
     await _errorController.close();

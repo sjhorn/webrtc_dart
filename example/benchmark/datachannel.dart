@@ -58,9 +58,9 @@ Future<void> main() async {
   // Wait for transport initialization (certificate generation, etc.)
   await Future.delayed(Duration(milliseconds: 500));
 
-  // Track data channels (ProxyDataChannel for local, DataChannel for remote)
-  late ProxyDataChannel dc1;
-  late DataChannel dc2;
+  // Track data channels (dynamic - can be DataChannel or ProxyDataChannel)
+  late dynamic dc1;
+  late dynamic dc2;
 
   final dc1Ready = Completer<void>();
   final dc2Ready = Completer<void>();
@@ -160,59 +160,70 @@ Future<BenchmarkResult> runBenchmark({
 }) async {
   final message = randomBytes(messageSize);
   final samples = <Duration>[];
+  final ctx = RoundTripContext(dc1, dc2);
 
-  // Warmup
-  for (var i = 0; i < warmupIterations; i++) {
-    await roundTrip(dc1, dc2, message);
+  try {
+    // Small delay to let listeners settle
+    await Future.delayed(Duration(milliseconds: 100));
+
+    // Warmup
+    for (var i = 0; i < warmupIterations; i++) {
+      await ctx.roundTrip(message);
+    }
+
+    // Actual benchmark
+    final stopwatch = Stopwatch()..start();
+
+    for (var i = 0; i < iterations; i++) {
+      final sampleStart = stopwatch.elapsed;
+      await ctx.roundTrip(message);
+      samples.add(stopwatch.elapsed - sampleStart);
+    }
+
+    stopwatch.stop();
+
+    return BenchmarkResult(
+      name: name,
+      iterations: iterations,
+      totalTime: stopwatch.elapsed,
+      samples: samples,
+    );
+  } finally {
+    ctx.dispose();
   }
-
-  // Actual benchmark
-  final stopwatch = Stopwatch()..start();
-
-  for (var i = 0; i < iterations; i++) {
-    final sampleStart = stopwatch.elapsed;
-    await roundTrip(dc1, dc2, message);
-    samples.add(stopwatch.elapsed - sampleStart);
-  }
-
-  stopwatch.stop();
-
-  return BenchmarkResult(
-    name: name,
-    iterations: iterations,
-    totalTime: stopwatch.elapsed,
-    samples: samples,
-  );
 }
 
-Future<void> roundTrip(
-  dynamic dc1,
-  dynamic dc2,
-  Uint8List message,
-) async {
-  final responseCompleter = Completer<void>();
+/// Persistent listener state for round-trip benchmarks
+class RoundTripContext {
+  final dynamic dc1;
+  final dynamic dc2;
+  Completer<void>? _pendingResponse;
+  late final StreamSubscription _dc1Sub;
+  late final StreamSubscription _dc2Sub;
 
-  // dc2 echoes back what it receives
-  late final StreamSubscription dc2Sub;
-  dc2Sub = dc2.onMessage.listen((msg) {
-    dc2.send(msg as Uint8List);
-    dc2Sub.cancel();
-  });
+  RoundTripContext(this.dc1, this.dc2) {
+    // Set up persistent listeners once
+    _dc2Sub = dc2.onMessage.listen((msg) {
+      // Echo back
+      dc2.send(msg);
+    });
 
-  // dc1 waits for the echo
-  late final StreamSubscription dc1Sub;
-  dc1Sub = dc1.onMessage.listen((msg) {
-    if (!responseCompleter.isCompleted) {
-      responseCompleter.complete();
-    }
-    dc1Sub.cancel();
-  });
+    _dc1Sub = dc1.onMessage.listen((msg) {
+      _pendingResponse?.complete();
+      _pendingResponse = null;
+    });
+  }
 
-  // Send the message
-  dc1.send(message);
+  Future<void> roundTrip(Uint8List message) async {
+    _pendingResponse = Completer<void>();
+    await dc1.send(message);
+    await _pendingResponse!.future;
+  }
 
-  // Wait for response
-  await responseCompleter.future;
+  void dispose() {
+    _dc1Sub.cancel();
+    _dc2Sub.cancel();
+  }
 }
 
 Future<double> runThroughputBenchmark({

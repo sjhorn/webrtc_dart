@@ -18,8 +18,11 @@ void main() async {
   final pc1 = RtcPeerConnection();
   final pc2 = RtcPeerConnection();
 
-  final dcReady = Completer<DataChannel>();
-  late DataChannel dc1;
+  // Wait for transport initialization
+  await Future.delayed(Duration(milliseconds: 500));
+
+  final dcReady = Completer<dynamic>();
+  late dynamic dc1;
 
   // Exchange ICE candidates
   pc1.onIceCandidate.listen((c) => pc2.addIceCandidate(c));
@@ -30,7 +33,7 @@ void main() async {
     print('[DC2] Received: ${channel.label}');
     channel.onStateChange.listen((s) => print('[DC2] State: $s'));
     channel.onMessage.listen((data) {
-      final msg = String.fromCharCodes(data);
+      final msg = data is String ? data : String.fromCharCodes(data);
       print('[DC2] Got: $msg');
       if (channel.state == DataChannelState.open) {
         channel.sendString('pong');
@@ -42,7 +45,7 @@ void main() async {
   // Create datachannel
   dc1 = pc1.createDataChannel('chat', protocol: 'bob');
   dc1.onStateChange.listen((s) => print('[DC1] State: $s'));
-  dc1.onMessage.listen((d) => print('[DC1] Got: ${String.fromCharCodes(d)}'));
+  dc1.onMessage.listen((d) => print('[DC1] Got: ${d is String ? d : String.fromCharCodes(d)}'));
 
   // Connect
   final offer = await pc1.createOffer();
@@ -59,7 +62,7 @@ void main() async {
   // Send pings then close
   print('\nSending pings...');
   for (var i = 0; i < 4; i++) {
-    dc1.sendString('ping$i');
+    await dc1.sendString('ping$i');
     await Future.delayed(Duration(seconds: 1));
   }
 

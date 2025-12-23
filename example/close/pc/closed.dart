@@ -19,9 +19,12 @@ void main() async {
   final pc1 = RtcPeerConnection();
   final pc2 = RtcPeerConnection();
 
-  // Track data channels
-  late DataChannel dc1;
-  late DataChannel dc2;
+  // Wait for transport initialization
+  await Future.delayed(Duration(milliseconds: 500));
+
+  // Track data channels (dynamic - can be DataChannel or ProxyDataChannel)
+  late dynamic dc1;
+  late dynamic dc2;
 
   final dc1Ready = Completer<void>();
   final dc2Ready = Completer<void>();
@@ -66,7 +69,7 @@ void main() async {
     });
 
     channel.onMessage.listen((data) {
-      final msg = String.fromCharCodes(data);
+      final msg = data is String ? data : String.fromCharCodes(data);
       print('[DC2] Received: $msg');
       if (channel.state == DataChannelState.open) {
         channel.sendString('pong');
@@ -80,7 +83,7 @@ void main() async {
   });
 
   // Create datachannel on pc1
-  dc1 = pc1.createDataChannel('test') as DataChannel;
+  dc1 = pc1.createDataChannel('test');
   print('[DC1] Created DataChannel: ${dc1.label}');
 
   dc1.onStateChange.listen((state) {
@@ -92,7 +95,7 @@ void main() async {
   });
 
   dc1.onMessage.listen((data) {
-    final msg = String.fromCharCodes(data);
+    final msg = data is String ? data : String.fromCharCodes(data);
     print('[DC1] Received: $msg');
   });
 
@@ -117,11 +120,11 @@ void main() async {
 
   // Send some messages
   print('--- Exchanging Messages ---');
-  dc1.sendString('ping 1');
+  await dc1.sendString('ping 1');
   await Future.delayed(Duration(milliseconds: 200));
-  dc1.sendString('ping 2');
+  await dc1.sendString('ping 2');
   await Future.delayed(Duration(milliseconds: 200));
-  dc1.sendString('ping 3');
+  await dc1.sendString('ping 3');
   await Future.delayed(Duration(milliseconds: 500));
 
   // Show current states before close

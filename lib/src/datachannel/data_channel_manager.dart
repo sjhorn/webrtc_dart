@@ -19,15 +19,22 @@ class DataChannelManager {
   final Map<int, DataChannel> _channels = {};
 
   /// Next stream ID for outgoing channels
-  int _nextStreamId = 0;
+  /// Per RFC 8832: DTLS client uses even (0, 2, 4...), server uses odd (1, 3, 5...)
+  int _nextStreamId;
 
   /// Stream controller for new channels
   final StreamController<DataChannel> _channelController =
       StreamController<DataChannel>.broadcast();
 
+  /// Create a DataChannel manager
+  /// [isDtlsServer] determines stream ID allocation per RFC 8832:
+  /// - DTLS client uses even stream IDs (0, 2, 4, ...)
+  /// - DTLS server uses odd stream IDs (1, 3, 5, ...)
   DataChannelManager({
     required SctpAssociation association,
-  }) : _association = association {
+    bool isDtlsServer = false,
+  })  : _association = association,
+        _nextStreamId = isDtlsServer ? 1 : 0 {
     // Listen for incoming data from SCTP
     // Note: This requires modifying SctpAssociation to expose a stream
     // For now, we'll set up the callback
@@ -98,8 +105,13 @@ class DataChannelManager {
     // Register channel
     _channels[streamId] = channel;
 
+    _log.fine('Creating DataChannel: label=$label, streamId=$streamId');
+
     // Open the channel (sends DCEP OPEN)
-    channel.open().catchError((e) {
+    _log.fine('Calling channel.open() for streamId=$streamId');
+    channel.open().then((_) {
+      _log.fine('channel.open() completed for streamId=$streamId');
+    }).catchError((e) {
       // Handle error
       _log.warning('Failed to open DataChannel: $e');
     });

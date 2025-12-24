@@ -236,8 +236,8 @@ This document tracks verification of each example against werift-webrtc behavior
 | Example | Status | Method | Notes |
 |---------|--------|--------|-------|
 | `mediachannel/rtx/offer.dart` | [x] | Playwright | **Chrome pass** - RTX codec negotiated |
-| `mediachannel/rtx/simulcast_offer.dart` | [~] | Playwright | **Blocked** - Requires RID header extension parsing (infrastructure exists but not wired) |
-| `mediachannel/rtx/simulcast_answer.dart` | [~] | Manual Browser | **Blocked** - Requires RID extraction + fanout to multiple transceivers |
+| `mediachannel/rtx/simulcast_offer.dart` | [~] | Playwright | **RID wired** - Ready for browser testing |
+| `mediachannel/rtx/simulcast_answer.dart` | [~] | Manual Browser | **RID wired** - Ready for browser testing |
 | `mediachannel/twcc/offer.dart` | [x] | Playwright | **Chrome pass** - transport-cc negotiated |
 | `mediachannel/twcc/multitrack.dart` | [ ] | Manual Browser | TWCC with multiple tracks |
 | `mediachannel/simulcast/offer.dart` | [x] | Playwright | **Chrome pass** - video recv works (SDP simulcast attrs pending) |
@@ -245,7 +245,7 @@ This document tracks verification of each example against werift-webrtc behavior
 | `mediachannel/simulcast/select.dart` | [ ] | Manual Browser | Manual layer selection API |
 | `mediachannel/simulcast/abr.dart` | [ ] | Manual Browser | Adaptive bitrate selection |
 | `mediachannel/rtp_forward/offer.dart` | [x] | Playwright | **Chrome/Safari pass** - writeRtp -> browser flow |
-| `mediachannel/red/sendrecv.dart` | [x] | Playwright | **Chrome pass** - Audio echo works (Opus negotiated, RED available) |
+| `mediachannel/red/sendrecv.dart` | [x] | Playwright | **Chrome pass** - RED codec negotiated, multi-codec SDP working |
 | `mediachannel/red/recv.dart` | [ ] | Manual Browser | RED receive + UDP forward |
 | `mediachannel/red/send.dart` | [ ] | Manual Browser | RED send with GStreamer |
 | `mediachannel/red/adaptive/server.dart` | [S] | - | Skip - browser RED support limited |
@@ -606,3 +606,13 @@ For each placeholder:
      - Transceivers matched by kind when MID doesn't match (for pre-created transceivers)
      - HeaderExtensionConfig created at send time, not attachment time
    - **Test files**: `interop/automated/sendrecv_answer_server.dart`, `sendrecv_answer_test.mjs`
+
+4. **RID header extension parsing not wired** (FIXED Dec 2025)
+   - **Status**: RESOLVED
+   - **Root Cause**: Infrastructure existed but wasn't connected during SDP negotiation
+   - **The Bug**: `RtpRouter` had `registerHeaderExtensions()` and `registerByRid()` methods but they were never called from `setRemoteDescription`. This meant simulcast RID-based routing didn't work.
+   - **Fix**: Added calls in `_processRemoteMediaDescriptions()` to:
+     - `_rtpRouter.registerHeaderExtensions(headerExtensions)` - registers extension ID to URI mapping
+     - `_rtpRouter.registerByRid(rid, handler)` - registers RID handlers for simulcast layers
+   - **File Changed**: `lib/src/peer_connection.dart` - `_processRemoteMediaDescriptions` method
+   - **Result**: Simulcast RID-based packet routing now functional, unblocks RTX simulcast testing

@@ -11,6 +11,7 @@ import 'package:webrtc_dart/src/ice/candidate.dart';
 import 'package:webrtc_dart/src/ice/ice_connection.dart';
 import 'package:webrtc_dart/src/ice/mdns.dart';
 import 'package:webrtc_dart/src/media/media_stream_track.dart';
+import 'package:webrtc_dart/src/media/parameters.dart' show SimulcastDirection;
 import 'package:webrtc_dart/src/media/rtp_router.dart';
 import 'package:webrtc_dart/src/media/rtp_transceiver.dart';
 import 'package:webrtc_dart/src/nonstandard/media/track.dart' as nonstandard;
@@ -1183,6 +1184,22 @@ class RtcPeerConnection {
           }
         }
 
+        // Register header extensions with RTP router for RID parsing
+        _rtpRouter.registerHeaderExtensions(headerExtensions);
+
+        // Register simulcast RID handlers if present
+        final simulcastParams = media.getSimulcastParameters();
+        final receiverForClosure = existingTransceiver.receiver;
+        for (final param in simulcastParams) {
+          if (param.direction == SimulcastDirection.send) {
+            // Remote is sending - we need to receive these RIDs
+            _rtpRouter.registerByRid(param.rid, (packet, rid, extensions) {
+              receiverForClosure.handleRtpByRid(packet, rid!, extensions);
+            });
+            _log.fine('[$_debugLabel] Registered RID handler: ${param.rid}');
+          }
+        }
+
         // Emit the transceiver so the application can listen to the received track
         _trackController.add(existingTransceiver);
         continue;
@@ -1321,6 +1338,22 @@ class RtcPeerConnection {
         } else if (ext.uri ==
             'http://www.ietf.org/id/draft-holmer-rmcat-transport-wide-cc-extensions-01') {
           transceiver.sender.transportWideCCExtensionId = ext.id;
+        }
+      }
+
+      // Register header extensions with RTP router for RID parsing
+      _rtpRouter.registerHeaderExtensions(headerExtensions);
+
+      // Register simulcast RID handlers if present
+      final simulcastParams = media.getSimulcastParameters();
+      final receiverForClosure = transceiver.receiver;
+      for (final param in simulcastParams) {
+        if (param.direction == SimulcastDirection.send) {
+          // Remote is sending - we need to receive these RIDs
+          _rtpRouter.registerByRid(param.rid, (packet, rid, extensions) {
+            receiverForClosure.handleRtpByRid(packet, rid!, extensions);
+          });
+          _log.fine('[$_debugLabel] Registered RID handler: ${param.rid}');
         }
       }
 

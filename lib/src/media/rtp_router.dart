@@ -120,7 +120,19 @@ class RtpRouter {
       }
     }
 
-    // Unknown packet - drop or log
+    // Unknown packet - use first RID handler as fallback if no SSRC match
+    // This handles the case where simulcast is negotiated but browser
+    // sends without RID extension (single-stream fallback)
+    if (_ridTable.isNotEmpty) {
+      final fallbackHandler = _ridTable.values.first;
+      // Register SSRC for future packets
+      _ssrcTable[ssrc] = fallbackHandler;
+      // Pass null for RID to indicate fallback (no actual RID in packet)
+      fallbackHandler(packet, null, extensions);
+      return;
+    }
+
+    // No handler found - drop packet
   }
 
   /// Parse RTP header extensions from packet

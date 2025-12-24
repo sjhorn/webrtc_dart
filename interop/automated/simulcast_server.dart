@@ -185,14 +185,46 @@ class SimulcastServer {
     );
     print('[Simulcast] Added video transceiver (recvonly with simulcast)');
 
+    // Store RTP handler for forwarding to recorder
+    void Function(RtpPacket)? rtpHandler;
+
     _pc!.onTrack.listen((transceiver) async {
       print('[Simulcast] Received track: ${transceiver.kind}');
-      final track = transceiver.receiver.track;
+      final primaryTrack = transceiver.receiver.track;
 
-      // Check if track has RID (simulcast layer)
-      if (track.rid != null) {
-        print('[Simulcast] Track RID: ${track.rid}');
+      // Check if primary track has RID (simulcast layer)
+      if (primaryTrack.rid != null) {
+        print('[Simulcast] Primary track RID: ${primaryTrack.rid}');
       }
+
+      // Helper to listen for RTP packets on a track
+      void listenToTrack(MediaStreamTrack track) {
+        print('[Simulcast] Listening to track: ${track.id}, RID: ${track.rid}');
+        track.onReceiveRtp.listen((rtp) {
+          _rtpPacketsReceived++;
+
+          // Track packets by RID if available
+          final rid = track.rid ?? 'default';
+          _ridCounts[rid] = (_ridCounts[rid] ?? 0) + 1;
+
+          // Forward to recorder handler if available
+          rtpHandler?.call(rtp);
+
+          if (_rtpPacketsReceived % 100 == 0) {
+            print('[Simulcast] Received $_rtpPacketsReceived RTP packets');
+            print('[Simulcast] RID counts: $_ridCounts');
+          }
+        });
+      }
+
+      // Listen to primary track
+      listenToTrack(primaryTrack);
+
+      // Listen for new simulcast layer tracks
+      transceiver.receiver.onTrack = (simulcastTrack) {
+        print('[Simulcast] New simulcast layer track: ${simulcastTrack.id}, RID: ${simulcastTrack.rid}');
+        listenToTrack(simulcastTrack);
+      };
 
       final recordingTrack = RecordingTrack(
         kind: 'video',
@@ -200,19 +232,8 @@ class SimulcastServer {
         payloadType: 96,
         clockRate: 90000,
         onRtp: (handler) {
-          track.onReceiveRtp.listen((rtp) {
-            _rtpPacketsReceived++;
-
-            // Track packets by RID if available
-            final rid = track.rid ?? 'default';
-            _ridCounts[rid] = (_ridCounts[rid] ?? 0) + 1;
-
-            handler(rtp);
-            if (_rtpPacketsReceived % 100 == 0) {
-              print('[Simulcast] Received $_rtpPacketsReceived RTP packets');
-              print('[Simulcast] RID counts: $_ridCounts');
-            }
-          });
+          // Save the handler to forward packets from simulcast tracks
+          rtpHandler = handler;
         },
       );
 

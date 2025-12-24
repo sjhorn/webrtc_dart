@@ -572,6 +572,47 @@ class RtcPeerConnection {
         attributes.add(SdpAttribute(key: 'ssrc', value: '$ssrc cname:$cname'));
       }
 
+      // Add simulcast attributes if layers are configured
+      final simulcastLayers = transceiver.simulcast;
+      if (simulcastLayers.isNotEmpty) {
+        // Add RID header extension (required for simulcast)
+        // Use extension ID 10 for RID (after mid=1, abs-send-time, twcc etc.)
+        const ridExtensionId = 10;
+        attributes.add(SdpAttribute(
+          key: 'extmap',
+          value: '$ridExtensionId ${RtpExtensionUri.sdesRtpStreamId}',
+        ));
+
+        // Add a=rid:<rid> <direction> for each layer
+        for (final layer in simulcastLayers) {
+          final dirStr =
+              layer.direction == SimulcastDirection.send ? 'send' : 'recv';
+          attributes.add(SdpAttribute(key: 'rid', value: '${layer.rid} $dirStr'));
+        }
+
+        // Build a=simulcast: line
+        final recvRids = simulcastLayers
+            .where((l) => l.direction == SimulcastDirection.recv)
+            .map((l) => l.rid)
+            .toList();
+        final sendRids = simulcastLayers
+            .where((l) => l.direction == SimulcastDirection.send)
+            .map((l) => l.rid)
+            .toList();
+
+        final simulcastParts = <String>[];
+        if (recvRids.isNotEmpty) {
+          simulcastParts.add('recv ${recvRids.join(";")}');
+        }
+        if (sendRids.isNotEmpty) {
+          simulcastParts.add('send ${sendRids.join(";")}');
+        }
+        if (simulcastParts.isNotEmpty) {
+          attributes.add(
+              SdpAttribute(key: 'simulcast', value: simulcastParts.join(' ')));
+        }
+      }
+
       mediaDescriptions.add(
         SdpMedia(
           type: transceiver.kind == MediaStreamTrackKind.audio
@@ -1194,7 +1235,12 @@ class RtcPeerConnection {
           if (param.direction == SimulcastDirection.send) {
             // Remote is sending - we need to receive these RIDs
             _rtpRouter.registerByRid(param.rid, (packet, rid, extensions) {
-              receiverForClosure.handleRtpByRid(packet, rid!, extensions);
+              if (rid != null) {
+                receiverForClosure.handleRtpByRid(packet, rid, extensions);
+              } else {
+                // Fallback: RID negotiated but not in packet, use SSRC routing
+                receiverForClosure.handleRtpBySsrc(packet, extensions);
+              }
             });
             _log.fine('[$_debugLabel] Registered RID handler: ${param.rid}');
           }
@@ -1351,7 +1397,12 @@ class RtcPeerConnection {
         if (param.direction == SimulcastDirection.send) {
           // Remote is sending - we need to receive these RIDs
           _rtpRouter.registerByRid(param.rid, (packet, rid, extensions) {
-            receiverForClosure.handleRtpByRid(packet, rid!, extensions);
+            if (rid != null) {
+              receiverForClosure.handleRtpByRid(packet, rid, extensions);
+            } else {
+              // Fallback: RID negotiated but not in packet, use SSRC routing
+              receiverForClosure.handleRtpBySsrc(packet, extensions);
+            }
           });
           _log.fine('[$_debugLabel] Registered RID handler: ${param.rid}');
         }

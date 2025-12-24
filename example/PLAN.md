@@ -236,11 +236,11 @@ This document tracks verification of each example against werift-webrtc behavior
 | Example | Status | Method | Notes |
 |---------|--------|--------|-------|
 | `mediachannel/rtx/offer.dart` | [x] | Playwright | **Chrome pass** - RTX codec negotiated |
-| `mediachannel/rtx/simulcast_offer.dart` | [~] | Playwright | **RID receive path works**, SDP attrs pending |
-| `mediachannel/rtx/simulcast_answer.dart` | [~] | Manual Browser | **RID receive path works**, SDP attrs pending |
+| `mediachannel/rtx/simulcast_offer.dart` | [x] | Playwright | **Chrome pass** - Simulcast SDP + RID routing complete |
+| `mediachannel/rtx/simulcast_answer.dart` | [x] | Manual Browser | Simulcast SDP + RID routing complete |
 | `mediachannel/twcc/offer.dart` | [x] | Playwright | **Chrome pass** - transport-cc negotiated |
 | `mediachannel/twcc/multitrack.dart` | [ ] | Manual Browser | TWCC with multiple tracks |
-| `mediachannel/simulcast/offer.dart` | [x] | Playwright | **Chrome pass** - video recv works (SDP simulcast attrs pending) |
+| `mediachannel/simulcast/offer.dart` | [x] | Playwright | **Chrome pass** - Simulcast SDP + 238 RID packets received |
 | `mediachannel/simulcast/answer.dart` | [ ] | Manual Browser | SFU-style fanout |
 | `mediachannel/simulcast/select.dart` | [ ] | Manual Browser | Manual layer selection API |
 | `mediachannel/simulcast/abr.dart` | [ ] | Manual Browser | Adaptive bitrate selection |
@@ -608,7 +608,7 @@ For each placeholder:
    - **Test files**: `interop/automated/sendrecv_answer_server.dart`, `sendrecv_answer_test.mjs`
 
 4. **RID header extension parsing not wired** (FIXED Dec 2025)
-   - **Status**: RESOLVED (receive path)
+   - **Status**: FULLY RESOLVED
    - **Root Cause**: Infrastructure existed but wasn't connected during SDP negotiation
    - **The Bug**: `RtpRouter` had `registerHeaderExtensions()` and `registerByRid()` methods but they were never called from `setRemoteDescription`. This meant simulcast RID-based routing didn't work.
    - **Fix**: Added calls in `_processRemoteMediaDescriptions()` to:
@@ -616,4 +616,4 @@ For each placeholder:
      - `_rtpRouter.registerByRid(rid, handler)` - registers RID handlers for simulcast layers
    - **File Changed**: `lib/src/peer_connection.dart` - `_processRemoteMediaDescriptions` method
    - **Result**: Simulcast RID-based packet routing now functional for receive path
-   - **Remaining**: Full simulcast SDP negotiation needs `createOffer()` to emit `a=rid:` and `a=simulcast:` attributes
+   - **Simulcast SDP (Dec 2025)**: Added `a=rid:<rid> <direction>` and `a=simulcast:recv/send <rids>` attributes to `createOffer()`. Chrome interop test passes with 238 packets received on "high" RID layer.

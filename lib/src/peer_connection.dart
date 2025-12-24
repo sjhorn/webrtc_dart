@@ -490,13 +490,17 @@ class RtcPeerConnection {
       final mid = transceiver.mid!;
       bundleMids.add(mid);
 
-      final codec = transceiver.sender.codec;
-      final payloadType = codec.payloadType ?? 96;
+      // Get all codecs for SDP (fallback to single primary codec)
+      final allCodecs = transceiver.codecs.isNotEmpty
+          ? transceiver.codecs
+          : [transceiver.sender.codec];
+      final primaryCodec = transceiver.sender.codec;
+      final payloadType = primaryCodec.payloadType ?? 96;
       final ssrc = transceiver.sender.rtpSession.localSsrc;
       final cname = _iceConnection.localUsername;
 
-      // Build format list (payload types)
-      final formats = <String>['$payloadType'];
+      // Build format list with ALL payload types
+      final formats = allCodecs.map((c) => '${c.payloadType ?? 96}').toList();
 
       // Build attributes list
       final directionStr = transceiver.direction.name;
@@ -513,22 +517,29 @@ class RtcPeerConnection {
           key: 'extmap',
           value: '$_midExtensionId ${RtpExtensionUri.sdesMid}',
         ),
-        SdpAttribute(
+      ];
+
+      // Add rtpmap, fmtp, and rtcp-fb for each codec
+      for (final codec in allCodecs) {
+        final pt = codec.payloadType ?? 96;
+        attributes.add(SdpAttribute(
           key: 'rtpmap',
           value:
-              '$payloadType ${codec.codecName}/${codec.clockRate}${codec.channels != null && codec.channels! > 1 ? '/${codec.channels}' : ''}',
-        ),
-        if (codec.parameters != null)
-          SdpAttribute(key: 'fmtp', value: '$payloadType ${codec.parameters}'),
-        // Add RTCP feedback attributes from codec
-        for (final fb in codec.rtcpFeedback)
-          SdpAttribute(
+              '$pt ${codec.codecName}/${codec.clockRate}${codec.channels != null && codec.channels! > 1 ? '/${codec.channels}' : ''}',
+        ));
+        if (codec.parameters != null) {
+          attributes
+              .add(SdpAttribute(key: 'fmtp', value: '$pt ${codec.parameters}'));
+        }
+        for (final fb in codec.rtcpFeedback) {
+          attributes.add(SdpAttribute(
             key: 'rtcp-fb',
             value: fb.parameter != null
-                ? '$payloadType ${fb.type} ${fb.parameter}'
-                : '$payloadType ${fb.type}',
-          ),
-      ];
+                ? '$pt ${fb.type} ${fb.parameter}'
+                : '$pt ${fb.type}',
+          ));
+        }
+      }
 
       // Add RTX for video only
       if (transceiver.kind == MediaStreamTrackKind.video) {
@@ -544,7 +555,7 @@ class RtcPeerConnection {
         attributes.addAll([
           RtxSdpBuilder.createRtxRtpMap(
             rtxPayloadType,
-            clockRate: codec.clockRate,
+            clockRate: primaryCodec.clockRate,
           ),
           RtxSdpBuilder.createRtxFmtp(rtxPayloadType, payloadType),
           RtxSdpBuilder.createSsrcGroupFid(ssrc, rtxSsrc),
@@ -1651,6 +1662,12 @@ class RtcPeerConnection {
       );
     }
 
+    // Populate codec list for SDP generation
+    final allCodecs = track.kind == MediaStreamTrackKind.audio
+        ? (configuration.codecs.audio ?? supportedAudioCodecs)
+        : (configuration.codecs.video ?? supportedVideoCodecs);
+    transceiver.codecs = assignPayloadTypes(allCodecs);
+
     // Wire up the transceiver reference for the receive callback
     transceiverRef = transceiver;
 
@@ -1746,6 +1763,12 @@ class RtcPeerConnection {
         codec: effectiveCodec,
       );
     }
+
+    // Populate codec list for SDP generation with all supported codecs
+    final allCodecs = kind == MediaStreamTrackKind.audio
+        ? (configuration.codecs.audio ?? supportedAudioCodecs)
+        : (configuration.codecs.video ?? supportedVideoCodecs);
+    transceiver.codecs = assignPayloadTypes(allCodecs);
 
     transceiverRef = transceiver;
     _transceivers.add(transceiver);
@@ -1862,6 +1885,12 @@ class RtcPeerConnection {
         codec: effectiveCodec,
       );
     }
+
+    // Populate codec list for SDP generation
+    final allCodecs = kind == MediaStreamTrackKind.audio
+        ? (configuration.codecs.audio ?? supportedAudioCodecs)
+        : (configuration.codecs.video ?? supportedVideoCodecs);
+    transceiver.codecs = assignPayloadTypes(allCodecs);
 
     // Set sender.mid and midExtensionId for RTP header extension
     // MUST be set BEFORE registerNonstandardTrack, since that function captures mid

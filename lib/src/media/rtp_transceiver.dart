@@ -52,6 +52,10 @@ class RtpTransceiver {
   /// M-line index in SDP (position in media sections)
   int? mLineIndex;
 
+  /// All codecs for SDP negotiation (RED, Opus, etc.)
+  /// The primary sending codec is still sender.codec
+  List<RtpCodecParameters> codecs = [];
+
   RtpTransceiver({
     required this.kind,
     String? mid,

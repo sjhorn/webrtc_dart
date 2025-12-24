@@ -247,3 +247,57 @@ final List<RtpCodecParameters> supportedCodecs = [
   ...supportedAudioCodecs,
   ...supportedVideoCodecs,
 ];
+
+/// Assign payload types to a list of codecs for SDP generation.
+/// - Static codecs (PCMU=0) keep their assigned PT
+/// - RED gets PT 63 with fmtp linking to the primary audio codec (Opus)
+/// - Dynamic codecs get sequential PTs starting at 96
+List<RtpCodecParameters> assignPayloadTypes(List<RtpCodecParameters> codecs) {
+  int nextPt = 96;
+  final result = <RtpCodecParameters>[];
+
+  // First pass: find what PT Opus will get (for RED's fmtp)
+  int primaryAudioPt = 96;
+  int tempPt = 96;
+  for (final c in codecs) {
+    if (c.payloadType != null) continue; // Static codec
+    if (c.codecName.toLowerCase() == 'red') continue; // Skip RED
+    if (c.codecName.toLowerCase() == 'opus') {
+      primaryAudioPt = tempPt;
+      break;
+    }
+    tempPt++;
+  }
+
+  for (final codec in codecs) {
+    // Static codecs keep their PT (e.g., PCMU=0)
+    if (codec.payloadType != null) {
+      result.add(codec);
+      continue;
+    }
+
+    // RED special case: PT 63, fmtp links to primary audio codec
+    if (codec.codecName.toLowerCase() == 'red') {
+      result.add(RtpCodecParameters(
+        mimeType: codec.mimeType,
+        clockRate: codec.clockRate,
+        channels: codec.channels,
+        payloadType: 63,
+        parameters: '$primaryAudioPt/$primaryAudioPt',
+        rtcpFeedback: codec.rtcpFeedback,
+      ));
+      continue;
+    }
+
+    // Regular dynamic codec: assign next PT
+    result.add(RtpCodecParameters(
+      mimeType: codec.mimeType,
+      clockRate: codec.clockRate,
+      channels: codec.channels,
+      payloadType: nextPt++,
+      parameters: codec.parameters,
+      rtcpFeedback: codec.rtcpFeedback,
+    ));
+  }
+  return result;
+}

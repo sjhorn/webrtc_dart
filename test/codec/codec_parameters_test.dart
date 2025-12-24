@@ -119,4 +119,51 @@ void main() {
       expect(feedback.toString(), 'custom param');
     });
   });
+
+  group('assignPayloadTypes', () {
+    test('assigns sequential PTs starting at 96', () {
+      final codecs = assignPayloadTypes([
+        createOpusCodec(),
+        createPcmuCodec(), // Has static PT 0
+      ]);
+
+      expect(codecs[0].payloadType, 96); // Opus gets 96
+      expect(codecs[1].payloadType, 0); // PCMU keeps static PT
+    });
+
+    test('RED gets PT 63 with fmtp linking to Opus', () {
+      final codecs = assignPayloadTypes([
+        createRedCodec(),
+        createOpusCodec(),
+        createPcmuCodec(),
+      ]);
+
+      expect(codecs[0].payloadType, 63); // RED
+      expect(codecs[0].parameters, '96/96'); // Links to Opus PT
+      expect(codecs[1].payloadType, 96); // Opus
+      expect(codecs[2].payloadType, 0); // PCMU static
+    });
+
+    test('video codecs get sequential PTs', () {
+      final codecs = assignPayloadTypes([
+        createVp8Codec(),
+        createVp9Codec(),
+        createH264Codec(),
+      ]);
+
+      expect(codecs[0].payloadType, 96); // VP8
+      expect(codecs[1].payloadType, 97); // VP9
+      expect(codecs[2].payloadType, 98); // H264
+    });
+
+    test('preserves codec properties', () {
+      final codecs = assignPayloadTypes([
+        createOpusCodec(),
+      ]);
+
+      expect(codecs[0].mimeType, 'audio/opus');
+      expect(codecs[0].clockRate, 48000);
+      expect(codecs[0].channels, 2);
+    });
+  });
 }

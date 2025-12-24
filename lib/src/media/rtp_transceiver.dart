@@ -22,7 +22,9 @@ class RtpTransceiver {
   final MediaStreamTrackKind kind;
 
   /// Media ID (mid) - unique identifier in SDP
-  final String mid;
+  /// Null until assigned during offer/answer negotiation.
+  /// This matches werift behavior where mid is undefined until SDP exchange.
+  String? _mid;
 
   /// RTP sender
   final RtpSender sender;
@@ -52,17 +54,30 @@ class RtpTransceiver {
 
   RtpTransceiver({
     required this.kind,
-    required this.mid,
+    String? mid,
     required this.sender,
     required this.receiver,
     RtpTransceiverDirection? direction,
     List<RTCRtpSimulcastParameters>? simulcast,
     MediaTransport? transport,
     this.mLineIndex,
-  })  : _direction = direction ?? RtpTransceiverDirection.sendrecv,
+  })  : _mid = mid,
+        _direction = direction ?? RtpTransceiverDirection.sendrecv,
         _transport = transport {
     if (simulcast != null) {
       _simulcast.addAll(simulcast);
+    }
+  }
+
+  /// Get MID (may be null before SDP negotiation)
+  String? get mid => _mid;
+
+  /// Set MID (called during SDP negotiation to assign or update)
+  set mid(String? value) {
+    _mid = value;
+    // Also update sender's mid for RTP header extension
+    if (value != null) {
+      sender.mid = value;
     }
   }
 
@@ -545,31 +560,32 @@ class RtpSender {
   /// Header extensions (mid, abs-send-time, transport-cc) are regenerated using
   /// HeaderExtensionConfig, matching werift rtpSender.ts:sendRtp behavior.
   void _attachNonstandardTrack(nonstandard.MediaStreamTrack track) {
-    // Get the negotiated payload type from the codec
-    final negotiatedPayloadType = codec.payloadType;
-
-    // Build header extension config for regeneration
-    // This matches TypeScript werift rtpSender.ts:sendRtp which regenerates extensions
-    final extensionConfig = HeaderExtensionConfig(
-      sdesMidId: midExtensionId,
-      mid: mid,
-      absSendTimeId: absSendTimeExtensionId,
-      transportWideCCId: transportWideCCExtensionId,
-    );
-
     _trackSubscription = track.onReceiveRtp.listen((event) async {
       if (_stopped) return;
 
       final (rtp, _) = event;
 
+      // Build header extension config at SEND TIME, not at attachment time
+      // This is critical for the answerer pattern where MID is migrated after attachment
+      // If we capture mid at attachment time, we'd use the pre-migration MID
+      final extensionConfig = HeaderExtensionConfig(
+        sdesMidId: midExtensionId,
+        mid: mid,
+        absSendTimeId: absSendTimeExtensionId,
+        transportWideCCId: transportWideCCExtensionId,
+      );
+
       // Forward the RTP packet through the session with extension regeneration
       // sendRawRtpPacket will:
       // - Rewrite SSRC to sender's SSRC
-      // - Rewrite payload type to negotiated value
       // - Regenerate header extensions (mid, abs-send-time, transport-cc)
+      // - Keep the same payload type to maintain codec format (RED, RTX, etc.)
+      //
+      // Note: We intentionally do NOT override payloadType here.
+      // The browser may send RED-wrapped video (pt=123) and expects
+      // the echo to use the same codec format. Changing PT breaks decoding.
       await rtpSession.sendRawRtpPacket(
         rtp,
-        payloadType: negotiatedPayloadType,
         extensionConfig: extensionConfig,
       );
     });

@@ -13,10 +13,12 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 import 'package:webrtc_dart/webrtc_dart.dart';
+import 'package:webrtc_dart/src/nonstandard/media/track.dart' as nonstandard;
 
 class SendrecvAnswerServer {
   HttpServer? _server;
   RtcPeerConnection? _pc;
+  nonstandard.MediaStreamTrack? _sendTrack;
   final List<Map<String, dynamic>> _localCandidates = [];
   Completer<void> _connectionCompleter = Completer();
   DateTime? _startTime;
@@ -129,10 +131,18 @@ class SendrecvAnswerServer {
     ));
     print('[Sendrecv-Answer] PeerConnection created');
 
-    // DON'T pre-create a transceiver - the browser's offer will create one
-    // We'll use registerTrackForForward on the transceiver created from the offer
-    // This ensures the SSRC in our answer matches what we send
-    print('[Sendrecv-Answer] Not pre-creating transceiver (will use one from offer)');
+    // Create a nonstandard track for sending echoed video
+    // This matches the WORKING pattern from media_sendrecv_server.dart
+    _sendTrack = nonstandard.MediaStreamTrack(kind: nonstandard.MediaKind.video);
+
+    // Pre-create a transceiver with our send track BEFORE receiving the offer
+    // With the MID matching fix, this transceiver will be matched by kind when
+    // processing the browser's offer, and its MID updated to match.
+    final transceiver = _pc!.addTransceiverWithTrack(
+      _sendTrack!,
+      direction: RtpTransceiverDirection.sendrecv,
+    );
+    print('[Sendrecv-Answer] Pre-created video transceiver with track (sendrecv), mid=${transceiver.mid}, ssrc=${transceiver.sender.rtpSession.localSsrc}');
 
     // Track connection state
     _subscriptions.add(_pc!.onConnectionStateChange.listen((state) {
@@ -159,9 +169,8 @@ class SendrecvAnswerServer {
       });
     }));
 
-    // Handle incoming tracks - echo RTP via registerTrackForForward on the SAME transceiver
-    // This is the key insight: we must use the transceiver that was created from the offer
-    // because its SSRC is what's advertised in our answer SDP
+    // Handle incoming tracks - echo RTP via writeRtp on our send track
+    // This matches the WORKING pattern from media_sendrecv_server.dart
     _subscriptions.add(_pc!.onTrack.listen((transceiver) {
       print('[Sendrecv-Answer] onTrack fired: kind=${transceiver.kind}, mid=${transceiver.mid}, '
           'ssrc=${transceiver.sender.rtpSession.localSsrc}, direction=${transceiver.direction}');
@@ -170,17 +179,25 @@ class SendrecvAnswerServer {
       if (transceiver.kind == MediaStreamTrackKind.video) {
         final receivedTrack = transceiver.receiver.track;
 
-        print('[Sendrecv-Answer] Setting up echo via registerTrackForForward on same transceiver');
-
-        // Use registerTrackForForward to echo RTP through THIS transceiver's sender
-        // This ensures the SSRC matches what's in the answer SDP
-        transceiver.sender.registerTrackForForward(receivedTrack);
+        print('[Sendrecv-Answer] Setting up echo via writeRtp');
         _echoStarted = true;
 
-        // Count received packets for statistics
+        // Echo RTP packets via writeRtp on our send track
+        bool pliSent = false;
         _subscriptions.add(receivedTrack.onReceiveRtp.listen((rtpPacket) {
           _packetsReceived++;
-          _packetsEchoed++; // registerTrackForForward handles the echo
+
+          // Echo the RTP packet back to the browser via our send track
+          if (_sendTrack != null) {
+            _sendTrack!.writeRtp(rtpPacket);
+            _packetsEchoed++;
+          }
+
+          // Send PLI after first RTP packet to request keyframe
+          if (!pliSent) {
+            pliSent = true;
+            transceiver.sender.rtpSession.sendPli(rtpPacket.ssrc);
+          }
 
           if (_packetsReceived % 100 == 0) {
             print('[Sendrecv-Answer] Received=$_packetsReceived, Echoed=$_packetsEchoed');
@@ -214,7 +231,6 @@ class SendrecvAnswerServer {
     );
 
     print('[Sendrecv-Answer] Received offer from browser');
-
     await _pc!.setRemoteDescription(offer);
 
     // Create answer
@@ -340,6 +356,9 @@ class SendrecvAnswerServer {
       await sub.cancel();
     }
     _subscriptions.clear();
+
+    _sendTrack?.stop();
+    _sendTrack = null;
 
     await _pc?.close();
     _pc = null;

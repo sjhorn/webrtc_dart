@@ -70,7 +70,9 @@ void main() async {
   receiver.onTrack.listen((transceiver) {
     print(
         '[Receiver] Received track: kind=${transceiver.kind}, mid=${transceiver.mid}');
-    tracksReceived.add(transceiver.mid);
+    if (transceiver.mid != null) {
+      tracksReceived.add(transceiver.mid!);
+    }
 
     // In a real simulcast scenario, you would access different layers
     // via transceiver.receiver.trackByRID['high'], etc.

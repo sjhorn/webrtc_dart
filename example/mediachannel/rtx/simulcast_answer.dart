@@ -42,14 +42,14 @@ void main() async {
     );
 
     pc.onTrack.listen((t) {
-      final rid = t.mid;
+      final rid = t.mid ?? 'unknown';
       print('[Track] Received layer: $rid');
       layerStats[rid] = _LayerStats();
     });
 
     // Listen for RTP on the receiver track
     transceiver.receiver.track.onReceiveRtp.listen((rtp) {
-      final rid = transceiver.mid;
+      final rid = transceiver.mid ?? 'unknown';
       if (!layerStats.containsKey(rid)) {
         layerStats[rid] = _LayerStats();
       }

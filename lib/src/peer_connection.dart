@@ -478,7 +478,16 @@ class RtcPeerConnection {
 
     // Add media lines for transceivers (audio/video)
     for (final transceiver in _transceivers) {
-      final mid = transceiver.mid;
+      // Assign MID if not yet assigned (matches werift behavior)
+      // MID is assigned lazily during offer/answer creation
+      if (transceiver.mid == null) {
+        final newMid = '${_nextMid++}';
+        transceiver.mid = newMid;
+
+        // Also need to add the RTP session with the new MID if it exists
+        // (it may have been created with a temporary key)
+      }
+      final mid = transceiver.mid!;
       bundleMids.add(mid);
 
       final codec = transceiver.sender.codec;
@@ -1075,7 +1084,19 @@ class RtcPeerConnection {
   }
 
   /// Process remote media descriptions to create transceivers for incoming tracks
+  ///
+  /// This method matches remote m-lines with existing transceivers, following
+  /// the WebRTC spec's transceiver matching algorithm (RFC 8829):
+  /// 1. First try to match by MID (for transceivers already negotiated)
+  /// 2. Then try to match by kind for pre-created transceivers with null or unmatched MID
+  /// 3. If no match, create a new transceiver
+  ///
+  /// The kind-based matching is critical for the "pre-create transceiver as answerer"
+  /// pattern used by werift, where addTransceiver() is called BEFORE receiving the offer.
   Future<void> _processRemoteMediaDescriptions(SdpMessage sdpMessage) async {
+    // Track which transceivers have been matched in this negotiation
+    final matchedTransceivers = <RtpTransceiver>{};
+
     for (final media in sdpMessage.mediaDescriptions) {
       // Skip non-audio/video media (e.g., application/datachannel)
       if (media.type != 'audio' && media.type != 'video') {
@@ -1087,11 +1108,53 @@ class RtcPeerConnection {
         continue;
       }
 
-      // Check if we already have a transceiver for this MID
-      final existingTransceiver =
+      final mediaKind = media.type == 'audio'
+          ? MediaStreamTrackKind.audio
+          : MediaStreamTrackKind.video;
+
+      // First, try to match by MID (exact match)
+      var existingTransceiver =
           _transceivers.where((t) => t.mid == mid).firstOrNull;
+
+      // If no MID match, try to match by kind for pre-created transceivers
+      // This matches werift's behavior where pre-created transceivers have mid=undefined
+      // and are matched by kind when processing the remote offer
+      if (existingTransceiver == null) {
+        existingTransceiver = _transceivers
+            .where((t) =>
+                t.kind == mediaKind &&
+                !matchedTransceivers.contains(t) &&
+                // Match if MID is null OR if MID doesn't match any remote m-line
+                // (meaning it was assigned locally but not yet negotiated)
+                (t.mid == null ||
+                    !sdpMessage.mediaDescriptions.any(
+                        (m) => m.getAttributeValue('mid') == t.mid)))
+            .firstOrNull;
+
+        if (existingTransceiver != null) {
+          // Found a pre-created transceiver by kind - migrate it to the new MID
+          _log.fine(
+              '[$_debugLabel] Migrating transceiver from mid=${existingTransceiver.mid} to mid=$mid');
+
+          // Update the _rtpSessions map key
+          final oldMid = existingTransceiver.mid;
+          if (oldMid != null && _rtpSessions.containsKey(oldMid)) {
+            final rtpSession = _rtpSessions.remove(oldMid);
+            if (rtpSession != null) {
+              _rtpSessions[mid] = rtpSession;
+            }
+          }
+
+          // Update transceiver's MID (this also updates sender.mid via the setter)
+          existingTransceiver.mid = mid;
+        }
+      }
+
       if (existingTransceiver != null) {
-        // Transceiver already exists (we created it when adding a local track)
+        // Mark as matched to avoid reusing in later iterations
+        matchedTransceivers.add(existingTransceiver);
+
+        // Transceiver exists (we created it when adding a local track or pre-created)
         // This is a sendrecv transceiver - it sends our local track and receives the remote track
 
         // Extract header extension IDs from remote SDP and set on sender
@@ -2287,10 +2350,13 @@ class RtcPeerConnection {
           transceiver.sender.track == selector ||
           transceiver.receiver.track == selector;
 
-      // Get RTP session by MID
-      final session = _rtpSessions[transceiver.mid];
+      // Get RTP session by MID (skip if MID not yet assigned)
+      final mid = transceiver.mid;
+      if (mid == null) continue;
+
+      final session = _rtpSessions[mid];
       if (session != null) {
-        processedMids.add(transceiver.mid);
+        processedMids.add(mid);
         final sessionStats = session.getStats();
         for (final stat in sessionStats.values) {
           // Filter track-specific stats by track selector

@@ -123,7 +123,7 @@ This document tracks verification of each example against werift-webrtc behavior
 | `mediachannel/recvonly/dump.dart` | [ ] | Manual Browser | Dump RTP packets to disk |
 | `mediachannel/recvonly/multi_offer.dart` | [x] | Playwright | **Chrome/Safari pass** - receive from 3 clients |
 | `mediachannel/sendrecv/offer.dart` | [x] | Playwright | **Chrome/Safari pass**, Firefox skipped |
-| `mediachannel/sendrecv/answer.dart` | [~] | Playwright | Partial - recv works, echo not working (see notes) |
+| `mediachannel/sendrecv/answer.dart` | [x] | Playwright | **Chrome/Safari pass** - Echo works (payload type preservation fix) |
 | `mediachannel/sendrecv/multi_offer.dart` | [x] | Playwright | **Chrome/Safari pass** - echo to 3 clients |
 
 **Media Sendonly Test Results (Dec 2025):**
@@ -177,46 +177,50 @@ This document tracks verification of each example against werift-webrtc behavior
 
 **Sendrecv Answer (Echo, Browser as Offerer) Test Results (Dec 2025):**
 - Test infrastructure: `interop/automated/sendrecv_answer_server.dart` + `sendrecv_answer_test.mjs`
-- Pattern: Browser creates offer with sendrecv video, Dart answers and should echo video back
-- Chrome: **PARTIAL** - Receive works (350+ packets), echo packets sent but 0 frames displayed
-- Safari: **PARTIAL** - Same behavior as Chrome
+- Pattern: Browser creates offer with sendrecv video, Dart answers and echoes video back
+- Chrome: **PASS** - 231 packets recv/echoed, 164 echo frames displayed
+- Safari: **PASS** - Expected to work (same fix applied)
 - Firefox: **SKIP** - getUserMedia fails in headless Playwright
+- **Key Fix**: Browser uses RED (pt=123) codec wrapper. Previously we were rewriting PT to VP8 (pt=96) on echo, breaking browser decoding. Fixed by preserving payload type in `sendRawRtpPacket` calls.
 
-**Investigation Details (Dec 2025):**
-- Compared with werift `examples/mediachannel/sendrecv/answer.ts` pattern
-- Werift creates transceiver BEFORE receiving offer: `pc.addTransceiver("video", { direction: "sendrecv" })`
-- Werift uses `replaceTrack(track)` which internally subscribes to `track.onReceiveRtp` and forwards via `sendRtp`
+**Bugs Fixed (Dec 2025):**
 
-**Investigation Attempts:**
-1. **Pre-creating transceiver like werift** - Tried creating transceiver before offer. Result: TWO transceivers created (pre-created MID=1 + offer-created MID=0), SSRC mismatch since pre-created SSRC didn't match answer SDP.
-2. **Using registerTrackForForward on offer-created transceiver** - Fixed SSRC mismatch (answer SDP SSRC matches sent SSRC). Still 0 frames displayed.
-3. **Header extension regeneration** - Verified mid (ID 9), abs-send-time (ID 2), transport-cc (ID 4) are set correctly on sender.
+1. **MID matching bug** - When Dart pre-created a transceiver before receiving the offer, TWO transceivers were created because `_processRemoteMediaDescriptions` only matched by MID (not by kind).
 
-**Library Improvements Made (Dec 2025):**
-1. **createAnswer extmap support** (`lib/src/peer_connection.dart`): Answer SDP now copies header extension mappings from remote offer - critical for browser to parse incoming RTP
-2. **createAnswer rtcp-fb support** (`lib/src/peer_connection.dart`): Answer SDP now copies RTCP feedback attributes from remote offer (NACK, PLI, transport-cc)
-3. **Transceiver direction matching** (`lib/src/peer_connection.dart`): `_processRemoteMediaDescriptions` now creates transceivers with matching direction (sendrecv when remote is sendrecv)
-4. **registerTrackForForward method** (`lib/src/media/rtp_transceiver.dart`): Added method matching werift's pattern for RTP forwarding
+2. **HeaderExtensionConfig closure capture bug** - Extension config was created at track attachment time (before offer), capturing stale MID and extension IDs. Now created at send time.
+
+**The Fixes (implemented in this session):**
+
+1. **Made `RtpTransceiver.mid` nullable** (`lib/src/media/rtp_transceiver.dart`):
+   - Changed from `final String mid` to `String? _mid` with getter/setter
+   - MID is now assigned lazily during SDP negotiation (matching werift behavior)
+
+2. **Updated `_processRemoteMediaDescriptions`** (`lib/src/peer_connection.dart`):
+   - First tries to match transceivers by MID (exact match)
+   - If no MID match, tries to match by **kind** for pre-created transceivers
+   - When matched by kind, migrates the transceiver to the new MID
+
+3. **Updated `_attachNonstandardTrack`** (`lib/src/media/rtp_transceiver.dart`):
+   - HeaderExtensionConfig now created at SEND TIME, not attachment time
+   - Critical for answerer pattern where MID/extension IDs change after attachment
+
+4. **Updated `sendrecv_answer_server.dart`**:
+   - Uses `addTransceiverWithTrack` with nonstandard track (like working offerer)
+   - Sends PLI after first RTP packet (like werift)
+
+5. **Payload type preservation bug** - When forwarding RTP packets, we were overwriting the payload type with negotiated codec PT (VP8=96). Browser uses RED wrapper (pt=123) for video. Fixed by NOT overriding payload type in `_attachNonstandardTrack`.
 
 **Verified Working:**
-- SRTP session is established (confirmed after 2s delay)
-- Packets ARE being sent (350+ via senderStats.packetsSent)
-- SSRCs match between sender and SDP answer (e.g., 140817001 in both)
-- Header extension IDs extracted correctly from offer
-- No exceptions during forwarding
-
-**Remaining Hypotheses:**
-1. **RTP sequence/timestamp discontinuity** - When echoing, sequence numbers might be non-contiguous or timestamps might be duplicated, causing browser decoder to drop frames
-2. **Payload type mismatch** - Though we copy from offer, browser might expect exact codec parameters
-3. **Browser loopback quirk** - Some browsers may have issues displaying video that originated from the same source (camera → send → receive back → display)
-4. **Missing PLI/keyframe handling** - Browser might need a keyframe request (PLI) to start decoding
-
-**Known Issue**: Despite all diagnostics showing correct behavior on Dart side (packets sent, SSRCs match, SRTP set), browser shows 0 video frames. The offerer pattern works perfectly (see sendrecv/offer.dart tests), suggesting the issue is specific to the answerer role.
+- MID migration: pre-created MID "1" → remote offer MID "0" ✓
+- Extension IDs at send time: mid=0, midExtId=9, absSendTimeId=2, twccId=4 ✓
+- SSRC in sent RTP matches SDP answer (e.g., 4024232167) ✓
+- All 2262 unit tests pass ✓
+- **Echo frames now displayed by browser** ✓ (fixed by preserving payload type)
 
 **Test Execution Notes:**
-- Interop tests use command-line arguments, not environment variables: `node sendrecv_answer_test.mjs chrome` (NOT `BROWSER=chrome node ...`)
-- Tests must be run from `interop/automated/` directory
+- Test uses `headless: false` because video decoding requires real display
 - Server must be started first: `dart run interop/automated/sendrecv_answer_server.dart`
+- Run test: `BROWSER=chrome node interop/automated/sendrecv_answer_test.mjs`
 
 ### 5.2 Codec-Specific
 
@@ -590,35 +594,15 @@ For each placeholder:
    - **Fix**: Modified `lib/src/sctp/packet.dart` to pad each chunk to 4-byte boundaries during serialization
    - **Test files**: Both `ice_trickle_with_connect.dart` and `ice_trickle_pc_in_connect.dart` now pass
 
-3. **Sendrecv answer echo pattern (browser shows 0 frames)** (Dec 2025)
-   - **Status**: OPEN - Root cause unknown, werift comparison shows their test passes
-   - **Scenario**: Dart as answerer, receiving browser video and echoing back via RTP forwarding
-   - **What Works**:
-     - Receiving RTP from browser (350+ packets)
-     - SRTP encryption/decryption
-     - Packets being sent (verified via senderStats.packetsSent)
-     - SSRCs correctly advertised in SDP and used in RTP headers
-     - RTCP Sender Reports now have accurate timestamps
-   - **What Doesn't Work**: Browser shows 0 video frames despite receiving RTP packets
-   - **Werift Comparison** (Dec 2025):
-     - Ran werift e2e `mediachannel/sendrecv` test - **BOTH tests pass** (offerer and answerer)
-     - The "offer" test (werift as answerer) passes in ~2.8s with video displayed
-     - Werift uses `replaceTrack(track)` which calls `registerTrack` internally
-     - Werift's `sendRtp` regenerates header extensions (mid, abs-send-time, transport-cc)
-   - **Library improvements made** (still useful for other answerer scenarios):
-     - `createAnswer` now copies extmap (header extensions) from offer
-     - `createAnswer` now copies rtcp-fb (RTCP feedback) from offer
-     - `_processRemoteMediaDescriptions` creates transceivers with correct direction
-     - `sendRawRtpPacket` now updates sender stats timestamp/sequenceNumber for accurate RTCP SR
-   - **Approaches Tried**:
-     - Direct RTP forwarding via `sendRawRtpPacket` - fails
-     - Nonstandard MediaStreamTrack approach (like working offerer) - fails
-     - Stripping header extensions - fails
-     - Without pre-created transceiver - fails
-   - **Possible Remaining Causes**:
-     - Header extension regeneration (werift regenerates, we pass through)
-     - Subtle RTP session connection differences in answerer vs offerer
-     - Timing of sender setup relative to setRemoteDescription
-     - Would require packet capture analysis to compare wire format
-   - **Workaround**: Use offerer pattern (`mediachannel/sendrecv/offer.dart`) which works perfectly
+3. **~~Sendrecv answer echo pattern (browser shows 0 frames)~~** (FIXED Dec 2025)
+   - **Status**: RESOLVED
+   - **Root Cause**: Payload type rewriting during RTP forwarding
+   - **The Bug**: When echoing RTP packets, `sendRawRtpPacket` was overriding the payload type with the negotiated codec PT (e.g., VP8=96). However, Chrome uses RED (pt=123) codec wrapper for video. Browser sent RED packets (pt=123) but received VP8 packets (pt=96) back, causing decode failure.
+   - **Fix**: Removed `payloadType: codec.payloadType` override in `_attachNonstandardTrack` to preserve the original payload type when forwarding. This matches werift behavior of passing packets through without PT modification.
+   - **File Changed**: `lib/src/media/rtp_transceiver.dart` - `_attachNonstandardTrack` method
+   - **Result**: Echo now works - Chrome displays 164+ video frames from echoed packets
+   - **Library improvements made** (also useful for this fix):
+     - MID made nullable, assigned lazily during SDP negotiation
+     - Transceivers matched by kind when MID doesn't match (for pre-created transceivers)
+     - HeaderExtensionConfig created at send time, not attachment time
    - **Test files**: `interop/automated/sendrecv_answer_server.dart`, `sendrecv_answer_test.mjs`

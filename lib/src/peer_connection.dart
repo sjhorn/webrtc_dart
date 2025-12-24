@@ -212,6 +212,10 @@ class RtcPeerConnection {
   /// List of RTP transceivers
   final List<RtpTransceiver> _transceivers = [];
 
+  /// Established m-line order (MIDs) after first negotiation.
+  /// Used to preserve m-line order in subsequent offers per RFC 3264.
+  List<String>? _establishedMlineOrder;
+
   /// RTP sessions by MID
   final Map<String, RtpSession> _rtpSessions = {};
 
@@ -653,6 +657,42 @@ class RtcPeerConnection {
       ),
     );
 
+    // Preserve m-line order from first negotiation (RFC 3264 requirement)
+    // Existing m-lines must stay in their original positions, new ones appended
+    if (_establishedMlineOrder != null && _establishedMlineOrder!.isNotEmpty) {
+      final orderedDescriptions = <SdpMedia>[];
+      final usedMids = <String>{};
+
+      // First, add m-lines in their established order
+      for (final mid in _establishedMlineOrder!) {
+        final desc = mediaDescriptions.firstWhere(
+          (m) => m.getAttributeValue('mid') == mid,
+          orElse: () => SdpMedia(
+            type: 'video',
+            port: 0,
+            protocol: 'UDP/TLS/RTP/SAVPF',
+            formats: ['0'],
+            attributes: [SdpAttribute(key: 'mid', value: mid)],
+          ),
+        );
+        orderedDescriptions.add(desc);
+        usedMids.add(mid);
+      }
+
+      // Then, append any new m-lines not in the established order
+      for (final desc in mediaDescriptions) {
+        final mid = desc.getAttributeValue('mid') ?? '';
+        if (!usedMids.contains(mid)) {
+          orderedDescriptions.add(desc);
+        }
+      }
+
+      // Replace with reordered list
+      mediaDescriptions
+        ..clear()
+        ..addAll(orderedDescriptions);
+    }
+
     // Build session-level attributes
     final sessionAttributes = <SdpAttribute>[
       SdpAttribute(key: 'ice-options', value: 'trickle'),
@@ -909,6 +949,16 @@ class RtcPeerConnection {
         break;
       case 'answer':
         _setSignalingState(SignalingState.stable);
+        // Capture m-line order from our local offer for future offers (RFC 3264)
+        if (_establishedMlineOrder == null && _localDescription != null) {
+          final localSdp = _localDescription!.parse();
+          _establishedMlineOrder = localSdp.mediaDescriptions
+              .map((m) => m.getAttributeValue('mid') ?? '')
+              .where((mid) => mid.isNotEmpty)
+              .toList();
+          _log.fine(
+              '[$_debugLabel] Captured m-line order: $_establishedMlineOrder');
+        }
         break;
       case 'pranswer':
         _setSignalingState(SignalingState.haveRemotePranswer);

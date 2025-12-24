@@ -241,9 +241,9 @@ This document tracks verification of each example against werift-webrtc behavior
 | `mediachannel/twcc/offer.dart` | [x] | Playwright | **Chrome pass** - transport-cc negotiated |
 | `mediachannel/twcc/multitrack.dart` | [ ] | Manual Browser | TWCC with multiple tracks |
 | `mediachannel/simulcast/offer.dart` | [x] | Playwright | **Chrome pass** - Simulcast SDP + 238 RID packets received |
-| `mediachannel/simulcast/answer.dart` | [ ] | Manual Browser | SFU-style fanout |
-| `mediachannel/simulcast/select.dart` | [ ] | Manual Browser | Manual layer selection API |
-| `mediachannel/simulcast/abr.dart` | [ ] | Manual Browser | Adaptive bitrate selection |
+| `mediachannel/simulcast/answer.dart` | [x] | Playwright | **Chrome pass** - SFU fanout, 186 packets forwarded |
+| `mediachannel/simulcast/select.dart` | [x] | Manual Browser | Layer selection API (high/mid/low) |
+| `mediachannel/simulcast/abr.dart` | [S] | - | Skip - werift doesn't implement setParameters |
 | `mediachannel/rtp_forward/offer.dart` | [x] | Playwright | **Chrome/Safari pass** - writeRtp -> browser flow |
 | `mediachannel/red/sendrecv.dart` | [x] | Playwright | **Chrome pass** - RED codec negotiated, multi-codec SDP working |
 | `mediachannel/red/recv.dart` | [ ] | Manual Browser | RED receive + UDP forward |

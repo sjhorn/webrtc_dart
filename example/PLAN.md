@@ -236,8 +236,8 @@ This document tracks verification of each example against werift-webrtc behavior
 | Example | Status | Method | Notes |
 |---------|--------|--------|-------|
 | `mediachannel/rtx/offer.dart` | [x] | Playwright | **Chrome pass** - RTX codec negotiated |
-| `mediachannel/rtx/simulcast_offer.dart` | [ ] | Playwright | RTX with simulcast (send) |
-| `mediachannel/rtx/simulcast_answer.dart` | [ ] | Manual Browser | RTX with simulcast (receive) |
+| `mediachannel/rtx/simulcast_offer.dart` | [~] | Playwright | **Blocked** - Requires RID header extension parsing (infrastructure exists but not wired) |
+| `mediachannel/rtx/simulcast_answer.dart` | [~] | Manual Browser | **Blocked** - Requires RID extraction + fanout to multiple transceivers |
 | `mediachannel/twcc/offer.dart` | [x] | Playwright | **Chrome pass** - transport-cc negotiated |
 | `mediachannel/twcc/multitrack.dart` | [ ] | Manual Browser | TWCC with multiple tracks |
 | `mediachannel/simulcast/offer.dart` | [x] | Playwright | **Chrome pass** - video recv works (SDP simulcast attrs pending) |
@@ -245,7 +245,7 @@ This document tracks verification of each example against werift-webrtc behavior
 | `mediachannel/simulcast/select.dart` | [ ] | Manual Browser | Manual layer selection API |
 | `mediachannel/simulcast/abr.dart` | [ ] | Manual Browser | Adaptive bitrate selection |
 | `mediachannel/rtp_forward/offer.dart` | [x] | Playwright | **Chrome/Safari pass** - writeRtp -> browser flow |
-| `mediachannel/red/sendrecv.dart` | [ ] | Playwright | RED redundancy |
+| `mediachannel/red/sendrecv.dart` | [x] | Playwright | **Chrome pass** - Audio echo works (Opus negotiated, RED available) |
 | `mediachannel/red/recv.dart` | [ ] | Manual Browser | RED receive + UDP forward |
 | `mediachannel/red/send.dart` | [ ] | Manual Browser | RED send with GStreamer |
 | `mediachannel/red/adaptive/server.dart` | [S] | - | Skip - browser RED support limited |

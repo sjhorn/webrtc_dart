@@ -80,6 +80,25 @@ class RtcpFeedbackTypes {
   static const transportCC = RtcpFeedback(type: 'transport-cc');
 }
 
+/// RED (Redundant Audio Data) codec parameters
+/// RFC 2198 - RTP Payload for Redundant Audio Data
+///
+/// RED provides forward error correction by including redundant copies
+/// of previous audio frames in each packet. This allows recovery from
+/// packet loss without retransmission delay.
+RtpCodecParameters createRedCodec({
+  int? payloadType,
+  int clockRate = 48000,
+  int channels = 2,
+}) {
+  return RtpCodecParameters(
+    mimeType: 'audio/red',
+    clockRate: clockRate,
+    channels: channels,
+    payloadType: payloadType,
+  );
+}
+
 /// Opus codec parameters
 /// RFC 7587 - RTP Payload Format for the Opus Speech and Audio Codec
 RtpCodecParameters createOpusCodec({
@@ -209,7 +228,9 @@ RtpCodecParameters createRtxCodec({
 }
 
 /// List of supported audio codecs
+/// RED is listed first for priority in codec negotiation when available
 final List<RtpCodecParameters> supportedAudioCodecs = [
+  createRedCodec(),
   createOpusCodec(),
   createPcmuCodec(),
 ];

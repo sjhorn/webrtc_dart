@@ -32,7 +32,7 @@ build/
 *.info.json
 
 # TypeScript werift-webrtc reference (keep for development)
-# werift-webrtc/
+werift-webrtc/
 
 # Interop signal files (temporary)
 interop/signals/*.jsonl
@@ -43,3 +43,6 @@ interop/node_modules/
 *.mp4
 dump-*.rtp
 recording-*.mp4
+
+
+*.webm

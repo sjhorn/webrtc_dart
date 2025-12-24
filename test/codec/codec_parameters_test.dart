@@ -26,6 +26,16 @@ void main() {
       expect(opus.channels, 1);
     });
 
+    test('creates RED codec', () {
+      final red = createRedCodec();
+
+      expect(red.mimeType, 'audio/red');
+      expect(red.clockRate, 48000);
+      expect(red.channels, 2);
+      expect(red.isAudio, isTrue);
+      expect(red.codecName, 'red');
+    });
+
     test('creates PCMU codec', () {
       final pcmu = createPcmuCodec();
 
@@ -65,9 +75,10 @@ void main() {
     });
 
     test('supported audio codecs list', () {
-      expect(supportedAudioCodecs.length, 2);
-      expect(supportedAudioCodecs[0].mimeType, 'audio/opus');
-      expect(supportedAudioCodecs[1].mimeType, 'audio/PCMU');
+      expect(supportedAudioCodecs.length, 3);
+      expect(supportedAudioCodecs[0].mimeType, 'audio/red');
+      expect(supportedAudioCodecs[1].mimeType, 'audio/opus');
+      expect(supportedAudioCodecs[2].mimeType, 'audio/PCMU');
     });
 
     test('supported video codecs list', () {
@@ -77,7 +88,7 @@ void main() {
     });
 
     test('supported codecs list contains all', () {
-      expect(supportedCodecs.length, 5); // 2 audio + 3 video
+      expect(supportedCodecs.length, 6); // 3 audio + 3 video
     });
   });
 

@@ -1779,6 +1779,12 @@ class RtcPeerConnection {
     // Store session
     _rtpSessions[mid] = rtpSession;
 
+    // If SRTP session already exists (DTLS completed before this transceiver was added),
+    // assign it now so RTP packets will be encrypted
+    if (_srtpSession != null) {
+      rtpSession.srtpSession = _srtpSession;
+    }
+
     // Create transceiver based on track kind
     if (track.kind == MediaStreamTrackKind.audio) {
       transceiver = createAudioTransceiver(
@@ -1872,6 +1878,12 @@ class RtcPeerConnection {
 
     rtpSession.start();
     _rtpSessions[mid] = rtpSession;
+
+    // If SRTP session already exists (DTLS completed before this transceiver was added),
+    // assign it now so RTP packets will be encrypted
+    if (_srtpSession != null) {
+      rtpSession.srtpSession = _srtpSession;
+    }
 
     // Use configured codecs if no explicit codec provided
     final effectiveCodec = codec ??

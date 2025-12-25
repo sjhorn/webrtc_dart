@@ -109,6 +109,7 @@ class PubSubServer {
             RtpCodecParameters(
               mimeType: 'video/VP8',
               clockRate: 90000,
+              payloadType: 96, // Must specify PT for proper packet rewriting
               rtcpFeedback: [
                 RtcpFeedback(type: 'nack'),
                 RtcpFeedback(type: 'nack', parameter: 'pli'),
@@ -312,7 +313,6 @@ class PubSubServer {
     final track = globalTracks[media];
     if (track != null) {
       print('[Server] Routing $media to subscriber via mid ${transceiver.mid}');
-
       transceiver.sender.registerTrackForForward(track);
 
       // Request keyframe from publisher for the new subscriber

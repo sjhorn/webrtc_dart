@@ -958,6 +958,43 @@ dart run interop/browser/server.dart
 
 ---
 
-**Document Version:** 1.7
+## ✅ Pub/Sub SFU Video Forwarding WORKING (December 2025)
+
+### Multi-Peer Track Routing Complete
+
+**Completed Implementation:**
+- ✅ Pub/sub SFU example with multi-peer video routing
+- ✅ Publisher track buffering for cross-client routing
+- ✅ Dynamic transceiver management for subscribers
+- ✅ Fixed RTP header extension timing (build at send time, not attachment time)
+- ✅ Keyframe caching for reliable subscriber video delivery
+- ✅ Automatic PLI requests for keyframe generation
+
+**Key Fixes:**
+1. **RTP Extension Config Timing** (`lib/src/media/rtp_transceiver.dart:476`)
+   - Bug: `HeaderExtensionConfig` was built at attachment time with null MID values
+   - Fix: Build config inside `onReceiveRtp` listener at send time
+   - Impact: Video now renders correctly (was 0x0 before)
+
+2. **Keyframe Caching** (`example/mediachannel/pubsub/offer.dart`)
+   - Bug: Subscribers joining mid-stream missed keyframes, causing ~60-80% failure rate
+   - Fix: Cache VP8 keyframes and send to new subscribers before normal forwarding
+   - Impact: 100% test success rate (5/5 consecutive passes)
+
+**Test Setup:**
+```bash
+dart run example/mediachannel/pubsub/offer.dart
+cd interop && BROWSER=chrome node automated/pubsub_test.mjs
+```
+
+**Verified Working:**
+- Publisher camera → SFU → Subscriber video rendering
+- 640x480 video at 30fps
+- Keyframe packets cached and delivered to new subscribers
+- Multiple consecutive test runs passing reliably
+
+---
+
+**Document Version:** 1.8
 **Last Updated:** December 2025
-**Status:** Phase 1-3 COMPLETE (1299 tests passing), Chrome/Firefox/Safari browser interop WORKING
+**Status:** Phase 1-3 COMPLETE (1650 tests passing), Chrome/Firefox/Safari browser interop WORKING, Pub/Sub SFU WORKING

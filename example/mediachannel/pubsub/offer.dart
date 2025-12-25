@@ -25,11 +25,18 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:webrtc_dart/webrtc_dart.dart';
+import 'package:webrtc_dart/src/rtp/rtp_session.dart';
 
 /// Global track storage for cross-client routing
 /// Key: media ID (mid from publisher's transceiver)
 /// Value: MediaStreamTrack from publisher
 final Map<String, MediaStreamTrack> globalTracks = {};
+
+/// Keyframe cache for immediate delivery to new subscribers
+/// Key: media ID
+/// Value: List of RTP packets belonging to the last complete keyframe
+/// A keyframe in VP8 consists of multiple RTP packets with the same timestamp
+final Map<String, List<RtpPacket>> keyframeCache = {};
 
 /// Track which client published which media
 final Map<String, WebSocket> trackOwners = {};
@@ -131,7 +138,7 @@ class PubSubServer {
     final offer = await client.pc!.createOffer();
     await client.pc!.setLocalDescription(offer);
     print('[Server] Initial offer m-lines:');
-    for (final line in offer.sdp!.split('\n')) {
+    for (final line in offer.sdp.split('\n')) {
       if (line.startsWith('m=') || line.startsWith('a=mid:')) {
         print('  $line');
       }
@@ -212,6 +219,10 @@ class PubSubServer {
       var firstPacket = true;
       var packetCount = 0;
 
+      // State for keyframe caching
+      List<RtpPacket> currentKeyframePackets = [];
+      int? currentKeyframeTimestamp;
+
       track.onReceiveRtp.listen((rtp) {
         if (firstPacket) {
           remoteSsrc = rtp.ssrc;
@@ -229,6 +240,31 @@ class PubSubServer {
           });
 
           firstPacket = false;
+        }
+
+        // Detect and cache keyframes for new subscriber delivery
+        // VP8 keyframes are indicated by pBit == 0 in the payload descriptor
+        try {
+          final vp8 = Vp8RtpPayload.deserialize(rtp.payload);
+          if (vp8.isKeyframe && vp8.isPartitionHead) {
+            // Start of a new keyframe - reset cache
+            currentKeyframePackets = [rtp];
+            currentKeyframeTimestamp = rtp.timestamp;
+          } else if (currentKeyframeTimestamp == rtp.timestamp) {
+            // Continuation of current keyframe
+            currentKeyframePackets.add(rtp);
+          }
+
+          // When marker bit is set, the frame is complete
+          if (rtp.marker && currentKeyframeTimestamp == rtp.timestamp) {
+            // Store the complete keyframe
+            keyframeCache[media] = List.from(currentKeyframePackets);
+            // Reset for next keyframe
+            currentKeyframePackets = [];
+            currentKeyframeTimestamp = null;
+          }
+        } catch (_) {
+          // Not VP8 or invalid packet, skip keyframe detection
         }
 
         packetCount++;
@@ -253,7 +289,7 @@ class PubSubServer {
     final offer = await client.pc!.createOffer();
     await client.pc!.setLocalDescription(offer);
     print('[Server] Publish offer m-lines:');
-    for (final line in offer.sdp!.split('\n')) {
+    for (final line in offer.sdp.split('\n')) {
       if (line.startsWith('m=') || line.startsWith('a=mid:')) {
         print('  $line');
       }
@@ -324,25 +360,73 @@ class PubSubServer {
     // Route the published track to this subscriber
     final track = globalTracks[media];
     if (track != null) {
-      // Diagnostic: verify SRTP session is ready (should be true after our fix)
-      final srtpReady = transceiver.sender.rtpSession.srtpSession != null;
       print('[Server] Routing $media to subscriber via mid ${transceiver.mid}');
-      print('[Server] Sender SRTP ready: $srtpReady');
 
-      transceiver.sender.registerTrackForForward(track);
+      // Wait for connection to be connected before forwarding
+      // This ensures SRTP is ready so packets won't be dropped
+      Future<void> startForwarding() async {
+        final senderRtpSession = transceiver.sender.rtpSession;
+        print('[Server] Sender SSRC: ${senderRtpSession.localSsrc}');
 
-      // Request immediate keyframe for the new subscriber
-      // (Periodic PLI is already running from _handlePublish)
-      _requestKeyframe(media);
+        // Send cached keyframe FIRST before starting normal forwarding
+        // This ensures the subscriber can immediately start decoding
+        final cachedKeyframe = keyframeCache[media];
+        if (cachedKeyframe != null && cachedKeyframe.isNotEmpty) {
+          print('[Server] Sending ${cachedKeyframe.length} cached keyframe packets');
 
-      // Count packets for diagnostics
-      var forwardCount = 0;
-      track.onReceiveRtp.listen((rtp) {
-        forwardCount++;
-        if (forwardCount % 100 == 0) {
-          print('[Server] Forwarded $forwardCount packets to subscriber');
+          // Build header extension config for the keyframe packets
+          final extensionConfig = HeaderExtensionConfig(
+            sdesMidId: transceiver.sender.midExtensionId,
+            mid: transceiver.sender.mid,
+            absSendTimeId: transceiver.sender.absSendTimeExtensionId,
+            transportWideCCId: transceiver.sender.transportWideCCExtensionId,
+          );
+
+          for (final packet in cachedKeyframe) {
+            await senderRtpSession.sendRawRtpPacket(
+              packet,
+              replaceSsrc: true,
+              payloadType: transceiver.sender.codec.payloadType,
+              extensionConfig: extensionConfig,
+            );
+          }
+          print('[Server] Cached keyframe sent');
+        } else {
+          print('[Server] No cached keyframe available, requesting one');
+          _requestKeyframe(media);
         }
-      });
+
+        // Now start normal forwarding
+        transceiver.sender.registerTrackForForward(track);
+
+        // Also request additional keyframes to be safe
+        _requestKeyframe(media);
+
+        // Count packets for diagnostics
+        var forwardCount = 0;
+        track.onReceiveRtp.listen((rtp) {
+          forwardCount++;
+          if (forwardCount % 100 == 0) {
+            print('[Server] Forwarded $forwardCount packets to subscriber');
+          }
+        });
+      }
+
+      // Check if already connected
+      if (client.pc!.connectionState == PeerConnectionState.connected) {
+        await startForwarding();
+      } else {
+        // Wait for connection to be established
+        print('[Server] Waiting for connection before forwarding...');
+        late StreamSubscription<PeerConnectionState> subscription;
+        subscription = client.pc!.onConnectionStateChange.listen((state) async {
+          if (state == PeerConnectionState.connected) {
+            print('[Server] Connection now connected, starting forwarding');
+            await startForwarding();
+            subscription.cancel();
+          }
+        });
+      }
     } else {
       // Track not received yet, queue the subscription
       print('[Server] Track $media not yet received, queuing subscription');
@@ -580,7 +664,21 @@ pc.ontrack = (ev) => {
   const video = document.createElement('video');
   video.autoplay = true;
   video.playsInline = true;
+  video.muted = true; // Required for autoplay in most browsers
   video.srcObject = new MediaStream([ev.track]);
+
+  // Debug video events
+  video.onloadedmetadata = () => console.log('Video loadedmetadata:', video.videoWidth, 'x', video.videoHeight);
+  video.onloadeddata = () => console.log('Video loadeddata');
+  video.onplay = () => console.log('Video play');
+  video.onerror = (e) => console.error('Video error:', e);
+  video.onstalled = () => console.log('Video stalled');
+  video.onwaiting = () => console.log('Video waiting');
+
+  // Also check track state
+  console.log('Track readyState:', ev.track.readyState);
+  console.log('Track enabled:', ev.track.enabled);
+  console.log('Track muted:', ev.track.muted);
 
   const label = document.createElement('div');
   label.textContent = 'Media: ' + (media || mid);

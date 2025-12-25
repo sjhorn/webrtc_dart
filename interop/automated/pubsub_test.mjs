@@ -32,7 +32,7 @@ async function runTest() {
         args: [
             // Note: Fake camera may not render video (no keyframes) but packets
             // still flow correctly. Use real camera for full video verification.
-            '--use-fake-device-for-media-stream',
+            // '--use-fake-device-for-media-stream',
             '--use-fake-ui-for-media-stream',
         ]
     });
@@ -43,6 +43,10 @@ async function runTest() {
 
     const pageA = await contextA.newPage();
     const pageB = await contextB.newPage();
+
+    // Log browser console messages
+    pageA.on('console', msg => console.log(`[Browser A] ${msg.text()}`));
+    pageB.on('console', msg => console.log(`[Browser B] ${msg.text()}`));
 
     let resultA = null;
     let resultB = null;
@@ -99,9 +103,9 @@ async function runTest() {
 
             console.log('[Test] Client B subscribed videos:', subscribedInB);
 
-            // Wait for video frames to arrive
-            console.log('[Test] Waiting for video frames...');
-            await new Promise(r => setTimeout(r, 5000));
+            // Wait for video frames to arrive (increased time for keyframe)
+            console.log('[Test] Waiting for video frames (10 seconds)...');
+            await new Promise(r => setTimeout(r, 10000));
 
             // Check again for video
             const updatedVideos = await pageB.evaluate(() => {

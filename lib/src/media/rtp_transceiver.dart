@@ -476,18 +476,21 @@ class RtpSender {
     _nonstandardTrack = null;
     _track = track;
 
-    // Build header extension config for regeneration
-    // This matches TypeScript werift rtpSender.ts:sendRtp which regenerates extensions
-    final extensionConfig = HeaderExtensionConfig(
-      sdesMidId: midExtensionId,
-      mid: mid,
-      absSendTimeId: absSendTimeExtensionId,
-      transportWideCCId: transportWideCCExtensionId,
-    );
-
     // Subscribe to onReceiveRtp and forward packets (like werift registerTrack)
     _trackSubscription = track.onReceiveRtp.listen((rtpPacket) async {
       if (_stopped) return;
+
+      // Build header extension config at SEND TIME, not at attachment time.
+      // This is critical for the pub/sub pattern where MID and extension IDs
+      // may be set after registerTrackForForward is called (e.g., after
+      // createOffer/setLocalDescription completes the transceiver setup).
+      // Matches the fix in _attachNonstandardTrack.
+      final extensionConfig = HeaderExtensionConfig(
+        sdesMidId: midExtensionId,
+        mid: mid,
+        absSendTimeId: absSendTimeExtensionId,
+        transportWideCCId: transportWideCCExtensionId,
+      );
 
       // Forward the RTP packet through the session with extension regeneration
       // sendRawRtpPacket will:

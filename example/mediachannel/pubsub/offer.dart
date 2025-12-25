@@ -20,6 +20,7 @@
 ///        Then open multiple browser tabs to http://localhost:8888
 library;
 
+import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
@@ -216,6 +217,17 @@ class PubSubServer {
           remoteSsrc = rtp.ssrc;
           trackReceivers[media] = (receiverRtpSession, remoteSsrc);
           print('[Server] Media $media: captured SSRC $remoteSsrc for PLI');
+
+          // Start periodic PLI every 1 second (like werift)
+          // This ensures subscribers always get keyframes
+          Timer.periodic(Duration(seconds: 1), (timer) {
+            if (globalTracks[media] == null) {
+              timer.cancel();
+              return;
+            }
+            receiverRtpSession.sendPli(remoteSsrc);
+          });
+
           firstPacket = false;
         }
 
@@ -312,16 +324,16 @@ class PubSubServer {
     // Route the published track to this subscriber
     final track = globalTracks[media];
     if (track != null) {
+      // Diagnostic: verify SRTP session is ready (should be true after our fix)
+      final srtpReady = transceiver.sender.rtpSession.srtpSession != null;
       print('[Server] Routing $media to subscriber via mid ${transceiver.mid}');
+      print('[Server] Sender SRTP ready: $srtpReady');
+
       transceiver.sender.registerTrackForForward(track);
 
-      // Request keyframe from publisher for the new subscriber
-      // Note: For proper video playback, the subscriber needs to receive a keyframe.
-      // We send PLI (Picture Loss Indication) to request one from the publisher.
+      // Request immediate keyframe for the new subscriber
+      // (Periodic PLI is already running from _handlePublish)
       _requestKeyframe(media);
-      // Send additional PLI after short delays in case the first was missed
-      Future.delayed(Duration(milliseconds: 500), () => _requestKeyframe(media));
-      Future.delayed(Duration(seconds: 1), () => _requestKeyframe(media));
 
       // Count packets for diagnostics
       var forwardCount = 0;
@@ -553,7 +565,8 @@ ws.onmessage = async (ev) => {
 
 pc.ontrack = (ev) => {
   const mid = ev.transceiver.mid;
-  if (mid === '0') return; // Skip dummy transceiver
+  // Skip dummy transceivers (mid:0 is datachannel, mid:1 is initial sendonly video)
+  if (mid === '0' || mid === '1') return;
 
   console.log('Received track:', mid);
 

@@ -347,55 +347,90 @@ class RtpSession {
 
   /// Regenerate header extensions for forwarded packets.
   ///
-  /// This creates new extension header with fresh values for:
+  /// This preserves original extensions and overwrites specific ones with
+  /// fresh values for:
   /// - abs-send-time: current NTP timestamp
   /// - transport-cc: incrementing sequence number
   /// - sdes-mid: the configured MID value
   ///
-  /// Matches werift rtpSender.ts:sendRtp header extension regeneration.
+  /// Matches werift rtpSender.ts:sendRtp header extension regeneration which
+  /// preserves original extensions and merges regenerated ones.
   RtpExtension? _regenerateExtensions(
     RtpExtension? original,
     HeaderExtensionConfig config,
   ) {
-    // Build new extensions list
-    final extensions = <({int id, Uint8List payload})>[];
+    // Build map of extension ID -> payload
+    // Start with original extensions to preserve them
+    final extensionMap = <int, Uint8List>{};
 
-    // Add abs-send-time with current NTP time
+    // Parse original extensions (one-byte header format 0xBEDE)
+    if (original != null && original.profile == 0xBEDE) {
+      final data = original.data;
+      var offset = 0;
+      while (offset < data.length) {
+        final firstByte = data[offset];
+
+        // Check for padding (0x00)
+        if (firstByte == 0) {
+          offset++;
+          continue;
+        }
+
+        final id = (firstByte >> 4) & 0x0F;
+        final length = (firstByte & 0x0F) + 1; // Length is L+1
+
+        if (id == 0 || id == 15) {
+          // Reserved values
+          offset++;
+          continue;
+        }
+
+        offset++; // Move past header byte
+
+        if (offset + length > data.length) break;
+
+        final payload = data.sublist(offset, offset + length);
+        extensionMap[id] = payload;
+        offset += length;
+      }
+    }
+
+    // Override with regenerated extensions (fresh timing values)
     if (config.absSendTimeId != null) {
       final ntpTimestamp = ntpTime();
-      final absPayload = serializeAbsSendTimeFromNtp(ntpTimestamp);
-      extensions.add((id: config.absSendTimeId!, payload: absPayload));
+      extensionMap[config.absSendTimeId!] =
+          serializeAbsSendTimeFromNtp(ntpTimestamp);
     }
 
-    // Add transport-wide CC sequence number
     if (config.transportWideCCId != null) {
       final twccSeq = _nextTransportSequenceNumber();
-      final twccPayload = serializeTransportWideCC(twccSeq);
-      extensions.add((id: config.transportWideCCId!, payload: twccPayload));
+      extensionMap[config.transportWideCCId!] = serializeTransportWideCC(twccSeq);
     }
 
-    // Add SDES MID
     if (config.sdesMidId != null && config.mid != null) {
-      final midPayload = serializeSdesMid(config.mid!);
-      extensions.add((id: config.sdesMidId!, payload: midPayload));
+      extensionMap[config.sdesMidId!] = serializeSdesMid(config.mid!);
     }
 
-    if (extensions.isEmpty) {
+    if (extensionMap.isEmpty) {
       return original;
     }
+
+    // Sort by extension ID (like werift does)
+    final sortedIds = extensionMap.keys.toList()..sort();
 
     // Build one-byte header extension format
     // Profile = 0xBEDE for one-byte headers
     final extensionData = <int>[];
-    for (final ext in extensions) {
-      if (ext.id < 1 || ext.id > 14) continue;
-      final length = ext.payload.length;
+    for (final id in sortedIds) {
+      if (id < 1 || id > 14) continue;
+      final payload = extensionMap[id]!;
+      final length = payload.length;
       if (length < 1 || length > 16) continue;
 
       // One-byte header: ID (4 bits) + L (4 bits), where length = L + 1
-      final header = (ext.id << 4) | ((length - 1) & 0x0F);
+      final header = (id << 4) | ((length - 1) & 0x0F);
       extensionData.add(header);
-      extensionData.addAll(ext.payload);
+      extensionData.addAll(payload);
     }
 
     // Pad to 4-byte boundary

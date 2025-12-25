@@ -30,6 +30,8 @@ async function runTest() {
     const browser = await chromium.launch({
         headless: false,
         args: [
+            // Note: Fake camera may not render video (no keyframes) but packets
+            // still flow correctly. Use real camera for full video verification.
             '--use-fake-device-for-media-stream',
             '--use-fake-ui-for-media-stream',
         ]
@@ -80,7 +82,8 @@ async function runTest() {
         if (publishedInB.length > 0 && publishedInB.some(p => p.hasSubscribe)) {
             console.log('\n[Test] Client B subscribing to stream...');
 
-            // Find and click the first Subscribe button
+            // Wait for Subscribe button to appear before clicking (avoid race condition)
+            await pageB.waitForSelector('#published button', { timeout: 5000 });
             await pageB.click('#published button:has-text("Subscribe")');
             await new Promise(r => setTimeout(r, 3000));
 

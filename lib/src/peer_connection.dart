@@ -242,6 +242,14 @@ class RtcPeerConnection {
   /// Standard browsers typically use ID 1 for mid
   static const int _midExtensionId = 1;
 
+  /// Default extension ID for abs-send-time header extension
+  /// Chrome typically uses ID 2 for abs-send-time
+  static const int _absSendTimeExtensionId = 2;
+
+  /// Default extension ID for transport-wide-cc header extension
+  /// Chrome typically uses ID 4 for transport-wide-cc
+  static const int _twccExtensionId = 4;
+
   /// Counter for data channels opened (for stats)
   int _dataChannelsOpened = 0;
 
@@ -1745,11 +1753,10 @@ class RtcPeerConnection {
         // Use the MID-specific transport for bundlePolicy: disable
         final iceConnection = _getIceConnectionForMid(transceiverMid);
         if (iceConnection != null) {
-          _log.fine('[PC:$transceiverMid] ICE send ${packet.length} bytes');
           await iceConnection.send(packet);
         } else {
-          _log.fine(
-              '[PC:$transceiverMid] ICE null, _transport=${_transport != null}, _mediaTransports=${_mediaTransports.keys}');
+          // DEBUG: Print visible message when ICE is null
+          print('[PC] ICE NULL for mid=$transceiverMid');
         }
       },
       onSendRtcp: (packet) async {
@@ -1849,11 +1856,10 @@ class RtcPeerConnection {
         // Use the MID-specific transport for bundlePolicy: disable
         final iceConnection = _getIceConnectionForMid(transceiverMid);
         if (iceConnection != null) {
-          _log.fine('[PC:$transceiverMid] ICE send ${packet.length} bytes');
           await iceConnection.send(packet);
         } else {
-          _log.fine(
-              '[PC:$transceiverMid] ICE null, _transport=${_transport != null}, _mediaTransports=${_mediaTransports.keys}');
+          // DEBUG: Print visible message when ICE is null
+          print('[PC] ICE NULL for mid=$transceiverMid');
         }
       },
       onSendRtcp: (packet) async {
@@ -1919,9 +1925,11 @@ class RtcPeerConnection {
     transceiverRef = transceiver;
     _transceivers.add(transceiver);
 
-    // Set sender.mid and midExtensionId for RTP header extension
+    // Set sender.mid and extension IDs for RTP header extension regeneration
     transceiver.sender.mid = mid;
     transceiver.sender.midExtensionId = _midExtensionId;
+    transceiver.sender.absSendTimeExtensionId = _absSendTimeExtensionId;
+    transceiver.sender.transportWideCCExtensionId = _twccExtensionId;
 
     return transceiver;
   }
@@ -1966,11 +1974,10 @@ class RtcPeerConnection {
         // Use the MID-specific transport for bundlePolicy: disable
         final iceConnection = _getIceConnectionForMid(transceiverMid);
         if (iceConnection != null) {
-          _log.fine('[PC:$transceiverMid] ICE send ${packet.length} bytes');
           await iceConnection.send(packet);
         } else {
-          _log.fine(
-              '[PC:$transceiverMid] ICE null, _transport=${_transport != null}, _mediaTransports=${_mediaTransports.keys}');
+          // DEBUG: Print visible message when ICE is null
+          print('[PC] ICE NULL for mid=$transceiverMid');
         }
       },
       onSendRtcp: (packet) async {
@@ -2038,10 +2045,12 @@ class RtcPeerConnection {
         : (configuration.codecs.video ?? supportedVideoCodecs);
     transceiver.codecs = assignPayloadTypes(allCodecs);
 
-    // Set sender.mid and midExtensionId for RTP header extension
+    // Set sender.mid and extension IDs for RTP header extension regeneration
     // MUST be set BEFORE registerNonstandardTrack, since that function captures mid
     transceiver.sender.mid = mid;
     transceiver.sender.midExtensionId = _midExtensionId;
+    transceiver.sender.absSendTimeExtensionId = _absSendTimeExtensionId;
+    transceiver.sender.transportWideCCExtensionId = _twccExtensionId;
 
     // Register the nonstandard track with the sender (like TypeScript registerTrack)
     transceiver.sender.registerNonstandardTrack(track);

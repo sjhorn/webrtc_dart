@@ -262,6 +262,8 @@ class RtpSession {
   /// - Rewrites SSRC to sender's SSRC
   /// - Rewrites payloadType to codec's payloadType
   /// - Regenerates header extensions (abs-send-time, transport-cc, mid)
+  static int _debugSendCount = 0;
+
   Future<void> sendRawRtpPacket(
     RtpPacket packet, {
     bool replaceSsrc = true,
@@ -274,6 +276,10 @@ class RtpSession {
     // if (this.dtlsTransport.state !== "connected" || !this.codec) return;
     if (srtpSession == null) {
       // DTLS not yet complete, drop packet - matching werift behavior
+      _debugSendCount++;
+      if (_debugSendCount <= 3) {
+        print('[RtpSession] Dropping packet #$_debugSendCount: SRTP not ready');
+      }
       return;
     }
 

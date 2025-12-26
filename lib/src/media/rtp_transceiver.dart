@@ -480,11 +480,7 @@ class RtpSender {
     _trackSubscription = track.onReceiveRtp.listen((rtpPacket) async {
       if (_stopped) return;
 
-      // Build header extension config at SEND TIME, not at attachment time.
-      // This is critical for the pub/sub pattern where MID and extension IDs
-      // may be set after registerTrackForForward is called (e.g., after
-      // createOffer/setLocalDescription completes the transceiver setup).
-      // Matches the fix in _attachNonstandardTrack.
+      // Build header extension config at SEND TIME
       final extensionConfig = HeaderExtensionConfig(
         sdesMidId: midExtensionId,
         mid: mid,
@@ -492,11 +488,7 @@ class RtpSender {
         transportWideCCId: transportWideCCExtensionId,
       );
 
-      // Forward the RTP packet through the session with extension regeneration
-      // sendRawRtpPacket will:
-      // - Rewrite SSRC to sender's SSRC
-      // - Rewrite payload type to negotiated value
-      // - Regenerate header extensions (mid, abs-send-time, transport-cc)
+      // Forward the RTP packet
       await rtpSession.sendRawRtpPacket(
         rtpPacket,
         replaceSsrc: true,
@@ -504,6 +496,32 @@ class RtpSender {
         extensionConfig: extensionConfig,
       );
     });
+  }
+
+  /// Forward a list of cached RTP packets (e.g., cached keyframe)
+  ///
+  /// This is useful for sending cached keyframes to new subscribers
+  /// before starting live forwarding. Each packet is sent with:
+  /// - SSRC replaced with sender's SSRC
+  /// - Header extensions regenerated (MID, abs-send-time, transport-cc)
+  Future<void> forwardCachedPackets(List<RtpPacket> packets) async {
+    if (_stopped) return;
+
+    final extensionConfig = HeaderExtensionConfig(
+      sdesMidId: midExtensionId,
+      mid: mid,
+      absSendTimeId: absSendTimeExtensionId,
+      transportWideCCId: transportWideCCExtensionId,
+    );
+
+    for (final packet in packets) {
+      await rtpSession.sendRawRtpPacket(
+        packet,
+        replaceSsrc: true,
+        payloadType: codec.payloadType,
+        extensionConfig: extensionConfig,
+      );
+    }
   }
 
   /// Replace track

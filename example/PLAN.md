@@ -251,7 +251,7 @@ This document tracks verification of each example against werift-webrtc behavior
 | `mediachannel/red/adaptive/server.dart` | [S] | - | Skip - browser RED support limited |
 | `mediachannel/red/record/server.dart` | [S] | - | Skip - browser RED support limited |
 | `mediachannel/lipsync/server.dart` | [S] | - | Documentation only |
-| `mediachannel/pubsub/offer.dart` | [ ] | Terminal | Multi-peer routing |
+| `mediachannel/pubsub/offer.dart` | [x] | Playwright | **Chrome pass** - Multi-peer routing with keyframe caching |
 | `mediachannel/sdp/offer.dart` | [S] | - | Skip - covered by existing tests |
 
 **RTP Forward Test Results (Dec 2025):**
@@ -261,6 +261,54 @@ This document tracks verification of each example against werift-webrtc behavior
 - Chrome: **PASS** - Track received, connection established
 - Safari: **PASS** - Track received, connection established
 - Firefox: **SKIP** - Same ICE issue (Dart is offerer)
+
+**Pub/Sub Multi-Peer Routing Test Results (Dec 2025):**
+- Test infrastructure: `interop/automated/pubsub_test.mjs`
+- Pattern: SFU-style routing - Client A publishes video, Client B subscribes and receives
+- Implements full pub/sub protocol: publish → onPublish → subscribe → onSubscribe
+- Chrome: **PASS** - Video plays (640x480), keyframe received via cache
+- Safari: Expected to pass (same pattern)
+- Firefox: **SKIP** - Same ICE issue (Dart is offerer)
+
+**Key Learnings from Pub/Sub Implementation:**
+
+1. **werift's Example vs Real SFU**:
+   - werift's `mediachannel/pubsub/offer.ts` is a **single-client loopback**, not multi-peer
+   - It uses `registerTrack()` to echo video back to the same client
+   - Real SFU requires routing packets between different peer connections
+   - Our implementation extends this to true multi-peer routing
+
+2. **VP8 Keyframe Detection (RFC 7741)**:
+   - VP8 RTP payload has a descriptor followed by the VP8 bitstream
+   - Keyframe detection requires checking BOTH:
+     - **S bit** (0x10): Start of partition - must be 1 for frame start
+     - **frame_type** (bit 0 of first VP8 byte after descriptor): 0 = keyframe, 1 = interframe
+   - Without S=1 check, continuation packets were incorrectly detected as keyframes
+
+3. **Keyframe Caching for New Subscribers**:
+   - Chrome's fake camera (getUserMedia) does NOT respond to PLI requests
+   - New subscribers would wait forever for a keyframe
+   - Solution: Cache complete keyframes from publisher (collect packets until marker=true)
+   - Send cached keyframe immediately when new subscriber joins
+   - Added `forwardCachedPackets()` method to `RtpSender`
+
+4. **RTP Header Extension Regeneration**:
+   - When forwarding packets to different peer connections, must regenerate:
+     - **MID** (SDES mid): Must match the NEW transceiver's mid (e.g., "2" → "3")
+     - **abs-send-time**: Current NTP timestamp at send time
+     - **transport-wide-cc**: Incrementing sequence number for congestion control
+   - Extension IDs come from SDP negotiation, not hardcoded values
+   - Extension IDs must be set on sender: `midExtensionId`, `absSendTimeExtensionId`, `transportWideCCExtensionId`
+
+5. **SSRC Replacement**:
+   - Each peer connection expects different SSRC values in SDP vs received RTP
+   - `sendRawRtpPacket(replaceSsrc: true)` rewrites SSRC to sender's local SSRC
+   - This allows the same source packets to be forwarded to multiple subscribers
+
+6. **sendrecv Echo vs Pub/Sub Forwarding**:
+   - Echo (sendrecv): Same transceiver for send/recv - MID stays the same, extensions preserved
+   - Pub/Sub: Different transceivers on different connections - MID must be updated
+   - Pub/Sub requires `registerTrackForForward()` which regenerates extensions at send time
 
 **Test Plan:**
 1. Start with basic sendonly/recvonly to verify media flow
@@ -617,3 +665,18 @@ For each placeholder:
    - **File Changed**: `lib/src/peer_connection.dart` - `_processRemoteMediaDescriptions` method
    - **Result**: Simulcast RID-based packet routing now functional for receive path
    - **Simulcast SDP (Dec 2025)**: Added `a=rid:<rid> <direction>` and `a=simulcast:recv/send <rids>` attributes to `createOffer()`. Chrome interop test passes with 238 packets received on "high" RID layer.
+
+5. **Pub/Sub video forwarding (subscriber sees 0 frames)** (FIXED Dec 2025)
+   - **Status**: RESOLVED
+   - **Root Cause**: Chrome's fake camera doesn't respond to PLI requests; new subscribers never receive keyframe
+   - **The Bug**: Multi-peer SFU routing worked at the packet level (500+ packets sent to subscriber), but browser showed `framesDecoded: 0` because VP8 decoder needs a keyframe to start. PLI requests were sent but Chrome's fake camera ignores them.
+   - **Multiple Sub-issues Fixed**:
+     1. **Extension IDs not set**: `absSendTimeExtensionId` and `transportWideCCExtensionId` were null for dynamically created transceivers. Added default extension ID constants and set them in `addTransceiver()`.
+     2. **Keyframe detection wrong**: Was checking frame_type=0 without S bit, detecting continuation packets as keyframes. Fixed to require BOTH S=1 (start of partition) AND frame_type=0.
+     3. **No keyframe cache**: Added keyframe caching - collect packets from keyframe start until marker=true, store in cache, send to new subscribers immediately.
+   - **Files Changed**:
+     - `lib/src/peer_connection.dart` - Added `_absSendTimeExtensionId`, `_twccExtensionId` constants, set in `addTransceiver()`
+     - `lib/src/media/rtp_transceiver.dart` - Added `forwardCachedPackets()` method for sending cached keyframes
+     - `example/mediachannel/pubsub/offer.dart` - VP8 keyframe detection and caching logic
+   - **Result**: Video now plays (640x480) for subscribers - cached keyframe enables immediate decoding
+   - **Test files**: `interop/automated/pubsub_test.mjs`

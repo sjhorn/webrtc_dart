@@ -211,7 +211,7 @@ class IceRestartServer {
 
     _dc!.onMessage.listen((data) {
       _messagesReceived++;
-      final msg = String.fromCharCodes(data);
+      final msg = data is String ? data : String.fromCharCodes(data);
       print('[Restart] Received message: $msg');
     });
 

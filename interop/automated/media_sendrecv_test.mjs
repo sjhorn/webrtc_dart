@@ -17,6 +17,7 @@
  */
 
 import { chromium, firefox, webkit } from 'playwright';
+import { getBrowserArg } from './test_utils.mjs';
 
 const SERVER_URL = 'http://localhost:8768';
 const TEST_TIMEOUT = 60000;
@@ -123,8 +124,8 @@ async function runBrowserTest(browserType, browserName) {
 }
 
 async function main() {
-  const args = process.argv.slice(2);
-  const browserArg = args[0] || 'all';
+  // Support both: BROWSER=firefox node test.mjs OR node test.mjs firefox
+  const browserArg = getBrowserArg() || 'all';
 
   console.log('WebRTC Media Sendrecv (Echo) Browser Test');
   console.log('=========================================');

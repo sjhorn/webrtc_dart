@@ -10,13 +10,15 @@
  *   # First, start the Dart server in another terminal:
  *   dart run interop/automated/save_to_disk_server.dart
  *
- *   # Then run browser tests:
- *   node interop/automated/save_to_disk_test.mjs [chrome|firefox|webkit|all]
+ *   # Then run browser tests (either syntax works):
+ *   BROWSER=chrome node interop/automated/save_to_disk_test.mjs
+ *   node interop/automated/save_to_disk_test.mjs firefox
  *
- * Note: Firefox is skipped by default due to known ICE issues when Dart is offerer.
+ * Note: Firefox headless doesn't support getUserMedia (camera tests skip Firefox).
  */
 
 import { chromium, firefox, webkit } from 'playwright';
+import { getBrowserArg } from './test_utils.mjs';
 
 const SERVER_URL = 'http://localhost:8769';
 const TEST_TIMEOUT = 60000;
@@ -121,8 +123,8 @@ async function runBrowserTest(browserType, browserName) {
 }
 
 async function main() {
-  const args = process.argv.slice(2);
-  const browserArg = args[0] || 'all';
+  // Support both: BROWSER=firefox node test.mjs OR node test.mjs firefox
+  const browserArg = getBrowserArg() || 'all';
 
   console.log('WebRTC Save to Disk Browser Test');
   console.log('=================================');
@@ -146,13 +148,13 @@ async function main() {
     results.push(await runBrowserTest(chromium, 'chrome'));
   }
 
-  // Skip Firefox by default due to ICE issues when Dart is offerer
+  // Skip Firefox - getUserMedia not supported in headless Playwright Firefox
   if (browserArg === 'firefox') {
-    console.log('\n[firefox] Note: Firefox has known ICE issues when Dart is offerer');
+    console.log('\n[firefox] Note: getUserMedia may not work in headless Firefox');
     results.push(await runBrowserTest(firefox, 'firefox'));
   } else if (browserArg === 'all') {
-    console.log('\n[firefox] Skipping Firefox (known ICE issue when Dart is offerer)');
-    results.push({ browser: 'firefox', success: false, error: 'Skipped - ICE issue', skipped: true });
+    console.log('\n[firefox] Skipping Firefox (getUserMedia not supported in headless)');
+    results.push({ browser: 'firefox', success: false, error: 'Skipped - no getUserMedia', skipped: true });
   }
 
   if (browserArg === 'all' || browserArg === 'webkit' || browserArg === 'safari') {

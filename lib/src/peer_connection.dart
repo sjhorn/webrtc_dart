@@ -554,14 +554,19 @@ class RtcPeerConnection {
         }
       }
 
-      // Add RTX for video only
-      if (transceiver.kind == MediaStreamTrackKind.video) {
+      // Add RTX for video only (if not already configured by user)
+      final hasUserRtx = allCodecs.any(
+          (c) => c.codecName.toLowerCase() == 'rtx');
+      if (transceiver.kind == MediaStreamTrackKind.video && !hasUserRtx) {
         // Generate or retrieve RTX SSRC
         final rtxSsrc = _rtxSsrcByMid[mid] ?? _generateSsrc();
         _rtxSsrcByMid[mid] = rtxSsrc;
 
-        // RTX payload type is typically original + 1 (97 for VP8's 96)
-        final rtxPayloadType = payloadType + 1;
+        // RTX payload type must be unique - use max(all codec PTs) + 1
+        final maxPt = allCodecs
+            .map((c) => c.payloadType ?? 96)
+            .reduce((a, b) => a > b ? a : b);
+        final rtxPayloadType = maxPt + 1;
         formats.add('$rtxPayloadType');
 
         // Add RTX attributes using RtxSdpBuilder
@@ -578,6 +583,13 @@ class RtcPeerConnection {
         attributes.add(SdpAttribute(key: 'ssrc', value: '$ssrc cname:$cname'));
 
         // Add SSRC attributes for RTX
+        attributes.add(RtxSdpBuilder.createSsrcCname(rtxSsrc, cname));
+      } else if (transceiver.kind == MediaStreamTrackKind.video && hasUserRtx) {
+        // User provided RTX, just add SSRC cname (RTX is already in codec list)
+        final rtxSsrc = _rtxSsrcByMid[mid] ?? _generateSsrc();
+        _rtxSsrcByMid[mid] = rtxSsrc;
+        attributes.add(SdpAttribute(key: 'ssrc', value: '$ssrc cname:$cname'));
+        attributes.add(RtxSdpBuilder.createSsrcGroupFid(ssrc, rtxSsrc));
         attributes.add(RtxSdpBuilder.createSsrcCname(rtxSsrc, cname));
       } else {
         // Audio: just add SSRC cname

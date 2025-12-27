@@ -170,7 +170,7 @@ class IceTrickleRecreatePcServer {
     });
 
     _dc!.onMessage.listen((data) {
-      final msg = String.fromCharCodes(data);
+      final msg = data is String ? data : String.fromCharCodes(data);
       print('[Recreate] Received message: $msg');
     });
 

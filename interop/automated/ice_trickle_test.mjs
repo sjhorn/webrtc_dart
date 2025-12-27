@@ -10,11 +10,13 @@
  *   # First, start the Dart server in another terminal:
  *   dart run interop/automated/ice_trickle_server.dart
  *
- *   # Then run browser tests:
- *   node interop/automated/ice_trickle_test.mjs [chrome|firefox|webkit|all]
+ *   # Then run browser tests (either syntax works):
+ *   BROWSER=chrome node interop/automated/ice_trickle_test.mjs
+ *   node interop/automated/ice_trickle_test.mjs firefox
  */
 
 import { chromium, firefox, webkit } from 'playwright';
+import { getBrowserArg } from './test_utils.mjs';
 
 const SERVER_URL = 'http://localhost:8781';
 const TEST_TIMEOUT = 60000;
@@ -113,8 +115,8 @@ async function runBrowserTest(browserType, browserName) {
 }
 
 async function main() {
-  const args = process.argv.slice(2);
-  const browserArg = args[0] || 'all';
+  // Support both: BROWSER=firefox node test.mjs OR node test.mjs firefox
+  const browserArg = getBrowserArg() || 'all';
 
   console.log('WebRTC ICE Trickle Browser Test');
   console.log('================================');
@@ -136,13 +138,8 @@ async function main() {
     results.push(await runBrowserTest(chromium, 'chrome'));
   }
 
-  // Skip Firefox by default due to ICE issue when Dart is offerer
-  if (browserArg === 'firefox') {
-    console.log('\n[firefox] Note: Firefox has known ICE issues when Dart is offerer');
+  if (browserArg === 'all' || browserArg === 'firefox') {
     results.push(await runBrowserTest(firefox, 'firefox'));
-  } else if (browserArg === 'all') {
-    console.log('\n[firefox] Skipping Firefox (known ICE issue when Dart is offerer)');
-    results.push({ browser: 'firefox', success: false, error: 'Skipped - ICE issue', skipped: true });
   }
 
   if (browserArg === 'all' || browserArg === 'webkit' || browserArg === 'safari') {

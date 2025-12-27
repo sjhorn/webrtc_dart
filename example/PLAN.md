@@ -52,9 +52,15 @@ This document tracks verification of each example against werift-webrtc behavior
 - Browser creates PeerConnection + DataChannel, sends offer to Dart
 - Dart creates answer, DataChannel opens, exchanges ping/pong messages
 - Chrome: **PASS** - 3 sent, 3 received, 1202ms connection
-- Firefox: **PASS** - 3 sent, 3 received, 7619ms connection (FIRST FIREFOX PASS!)
+- Firefox: **PASS** - 3 sent, 3 received, 7619ms connection
 - Safari: **PASS** - 3 sent, 3 received, 1118ms connection
-- **Key Finding**: Firefox works when browser is the offerer (Dart answerer)
+
+**DataChannel Offer Test Results (Dec 2025):**
+- Test infrastructure: `interop/automated/dart_signaling_server.dart` + `browser_test.mjs`
+- Pattern: **Dart is OFFERER, Browser is ANSWERER**
+- Chrome: **PASS** - 3 messages, 1163ms connection
+- Firefox: **PASS** - 3 messages, 7673ms connection (after firewall fix)
+- Safari: **PASS** - 3 messages
 
 ---
 
@@ -78,9 +84,9 @@ This document tracks verification of each example against werift-webrtc behavior
 
 | Example | Status | Method | Notes |
 |---------|--------|--------|-------|
-| `ice/trickle/offer.dart` | [x] | Playwright | **Chrome/Safari pass** - trickle ICE + DataChannel |
+| `ice/trickle/offer.dart` | [x] | Playwright | **Chrome/Firefox/Safari pass** - trickle ICE + DataChannel |
 | `ice/trickle/dc.dart` | [x] | Dart-to-Dart | Trickle ICE + DataChannel |
-| `ice/restart/offer.dart` | [x] | Playwright | **Chrome/Safari pass** - ICE restart with credential change |
+| `ice/restart/offer.dart` | [x] | Playwright | **Chrome/Firefox/Safari pass** - ICE restart with credential change |
 | `ice/restart/quickstart.dart` | [x] | Dart-to-Dart | Basic restart test |
 | `ice/turn/quickstart.dart` | [x] | Terminal | TURN configuration verified |
 | `ice/turn/trickle_offer.dart` | [ ] | Playwright | TURN + trickle ICE |
@@ -91,7 +97,7 @@ This document tracks verification of each example against werift-webrtc behavior
 - Verifies incremental candidate exchange + DataChannel ping/pong
 - Chrome: **PASS** - 2 sent, 2 recv candidates, ping/pong YES, 266ms connection
 - Safari: **PASS** - 2 sent, 1 recv candidates, ping/pong YES, 177ms connection
-- Firefox: **SKIP** - Same ICE issue (Dart is offerer)
+- Firefox: **PASS** - 2 sent, 3 recv candidates, ping/pong YES, 197ms connection
 
 **ICE Restart Browser Test Results (Dec 2025):**
 - Test infrastructure: `interop/automated/ice_restart_server.dart` + `ice_restart_test.mjs`
@@ -99,7 +105,7 @@ This document tracks verification of each example against werift-webrtc behavior
 - Verifies ICE credentials change (ice-ufrag) and connection maintained after restart
 - Chrome: **PASS** - ice-ufrag changed (345a -> a924), restart success, ping/pong works
 - Safari: **PASS** - ice-ufrag changed (e886 -> 7f3c), restart success, ping/pong works
-- Firefox: **SKIP** - Same ICE issue (Dart is offerer)
+- Firefox: **PASS** - ice-ufrag changed (07d7 -> 0bab), restart success, ping/pong works
 
 **Other Test Results:**
 - ICE trickle works correctly (host + srflx candidates)
@@ -115,7 +121,7 @@ This document tracks verification of each example against werift-webrtc behavior
 | Example | Status | Method | Notes |
 |---------|--------|--------|-------|
 | `mediachannel/sendonly/offer.dart` | [x] | Dart-to-Dart | Media transceiver setup works |
-| `mediachannel/sendonly/av.dart` | [x] | Playwright | **Chrome/Safari pass**, Firefox skipped |
+| `mediachannel/sendonly/av.dart` | [x] | Playwright | **Chrome/Firefox/Safari pass** |
 | `mediachannel/sendonly/ffmpeg.dart` | [ ] | Manual Browser | FFmpeg as media source |
 | `mediachannel/sendonly/multi_offer.dart` | [x] | Playwright | **Chrome/Safari pass** - broadcast to 3 clients |
 | `mediachannel/recvonly/offer.dart` | [x] | Playwright | **Chrome/Safari pass**, Firefox skipped |
@@ -130,20 +136,20 @@ This document tracks verification of each example against werift-webrtc behavior
 - Test infrastructure: `interop/automated/media_sendonly_server.dart` + `media_sendonly_test.mjs`
 - Chrome: **PASS** - 164+ frames received, VP8 video playing
 - Safari: **PASS** - 165+ frames received, VP8 video playing
-- Firefox: **SKIP** - ICE blocked incoming connections in headless mode
+- Firefox: **PASS** - 161 frames received, VP8 video playing (1239ms connection)
 
 **Media Recvonly Test Results (Dec 2025):**
 - Test infrastructure: `interop/automated/media_recvonly_server.dart` + `media_recvonly_test.mjs`
 - Chrome: **PASS** - 211 RTP packets received from browser camera
 - Safari: **PASS** - 202 RTP packets received from browser camera
-- Firefox: **SKIP** - Same ICE issue (Dart is offerer)
+- Firefox: **SKIP** - getUserMedia not supported in headless Playwright Firefox
 
 **Media Sendrecv (Echo) Test Results (Dec 2025):**
 - Test infrastructure: `interop/automated/media_sendrecv_server.dart` + `media_sendrecv_test.mjs`
 - Pattern: Dart receives browser camera video, echoes it back via RTP forwarding
 - Chrome: **PASS** - 210 packets received, 75 echo frames displayed
 - Safari: **PASS** - 198 packets received, 161 echo frames displayed
-- Firefox: **SKIP** - Same ICE issue (Dart is offerer)
+- Firefox: **SKIP** - getUserMedia not supported in headless Playwright Firefox
 
 **Multi-Client Sendonly (Broadcast) Test Results (Dec 2025):**
 - Test infrastructure: `interop/automated/multi_client_sendonly_server.dart` + `multi_client_sendonly_test.mjs`
@@ -510,7 +516,63 @@ npm install
 npx playwright install
 ```
 
-### Run Automated Tests
+### Running Tests with Scripts (RECOMMENDED)
+
+Use the provided shell scripts to run tests. They handle server startup, timeouts, and cleanup automatically:
+
+```bash
+cd interop/automated
+
+# Run a single test (starts server, runs test, cleans up)
+./run_test.sh browser chrome           # DataChannel test with Chrome
+./run_test.sh ice_trickle firefox       # ICE trickle test with Firefox
+./run_test.sh media_sendonly safari     # Media test with Safari
+
+# Use environment variable instead
+BROWSER=firefox ./run_test.sh ice_restart
+
+# Debug mode - shows full server output
+./run_debug_test.sh save_to_disk chrome
+
+# List available tests
+./run_test.sh
+
+# Stop orphaned processes (cleanup)
+./stop_test.sh              # Kill all test processes
+./stop_test.sh ice_trickle  # Kill specific test's port
+
+# Run ALL tests (comprehensive suite)
+./run_all_tests.sh chrome   # Run all tests with Chrome
+./run_all_tests.sh          # Defaults to Chrome
+
+# Debug SDP output (for troubleshooting)
+./check_sdp.sh save_to_disk # Dump SDP from a test server
+```
+
+**Script Features:**
+- Automatic server startup with health check
+- Test execution with 2-minute timeout (prevents hanging)
+- Automatic cleanup of server processes on exit
+- Port conflict detection and resolution
+- Support for both `BROWSER=x` and command line argument
+
+**Available test names:**
+| Test Name | Port | Description |
+|-----------|------|-------------|
+| `browser` | 8765 | Basic DataChannel (uses dart_signaling_server) |
+| `ice_trickle` | 8781 | ICE trickle + DataChannel |
+| `ice_restart` | 8782 | ICE restart with credential change |
+| `media_sendonly` | 8766 | Dart sends video to browser |
+| `media_recvonly` | 8767 | Browser sends video to Dart |
+| `media_sendrecv` | 8768 | Echo pattern (bidirectional) |
+| `save_to_disk` | 8769 | VP8 recording to WebM |
+| `save_to_disk_h264` | 8770 | H.264 recording |
+| `save_to_disk_vp9` | 8771 | VP9 recording |
+| `simulcast` | 8780 | Simulcast SDP negotiation |
+| `twcc` | 8779 | Transport-wide congestion control |
+| `rtx` | 8778 | RTX retransmission |
+
+### Run Automated Tests (Legacy)
 
 ```bash
 # Test all browsers
@@ -521,6 +583,36 @@ npm run test:chrome
 npm run test:firefox
 npm run test:safari
 ```
+
+### Browser Selection (IMPORTANT)
+
+Test scripts support **two equivalent syntaxes** for selecting which browser to test:
+
+```bash
+# Method 1: Environment variable (takes precedence)
+BROWSER=firefox node ice_trickle_test.mjs
+
+# Method 2: Command line argument
+node ice_trickle_test.mjs firefox
+
+# Both work - env var is checked first, then command line arg
+# Default is 'chrome' if neither is specified
+```
+
+**Valid browser values:**
+- `chrome` or `chromium` - Google Chrome/Chromium
+- `firefox` - Mozilla Firefox
+- `safari` or `webkit` - Apple Safari/WebKit
+- `all` - Run all browsers sequentially
+
+**Implementation:**
+All test files import `getBrowserArg()` from `test_utils.mjs`:
+```javascript
+import { getBrowserArg } from './test_utils.mjs';
+const browserArg = getBrowserArg() || 'all';
+```
+
+The helper checks `process.env.BROWSER` first, then `process.argv[2]`, defaulting to `'chrome'`.
 
 ### Manual Browser Testing
 
@@ -632,7 +724,13 @@ For each placeholder:
 
 ## Known Issues (Dec 2025)
 
-1. **Firefox headless ICE issue (Dart as offerer)** - Firefox in Playwright headless mode has ICE issues when Dart is the WebRTC offerer. **Solution**: Use browser-as-offerer pattern (Dart answers). See `datachannel/answer.dart` test where all three browsers (including Firefox) pass.
+1. **~~Firefox headless ICE issue (Dart as offerer)~~** (FIXED Dec 2025)
+   - **Status**: RESOLVED - Was a local firewall issue, not a WebRTC/Firefox bug
+   - **Original symptom**: Firefox in Playwright headless mode had ICE issues when Dart was the offerer
+   - **Root Cause**: Local firewall was blocking incoming connections from Firefox
+   - **Fix**: After firewall configuration, Firefox works with Dart as offerer
+   - **Verified working**: ICE trickle (197ms), ICE restart, media sendonly (161 frames), basic DataChannel
+   - **Still skipped**: Tests requiring Firefox headless getUserMedia (recvonly, sendrecv, save_to_disk) - this is a Playwright limitation, not WebRTC
 
 2. **~~DCEP/DataChannel failure when PeerConnection created just-in-time~~** (FIXED Dec 2025)
    - **Status**: RESOLVED

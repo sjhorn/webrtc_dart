@@ -15,6 +15,7 @@
  */
 
 import { chromium, firefox, webkit } from 'playwright';
+import { getBrowserArg } from './test_utils.mjs';
 
 const HTTP_SERVER_URL = 'http://localhost:8080';
 const STATUS_URL = `${HTTP_SERVER_URL}/status`;
@@ -164,8 +165,8 @@ async function checkServerRunning() {
 }
 
 async function main() {
-  const args = process.argv.slice(2);
-  const browserArg = args[0] || 'chrome';
+  // Support both: BROWSER=firefox node test.mjs OR node test.mjs firefox
+  const browserArg = getBrowserArg() || 'chrome';
 
   console.log('Ring Video Streaming Browser Test');
   console.log('==================================');

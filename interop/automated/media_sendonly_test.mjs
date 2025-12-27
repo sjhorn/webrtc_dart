@@ -9,11 +9,13 @@
  *   # First, start the Dart media server in another terminal:
  *   dart run interop/automated/media_sendonly_server.dart
  *
- *   # Then run browser tests:
- *   node interop/automated/media_sendonly_test.mjs [chrome|firefox|webkit|all]
+ *   # Then run browser tests (either syntax works):
+ *   BROWSER=chrome node interop/automated/media_sendonly_test.mjs
+ *   node interop/automated/media_sendonly_test.mjs firefox
  */
 
 import { chromium, firefox, webkit } from 'playwright';
+import { getBrowserArg } from './test_utils.mjs';
 
 const SERVER_URL = 'http://localhost:8766';
 const TEST_TIMEOUT = 60000;
@@ -108,8 +110,8 @@ async function runBrowserTest(browserType, browserName) {
 }
 
 async function main() {
-  const args = process.argv.slice(2);
-  const browserArg = args[0] || 'all';
+  // Support both: BROWSER=firefox node test.mjs OR node test.mjs firefox
+  const browserArg = getBrowserArg() || 'all';
 
   console.log('WebRTC Media Sendonly Browser Test');
   console.log('===================================');

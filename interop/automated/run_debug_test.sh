@@ -1,0 +1,202 @@
+#!/bin/bash
+# Debug Test Runner - Shows verbose server output
+#
+# Same as run_test.sh but shows full Dart server output for debugging.
+# Server output is shown in real-time, not hidden.
+#
+# Usage:
+#   ./run_debug_test.sh <test_name> [browser]
+#   BROWSER=firefox ./run_debug_test.sh <test_name>
+#
+# Examples:
+#   ./run_debug_test.sh browser chrome
+#   ./run_debug_test.sh ice_trickle firefox
+
+set -e
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PROJECT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
+
+# Configuration
+SERVER_STARTUP_TIMEOUT=30   # seconds to wait for server (dart compiles on first run)
+TEST_TIMEOUT=120
+CLEANUP_TIMEOUT=5
+
+# Parse arguments
+TEST_NAME="${1:-}"
+BROWSER_ARG="${2:-${BROWSER:-chrome}}"
+
+if [ -z "$TEST_NAME" ]; then
+    echo "Usage: $0 <test_name> [browser]"
+    echo ""
+    echo "This is the DEBUG version - shows full server output."
+    echo "Use run_test.sh for quieter output."
+    echo ""
+    echo "Examples:"
+    echo "  $0 browser chrome"
+    echo "  $0 ice_trickle firefox"
+    echo ""
+    echo "Available tests:"
+    ls -1 "$SCRIPT_DIR"/*_test.mjs 2>/dev/null | xargs -n1 basename | sed 's/_test\.mjs$//' | sort | column
+    exit 1
+fi
+
+# Determine server and test files
+SERVER_FILE="$SCRIPT_DIR/${TEST_NAME}_server.dart"
+TEST_FILE="$SCRIPT_DIR/${TEST_NAME}_test.mjs"
+
+# Special case: browser_test uses dart_signaling_server
+if [ "$TEST_NAME" = "browser" ]; then
+    SERVER_FILE="$SCRIPT_DIR/dart_signaling_server.dart"
+fi
+
+# Validate files exist
+if [ ! -f "$SERVER_FILE" ]; then
+    echo "ERROR: Server file not found: $SERVER_FILE"
+    exit 1
+fi
+
+if [ ! -f "$TEST_FILE" ]; then
+    echo "ERROR: Test file not found: $TEST_FILE"
+    exit 1
+fi
+
+# Extract port from test file
+PORT=$(grep -o "localhost:[0-9]*" "$TEST_FILE" | head -1 | cut -d: -f2)
+if [ -z "$PORT" ]; then
+    echo "ERROR: Could not determine port from $TEST_FILE"
+    exit 1
+fi
+
+SERVER_PID=""
+TEST_EXIT_CODE=1
+SERVER_LOG=$(mktemp)
+
+# Cleanup function
+cleanup() {
+    local exit_code=$?
+
+    echo ""
+    echo "========================================"
+    echo "[Cleanup] Shutting down..."
+
+    # Kill server if running
+    if [ -n "$SERVER_PID" ] && kill -0 $SERVER_PID 2>/dev/null; then
+        echo "[Cleanup] Stopping server (PID: $SERVER_PID)..."
+        kill $SERVER_PID 2>/dev/null || true
+
+        for i in $(seq 1 $CLEANUP_TIMEOUT); do
+            if ! kill -0 $SERVER_PID 2>/dev/null; then
+                break
+            fi
+            sleep 1
+        done
+
+        if kill -0 $SERVER_PID 2>/dev/null; then
+            echo "[Cleanup] Force killing server..."
+            kill -9 $SERVER_PID 2>/dev/null || true
+        fi
+    fi
+
+    # Kill any orphaned processes on our port
+    local orphan_pids=$(lsof -ti :$PORT 2>/dev/null || true)
+    if [ -n "$orphan_pids" ]; then
+        echo "[Cleanup] Killing orphaned processes on port $PORT..."
+        echo "$orphan_pids" | xargs kill -9 2>/dev/null || true
+    fi
+
+    # Clean up temp file
+    rm -f "$SERVER_LOG" 2>/dev/null || true
+
+    echo "[Cleanup] Done"
+
+    if [ $exit_code -ne 0 ]; then
+        exit $exit_code
+    fi
+    exit $TEST_EXIT_CODE
+}
+trap cleanup EXIT INT TERM
+
+echo "========================================"
+echo "DEBUG Test: $TEST_NAME"
+echo "========================================"
+echo "Server: $(basename "$SERVER_FILE")"
+echo "Test:   $(basename "$TEST_FILE")"
+echo "Port:   $PORT"
+echo "Browser: $BROWSER_ARG"
+echo "Log:    $SERVER_LOG"
+echo ""
+
+# Check if port is already in use
+if lsof -ti :$PORT >/dev/null 2>&1; then
+    echo "WARNING: Port $PORT is already in use"
+    echo "Killing existing processes..."
+    lsof -ti :$PORT | xargs kill -9 2>/dev/null || true
+    sleep 1
+fi
+
+# Start Dart server - output visible
+echo "[Server] Starting $(basename "$SERVER_FILE")..."
+echo "========================================"
+cd "$PROJECT_ROOT"
+
+# Run server with output to both terminal and log file
+dart run "$SERVER_FILE" 2>&1 | tee "$SERVER_LOG" &
+SERVER_PID=$!
+
+# Wait for server to start
+echo ""
+echo "[Server] Waiting for server to be ready..."
+server_ready=false
+for i in $(seq 1 $SERVER_STARTUP_TIMEOUT); do
+    if ! kill -0 $SERVER_PID 2>/dev/null; then
+        echo "ERROR: Server process died unexpectedly"
+        echo ""
+        echo "=== Server Output ==="
+        cat "$SERVER_LOG" 2>/dev/null || true
+        exit 1
+    fi
+
+    if curl -s "http://localhost:$PORT/status" > /dev/null 2>&1; then
+        echo "[Server] Ready on port $PORT"
+        server_ready=true
+        break
+    fi
+
+    sleep 1
+done
+
+if [ "$server_ready" = false ]; then
+    echo "ERROR: Server not responding after ${SERVER_STARTUP_TIMEOUT} seconds"
+    echo ""
+    echo "=== Server Output ==="
+    cat "$SERVER_LOG" 2>/dev/null || true
+    exit 1
+fi
+
+# Run the test
+echo ""
+echo "========================================"
+echo "[Test] Running $(basename "$TEST_FILE") (timeout: ${TEST_TIMEOUT}s)..."
+echo "========================================"
+cd "$SCRIPT_DIR"
+
+if timeout $TEST_TIMEOUT node "$TEST_FILE" "$BROWSER_ARG"; then
+    TEST_EXIT_CODE=0
+    echo ""
+    echo "========================================"
+    echo "[Result] PASSED"
+    echo "========================================"
+else
+    TEST_EXIT_CODE=$?
+    echo ""
+    echo "========================================"
+    if [ $TEST_EXIT_CODE -eq 124 ]; then
+        echo "[Result] TIMEOUT after ${TEST_TIMEOUT} seconds"
+    else
+        echo "[Result] FAILED (exit code: $TEST_EXIT_CODE)"
+    fi
+    echo "========================================"
+fi
+
+exit $TEST_EXIT_CODE

@@ -83,12 +83,51 @@ dart run example/webrtc_dart_example.dart
 ```
 
 ### Browser Interop Tests
+
+**Recommended: Use test scripts** (handles server startup, timeouts, cleanup):
 ```bash
-# Manual browser test
+cd interop/automated
+
+# Run a single test with automatic server management
+./run_test.sh browser chrome           # DataChannel test
+./run_test.sh ice_trickle firefox      # ICE trickle test
+./run_test.sh media_sendonly safari    # Media test
+./run_test.sh save_to_disk chrome      # Recording test
+
+# Use BROWSER env var instead of argument
+BROWSER=firefox ./run_test.sh ice_restart
+
+# Debug mode - shows full Dart server output
+./run_debug_test.sh save_to_disk chrome
+
+# List all available tests
+./run_test.sh
+
+# Stop orphaned processes
+./stop_test.sh              # Kill all test processes
+./stop_test.sh ice_trickle  # Kill specific test
+
+# Run ALL tests
+./run_all_tests.sh chrome   # Comprehensive test suite
+```
+
+**Manual testing** (run server and test separately):
+```bash
+# Terminal 1: Start Dart server
+dart run interop/automated/ice_trickle_server.dart
+
+# Terminal 2: Run browser test
+cd interop/automated
+node ice_trickle_test.mjs chrome
+# Or: BROWSER=chrome node ice_trickle_test.mjs
+
+# Manual browser test (open in browser)
 dart run interop/browser/server.dart
 # Open http://localhost:8080 in Chrome
+```
 
-# Automated Playwright tests
+**Legacy npm scripts**:
+```bash
 cd interop
 npm install
 npm test              # Test all browsers

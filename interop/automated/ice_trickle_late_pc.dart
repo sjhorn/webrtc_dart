@@ -143,7 +143,7 @@ class IceTrickleLateServer {
     });
 
     _dc!.onMessage.listen((data) {
-      final msg = String.fromCharCodes(data);
+      final msg = data is String ? data : String.fromCharCodes(data);
       print('[Late] Received message: $msg');
     });
 

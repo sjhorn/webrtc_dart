@@ -215,14 +215,18 @@ RtpCodecParameters createAv1Codec({
 /// RTX provides retransmission of lost packets using a separate SSRC
 /// and payload type. The associated payload type (apt) links it to
 /// the primary codec.
+///
+/// Example: createRtxCodec(payloadType: 97, apt: 96) for VP8 retransmission
 RtpCodecParameters createRtxCodec({
   int? payloadType,
   int clockRate = 90000,
+  int? apt,
 }) {
   return RtpCodecParameters(
     mimeType: 'video/rtx',
     clockRate: clockRate,
     payloadType: payloadType,
+    parameters: apt != null ? 'apt=$apt' : null,
     rtcpFeedback: const [],
   );
 }

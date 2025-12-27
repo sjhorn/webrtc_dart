@@ -9,11 +9,14 @@
  *   # First, start the Dart signaling server in another terminal:
  *   dart run interop/automated/dart_signaling_server.dart
  *
- *   # Then run browser tests:
- *   node interop/automated/browser_test.mjs [chrome|firefox|webkit|all]
+ *   # Then run browser tests (either syntax works):
+ *   BROWSER=chrome node interop/automated/browser_test.mjs
+ *   node interop/automated/browser_test.mjs firefox
+ *   node interop/automated/browser_test.mjs all
  */
 
 import { chromium, firefox, webkit } from 'playwright';
+import { getBrowserArg } from './test_utils.mjs';
 
 const SERVER_URL = 'http://localhost:8765';
 const TEST_TIMEOUT = 60000; // 60 seconds
@@ -116,8 +119,8 @@ async function runBrowserTest(browserType, browserName) {
 }
 
 async function main() {
-  const args = process.argv.slice(2);
-  const browserArg = args[0] || 'all';
+  // Support both: BROWSER=firefox node test.mjs OR node test.mjs firefox
+  const browserArg = getBrowserArg() || 'all';
 
   console.log('WebRTC Browser Interop Test');
   console.log('===========================');

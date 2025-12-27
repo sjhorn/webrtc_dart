@@ -141,8 +141,8 @@ class RtxServer {
                   type: 'ccm', parameter: 'fir'), // Full Intra Request
             ],
           ),
-          // RTX codec for retransmission
-          createRtxCodec(payloadType: 97),
+          // RTX codec for retransmission (apt=96 links to VP8)
+          createRtxCodec(payloadType: 97, apt: 96),
         ],
       ),
     ));

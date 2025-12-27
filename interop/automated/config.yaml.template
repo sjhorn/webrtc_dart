@@ -1,0 +1,40 @@
+# TURN Server Configuration Template
+#
+# Copy this file to config.yaml and fill in your credentials.
+# The config.yaml file is gitignored to prevent credential leaks.
+#
+# GETTING FREE TURN CREDENTIALS:
+#
+# 1. Sign up for a free account at https://www.metered.ca/
+#    - Free tier includes 500 MB/month TURN relay bandwidth
+#    - No credit card required for free tier
+#
+# 2. After signing up, go to the Dashboard
+#    - Click "Create Application" or use the default app
+#    - Go to "TURN Servers" section
+#
+# 3. Copy your credentials:
+#    - Find "API Key" or generate static credentials
+#    - The username/password are shown in the dashboard
+#    - Or use the "Credentials" endpoint to generate them
+#
+# 4. Fill in the values below and save as config.yaml
+#
+# Alternative free TURN services:
+# - Twilio (free trial): https://www.twilio.com/stun-turn
+# - Xirsys (free tier): https://xirsys.com/
+# - Open Relay Project: https://www.metered.ca/tools/openrelay/
+#   (Note: Open Relay may have availability issues)
+
+turn:
+  # Metered.ca TURN server configuration
+  username: "your-username-here"
+  password: "your-password-here"
+
+  # Server endpoints (these are the defaults for Metered.ca)
+  stun_server: "stun:stun.relay.metered.ca:80"
+  turn_servers:
+    - "turn:global.relay.metered.ca:80"
+    - "turn:global.relay.metered.ca:80?transport=tcp"
+    - "turn:global.relay.metered.ca:443"
+    - "turns:global.relay.metered.ca:443?transport=tcp"

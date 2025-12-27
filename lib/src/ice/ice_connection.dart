@@ -94,6 +94,13 @@ class IceOptions {
   /// with random `.local` hostnames to protect user privacy.
   final bool useMdns;
 
+  /// Only gather relay (TURN) candidates.
+  ///
+  /// When true, host and server-reflexive (STUN) candidates are not gathered.
+  /// This forces all traffic through the TURN relay server.
+  /// Corresponds to iceTransportPolicy: "relay" in W3C WebRTC spec.
+  final bool relayOnly;
+
   const IceOptions({
     this.stunServer,
     this.turnServer,
@@ -105,6 +112,7 @@ class IceOptions {
     this.useTcp = false, // Disabled by default for compatibility
     this.useUdp = true,
     this.useMdns = false, // Disabled by default for compatibility
+    this.relayOnly = false,
   });
 }
 
@@ -374,86 +382,103 @@ class IceConnectionImpl implements IceConnection {
         useLinkLocalAddress: false,
       );
 
-      // Create UDP host candidates for each address
-      if (options.useUdp) {
-        for (final address in addresses) {
-          try {
-            final addr = InternetAddress(address);
+      // In relay-only mode, skip host and STUN candidates
+      // Just gather relay (TURN) candidates
+      if (options.relayOnly) {
+        _log.fine('[ICE] Relay-only mode: skipping host and STUN candidates');
 
-            // Bind a UDP socket to get a port
-            final socket = await RawDatagramSocket.bind(
-              addr,
-              0, // Use any available port
-            );
+        // Gather relay candidates via TURN
+        if (options.turnServer != null &&
+            options.turnUsername != null &&
+            options.turnPassword != null) {
+          await _gatherRelayCandidates();
+        } else {
+          _log.fine('[ICE] Relay-only mode but no TURN server configured!');
+        }
+      } else {
+        // Normal mode: gather host, STUN, and TURN candidates
 
-            // Obfuscate the host address with mDNS if enabled
-            String candidateHost = address;
-            if (options.useMdns) {
-              final mdnsHostname = mdnsService.registerHostname(address);
-              _mdnsHostnames[mdnsHostname] = address;
-              candidateHost = mdnsHostname;
-            }
+        // Create UDP host candidates for each address
+        if (options.useUdp) {
+          for (final address in addresses) {
+            try {
+              final addr = InternetAddress(address);
 
-            final foundation = candidateFoundation('host', 'udp', address);
-            final candidate = Candidate(
-              foundation: foundation,
-              component: 1, // RTP component
-              transport: 'udp',
-              priority: candidatePriority('host'),
-              host: candidateHost,
-              port: socket.port,
-              type: 'host',
-            );
+              // Bind a UDP socket to get a port
+              final socket = await RawDatagramSocket.bind(
+                addr,
+                0, // Use any available port
+              );
 
-            _localCandidates.add(candidate);
-            _candidateController.add(candidate);
-            _sockets[foundation] = socket;
-
-            // Set up socket listener for incoming data
-            _setupSocketListener(socket);
-
-            // Create pairs with any already-received remote candidates
-            for (final remote in _remoteCandidates) {
-              if (candidate.canPairWith(remote)) {
-                final pair = CandidatePair(
-                  id: '${candidate.foundation}-${remote.foundation}',
-                  localCandidate: candidate,
-                  remoteCandidate: remote,
-                  iceControlling: _iceControlling,
-                );
-                _checkList.add(pair);
+              // Obfuscate the host address with mDNS if enabled
+              String candidateHost = address;
+              if (options.useMdns) {
+                final mdnsHostname = mdnsService.registerHostname(address);
+                _mdnsHostnames[mdnsHostname] = address;
+                candidateHost = mdnsHostname;
               }
+
+              final foundation = candidateFoundation('host', 'udp', address);
+              final candidate = Candidate(
+                foundation: foundation,
+                component: 1, // RTP component
+                transport: 'udp',
+                priority: candidatePriority('host'),
+                host: candidateHost,
+                port: socket.port,
+                type: 'host',
+              );
+
+              _localCandidates.add(candidate);
+              _candidateController.add(candidate);
+              _sockets[foundation] = socket;
+
+              // Set up socket listener for incoming data
+              _setupSocketListener(socket);
+
+              // Create pairs with any already-received remote candidates
+              for (final remote in _remoteCandidates) {
+                if (candidate.canPairWith(remote)) {
+                  final pair = CandidatePair(
+                    id: '${candidate.foundation}-${remote.foundation}',
+                    localCandidate: candidate,
+                    remoteCandidate: remote,
+                    iceControlling: _iceControlling,
+                  );
+                  _checkList.add(pair);
+                }
+              }
+              // Sort pairs by priority
+              _checkList.sort((a, b) => b.priority.compareTo(a.priority));
+            } catch (e) {
+              // Failed to bind to this address, skip it
+              continue;
             }
-            // Sort pairs by priority
-            _checkList.sort((a, b) => b.priority.compareTo(a.priority));
-          } catch (e) {
-            // Failed to bind to this address, skip it
-            continue;
           }
         }
-      }
 
-      // Create TCP host candidates (passive mode) for each address
-      if (options.useTcp) {
-        await _gatherTcpCandidates(addresses);
-      }
+        // Create TCP host candidates (passive mode) for each address
+        if (options.useTcp) {
+          await _gatherTcpCandidates(addresses);
+        }
 
-      // Gather server reflexive candidates via STUN
-      if (options.stunServer != null) {
-        _log.fine(
-            '[ICE] Gathering reflexive candidates from STUN server: ${options.stunServer}');
-        await _gatherReflexiveCandidates();
-        _log.fine(
-            '[ICE] Finished STUN gathering, local candidates: ${_localCandidates.length}');
-      } else {
-        _log.fine(' No STUN server configured');
-      }
+        // Gather server reflexive candidates via STUN
+        if (options.stunServer != null) {
+          _log.fine(
+              '[ICE] Gathering reflexive candidates from STUN server: ${options.stunServer}');
+          await _gatherReflexiveCandidates();
+          _log.fine(
+              '[ICE] Finished STUN gathering, local candidates: ${_localCandidates.length}');
+        } else {
+          _log.fine(' No STUN server configured');
+        }
 
-      // Gather relay candidates via TURN
-      if (options.turnServer != null &&
-          options.turnUsername != null &&
-          options.turnPassword != null) {
-        await _gatherRelayCandidates();
+        // Gather relay candidates via TURN
+        if (options.turnServer != null &&
+            options.turnUsername != null &&
+            options.turnPassword != null) {
+          await _gatherRelayCandidates();
+        }
       }
 
       _localCandidatesEnd = true;
@@ -610,6 +635,8 @@ class IceConnectionImpl implements IceConnection {
     }
 
     try {
+      _log.fine('[ICE] Connecting to TURN server: ${options.turnServer}');
+
       // Create TURN client
       _turnClient = TurnClient(
         serverAddress: options.turnServer!,
@@ -620,19 +647,35 @@ class IceConnectionImpl implements IceConnection {
 
       // Connect and allocate
       await _turnClient!.connect();
+      _log.fine('[ICE] TURN allocation successful');
 
       final allocation = _turnClient!.allocation;
-      if (allocation == null) return;
+      if (allocation == null) {
+        _log.fine('[ICE] TURN allocation returned null');
+        return;
+      }
 
       // Get relayed address from allocation
       final (relayHost, relayPort) = allocation.relayedAddress;
+      _log.fine('[ICE] TURN relayed address: $relayHost:$relayPort');
 
-      // Get base candidate (use first host candidate)
+      // Get base candidate info from host candidate if available,
+      // otherwise use the mapped address from TURN or empty values
+      String? relatedAddress;
+      int? relatedPort;
+
       final baseCandidates =
           _localCandidates.where((c) => c.type == 'host').toList();
-      if (baseCandidates.isEmpty) return;
-
-      final baseCandidate = baseCandidates.first;
+      if (baseCandidates.isNotEmpty) {
+        final baseCandidate = baseCandidates.first;
+        relatedAddress = baseCandidate.host;
+        relatedPort = baseCandidate.port;
+      } else if (allocation.mappedAddress != null) {
+        // Use the mapped (server-reflexive) address from TURN response
+        final (mappedHost, mappedPort) = allocation.mappedAddress!;
+        relatedAddress = mappedHost;
+        relatedPort = mappedPort;
+      }
 
       // Create relay candidate
       final foundation = candidateFoundation('relay', 'udp', relayHost);
@@ -644,8 +687,8 @@ class IceConnectionImpl implements IceConnection {
         host: relayHost,
         port: relayPort,
         type: 'relay',
-        relatedAddress: baseCandidate.host,
-        relatedPort: baseCandidate.port,
+        relatedAddress: relatedAddress,
+        relatedPort: relatedPort,
       );
 
       _localCandidates.add(relayCandidate);
@@ -671,8 +714,10 @@ class IceConnectionImpl implements IceConnection {
       }
       // Sort pairs by priority
       _checkList.sort((a, b) => b.priority.compareTo(a.priority));
-    } catch (e) {
-      // Failed to get relay candidate, continue without it
+    } catch (e, st) {
+      // Failed to get relay candidate, log and continue without it
+      _log.warning('[ICE] TURN allocation failed: $e');
+      _log.fine('[ICE] TURN allocation stack trace: $st');
       _turnClient = null;
     }
   }

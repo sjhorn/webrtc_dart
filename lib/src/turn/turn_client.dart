@@ -126,6 +126,9 @@ class TurnClient {
   /// Permission refresh timer
   Timer? _permissionTimer;
 
+  /// Resolved server IP address (from DNS lookup)
+  InternetAddress? _resolvedServerAddress;
+
   /// Receive stream controller
   final StreamController<(Address, Uint8List)> _receiveController =
       StreamController.broadcast();
@@ -150,13 +153,20 @@ class TurnClient {
     _state = TurnState.connecting;
 
     try {
+      // Resolve server hostname to IP address
+      final (host, port) = serverAddress;
+      final addresses = await InternetAddress.lookup(host);
+      if (addresses.isEmpty) {
+        throw Exception('DNS resolution failed for $host');
+      }
+      _resolvedServerAddress = addresses.first;
+
       // Create transport
       if (transport == TurnTransport.udp) {
         _udpSocket = await RawDatagramSocket.bind(InternetAddress.anyIPv4, 0);
         _udpSocket!.listen(_handleUdpData);
       } else {
-        final (host, port) = serverAddress;
-        _tcpSocket = await Socket.connect(host, port);
+        _tcpSocket = await Socket.connect(_resolvedServerAddress!, port);
         _tcpSocket!.listen(_handleTcpData);
       }
 
@@ -436,8 +446,8 @@ class TurnClient {
     final data = request.toBytes();
 
     if (transport == TurnTransport.udp) {
-      final (host, port) = serverAddress;
-      _udpSocket!.send(data, InternetAddress(host), port);
+      final (_, port) = serverAddress;
+      _udpSocket!.send(data, _resolvedServerAddress!, port);
     } else {
       _tcpSocket!.add(data);
     }
@@ -458,8 +468,8 @@ class TurnClient {
     final data = indication.toBytes();
 
     if (transport == TurnTransport.udp) {
-      final (host, port) = serverAddress;
-      _udpSocket!.send(data, InternetAddress(host), port);
+      final (_, port) = serverAddress;
+      _udpSocket!.send(data, _resolvedServerAddress!, port);
     } else {
       _tcpSocket!.add(data);
     }

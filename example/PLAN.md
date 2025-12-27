@@ -89,7 +89,7 @@ This document tracks verification of each example against werift-webrtc behavior
 | `ice/restart/offer.dart` | [x] | Playwright | **Chrome/Firefox/Safari pass** - ICE restart with credential change |
 | `ice/restart/quickstart.dart` | [x] | Dart-to-Dart | Basic restart test |
 | `ice/turn/quickstart.dart` | [x] | Terminal | TURN configuration verified |
-| `ice/turn/trickle_offer.dart` | [ ] | Playwright | TURN + trickle ICE |
+| `ice/turn/trickle_offer.dart` | [x] | Playwright | **Chrome pass** - TURN relay + trickle ICE (Metered.ca) |
 
 **ICE Trickle Browser Test Results (Dec 2025):**
 - Test infrastructure: `interop/automated/ice_trickle_server.dart` + `ice_trickle_test.mjs`
@@ -112,6 +112,20 @@ This document tracks verification of each example against werift-webrtc behavior
 - ICE restart API functional
 - TURN configuration works (requires actual TURN server for full test)
 
+**TURN + Trickle ICE Browser Test Results (Dec 2025):**
+- Test infrastructure: `interop/automated/ice_turn_trickle_server.dart` + `ice_turn_trickle_test.mjs`
+- Pattern: Dart is offerer with relay-only transport policy, uses Metered.ca TURN server
+- Verifies TURN allocation, relay candidates generated, trickle ICE + DataChannel ping/pong
+- Chrome: **PASS** - TURN Used: YES, Relay Candidates: 1, Connection: 1575ms
+- Firefox: Expected to pass (same infrastructure)
+- Safari: Expected to pass (same infrastructure)
+
+**Key TURN Implementation Notes:**
+- Fixed DNS resolution in TurnClient: `InternetAddress.lookup()` for hostnames
+- Added `relayOnly` option to `IceOptions` for `iceTransportPolicy: relay`
+- PeerConnection now supports `turns:` URLs and relay-only mode
+- TURN allocation and Send indication working with Metered.ca servers
+
 ---
 
 ## 5. MediaChannel Examples (PARTIALLY VERIFIED Dec 2025)
@@ -122,11 +136,11 @@ This document tracks verification of each example against werift-webrtc behavior
 |---------|--------|--------|-------|
 | `mediachannel/sendonly/offer.dart` | [x] | Dart-to-Dart | Media transceiver setup works |
 | `mediachannel/sendonly/av.dart` | [x] | Playwright | **Chrome/Firefox/Safari pass** |
-| `mediachannel/sendonly/ffmpeg.dart` | [ ] | Manual Browser | FFmpeg as media source |
+| `mediachannel/sendonly/ffmpeg.dart` | [S] | Dart-to-Dart | Skip - Dart-to-Dart local test, not browser |
 | `mediachannel/sendonly/multi_offer.dart` | [x] | Playwright | **Chrome/Safari pass** - broadcast to 3 clients |
 | `mediachannel/recvonly/offer.dart` | [x] | Playwright | **Chrome/Safari pass**, Firefox skipped |
 | `mediachannel/recvonly/answer.dart` | [x] | Playwright | **Chrome/Safari pass** - Dart as answerer (Firefox: headless camera issue) |
-| `mediachannel/recvonly/dump.dart` | [ ] | Manual Browser | Dump RTP packets to disk |
+| `mediachannel/recvonly/dump.dart` | [S] | - | Skip - Covered by save_to_disk/dump.dart |
 | `mediachannel/recvonly/multi_offer.dart` | [x] | Playwright | **Chrome/Safari pass** - receive from 3 clients |
 | `mediachannel/sendrecv/offer.dart` | [x] | Playwright | **Chrome/Safari pass**, Firefox skipped |
 | `mediachannel/sendrecv/answer.dart` | [x] | Playwright | **Chrome/Safari pass** - Echo works (payload type preservation fix) |
@@ -245,15 +259,15 @@ This document tracks verification of each example against werift-webrtc behavior
 | `mediachannel/rtx/simulcast_offer.dart` | [x] | Playwright | **Chrome pass** - Simulcast SDP + RID routing complete |
 | `mediachannel/rtx/simulcast_answer.dart` | [x] | Manual Browser | Simulcast SDP + RID routing complete |
 | `mediachannel/twcc/offer.dart` | [x] | Playwright | **Chrome pass** - transport-cc negotiated |
-| `mediachannel/twcc/multitrack.dart` | [ ] | Manual Browser | TWCC with multiple tracks |
+| `mediachannel/twcc/multitrack.dart` | [S] | - | Skip - Demo only, TWCC covered by twcc/offer.dart |
 | `mediachannel/simulcast/offer.dart` | [x] | Playwright | **Chrome pass** - Simulcast SDP + 238 RID packets received |
 | `mediachannel/simulcast/answer.dart` | [x] | Playwright | **Chrome pass** - SFU fanout, 186 packets forwarded |
 | `mediachannel/simulcast/select.dart` | [x] | Manual Browser | Layer selection API (high/mid/low) |
 | `mediachannel/simulcast/abr.dart` | [S] | - | Skip - werift doesn't implement setParameters |
 | `mediachannel/rtp_forward/offer.dart` | [x] | Playwright | **Chrome/Safari pass** - writeRtp -> browser flow |
 | `mediachannel/red/sendrecv.dart` | [x] | Playwright | **Chrome pass** - RED codec negotiated, multi-codec SDP working |
-| `mediachannel/red/recv.dart` | [ ] | Manual Browser | RED receive + UDP forward |
-| `mediachannel/red/send.dart` | [ ] | Manual Browser | RED send with GStreamer |
+| `mediachannel/red/recv.dart` | [S] | - | Skip - Requires GStreamer external processing |
+| `mediachannel/red/send.dart` | [S] | - | Skip - Requires GStreamer as media source |
 | `mediachannel/red/adaptive/server.dart` | [S] | - | Skip - browser RED support limited |
 | `mediachannel/red/record/server.dart` | [S] | - | Skip - browser RED support limited |
 | `mediachannel/lipsync/server.dart` | [S] | - | Documentation only |
@@ -475,8 +489,8 @@ This document tracks verification of each example against werift-webrtc behavior
 | `certificate/offer.dart` | [x] | Terminal | Custom DTLS cert - fingerprint output verified |
 | `getStats/demo.dart` | [x] | Dart-to-Dart | Stats API verified |
 | `interop/server.dart` | [x] | Playwright | **Chrome pass** - Media echo works, DataChannel has SCTP issue |
-| `interop/client.dart` | [ ] | Terminal | Dart client connecting to server |
-| `interop/relay.dart` | [ ] | Manual Browser | SFU relay server |
+| `interop/client.dart` | [S] | - | Skip - Dart-to-Dart WebSocket client |
+| `interop/relay.dart` | [S] | - | Skip - SFU relay, covered by pubsub_test.mjs |
 | `benchmark/datachannel.dart` | [x] | Dart-to-Dart | Performance baseline (fixed listener race) |
 
 **Test Results:**
@@ -597,6 +611,7 @@ BROWSER=firefox ./run_test.sh ice_restart
 | `browser` | 8765 | Basic DataChannel (uses dart_signaling_server) |
 | `ice_trickle` | 8781 | ICE trickle + DataChannel |
 | `ice_restart` | 8782 | ICE restart with credential change |
+| `ice_turn_trickle` | 8783 | TURN relay + trickle ICE (Metered.ca) |
 | `media_sendonly` | 8766 | Dart sends video to browser |
 | `media_recvonly` | 8767 | Browser sends video to Dart |
 | `media_sendrecv` | 8768 | Echo pattern (bidirectional) |

@@ -38,6 +38,9 @@ werift-webrtc/
 interop/signals/*.jsonl
 interop/node_modules/
 
+# TURN server credentials (contains secrets)
+interop/automated/config.yaml
+
 # Debug/test recording artifacts
 *.rtp
 *.mp4

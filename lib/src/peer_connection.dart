@@ -361,12 +361,23 @@ class RtcPeerConnection {
         if (scheme == 'stun' && host != null && stunServer == null) {
           stunServer = (host, port ?? 3478);
           _log.fine(' Using STUN server: $stunServer');
-        } else if (scheme == 'turn' && host != null) {
-          turnServer = (host, port ?? 3478);
+        } else if ((scheme == 'turn' || scheme == 'turns') &&
+            host != null &&
+            turnServer == null) {
+          // Support both turn: (UDP/TCP) and turns: (TLS) URLs
+          // Note: Current implementation only supports UDP, TLS support is TODO
+          turnServer = (host, port ?? (scheme == 'turns' ? 443 : 3478));
           turnUsername = server.username;
           turnPassword = server.credential;
+          _log.fine('[PC] Using TURN server: $turnServer (scheme=$scheme)');
         }
       }
+    }
+
+    // Set relayOnly based on iceTransportPolicy
+    final relayOnly = config.iceTransportPolicy == IceTransportPolicy.relay;
+    if (relayOnly) {
+      _log.fine('[PC] Relay-only mode enabled (iceTransportPolicy: relay)');
     }
 
     return IceOptions(
@@ -374,6 +385,7 @@ class RtcPeerConnection {
       turnServer: turnServer,
       turnUsername: turnUsername,
       turnPassword: turnPassword,
+      relayOnly: relayOnly,
     );
   }
 

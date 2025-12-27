@@ -394,9 +394,24 @@ The Dart port achieves **~95-100% feature parity** with the TypeScript werift-we
 
 ## 12. Recommended Refactoring
 
-### 🔴 High Priority
+### ✅ High Priority (COMPLETED December 2025)
 
-1. **Implement RTCP SR/RR/SDES/BYE**
+1. **~~Implement RTCP SR/RR/SDES/BYE~~** ✅ DONE
+   - SR/RR already implemented in `lib/src/rtp/rtcp_reports.dart`
+   - SDES implemented in `lib/src/rtcp/sdes.dart`
+   - BYE not implemented in werift either (skipped)
+   - Compound packets (SR+SDES, RR+SDES) now sent automatically
+
+2. **~~Implement ICE Consent Freshness~~** ✅ DONE
+   - RFC 7675 support in `lib/src/ice/ice_connection.dart`
+   - 5-second interval with ±20% jitter
+   - 6 consecutive failures = connection failure
+
+---
+
+### 🔴 High Priority (Original - For Reference)
+
+1. **~~Implement RTCP SR/RR/SDES/BYE~~**
    - File: `lib/src/rtcp/` (new files needed)
    - Required for proper A/V sync and receiver feedback
    - Estimated effort: 2-3 days
@@ -492,8 +507,8 @@ The Dart port successfully achieves WebRTC interoperability with all major brows
 - TCP ICE and mDNS support
 
 **Gaps to Address:**
-- RTCP SR/RR/SDES/BYE (highest priority)
-- ICE consent freshness
-- MP4 container completeness
+- ~~RTCP SR/RR/SDES/BYE~~ ✅ DONE (December 2025)
+- ~~ICE consent freshness~~ ✅ DONE (December 2025)
+- MP4 container completeness (medium priority)
 
 The port is production-ready for WebRTC data channels and media streaming, with the noted RTCP gaps primarily affecting advanced synchronization scenarios.

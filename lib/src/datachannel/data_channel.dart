@@ -34,8 +34,26 @@ class DataChannel {
   /// Priority
   final int priority;
 
-  /// Reliability parameter
+  /// Reliability parameter (maxRetransmits or maxPacketLifeTime)
   final int reliabilityParameter;
+
+  /// Max retransmits (for partialReliableRexmit channel types)
+  int? get maxRetransmits {
+    if (channelType == DataChannelType.partialReliableRexmit ||
+        channelType == DataChannelType.partialReliableRexmitUnordered) {
+      return reliabilityParameter;
+    }
+    return null;
+  }
+
+  /// Max packet lifetime in milliseconds (for partialReliableTimed channel types)
+  int? get maxPacketLifeTime {
+    if (channelType == DataChannelType.partialReliableTimed ||
+        channelType == DataChannelType.partialReliableTimedUnordered) {
+      return reliabilityParameter;
+    }
+    return null;
+  }
 
   /// SCTP association
   final SctpAssociation _association;
@@ -167,6 +185,14 @@ class DataChannel {
     }
   }
 
+  /// Calculate expiry time for timed partial reliability
+  double? _calculateExpiry() {
+    final lifetime = maxPacketLifeTime;
+    if (lifetime == null) return null;
+    // Convert milliseconds to seconds and add to current time
+    return DateTime.now().millisecondsSinceEpoch / 1000.0 + lifetime / 1000.0;
+  }
+
   /// Send string message
   Future<void> sendString(String message) async {
     if (_state != DataChannelState.open) {
@@ -183,6 +209,8 @@ class DataChannel {
       data: data,
       ppid: ppid,
       unordered: !ordered,
+      expiry: _calculateExpiry(),
+      maxRetransmits: maxRetransmits,
     );
   }
 
@@ -201,6 +229,8 @@ class DataChannel {
       data: message,
       ppid: ppid,
       unordered: !ordered,
+      expiry: _calculateExpiry(),
+      maxRetransmits: maxRetransmits,
     );
   }
 

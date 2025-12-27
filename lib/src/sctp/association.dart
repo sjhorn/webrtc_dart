@@ -51,13 +51,21 @@ class _SentChunk {
   /// Whether this chunk has been abandoned (partial reliability)
   bool abandoned = false;
 
+  /// Expiry time for timed partial reliability (seconds since epoch)
+  /// If set, chunk is abandoned when current time > expiry
+  double? expiry;
+
+  /// Max retransmit count for rexmit partial reliability
+  /// If set, chunk is abandoned when sentCount > maxRetransmits
+  int? maxRetransmits;
+
   /// Size of user data for flight size tracking
   int get bookSize => chunk.userData.length;
 
   /// TSN from the chunk
   int get tsn => chunk.tsn;
 
-  _SentChunk(this.chunk);
+  _SentChunk(this.chunk, {this.expiry, this.maxRetransmits});
 }
 
 /// SCTP Association
@@ -89,6 +97,12 @@ class SctpAssociation {
 
   /// Last SACKed TSN
   int _lastSackedTsn = 0;
+
+  /// Advanced peer ack point for partial reliability (RFC 3758)
+  int _advancedPeerAckTsn = 0;
+
+  /// Pending FORWARD-TSN chunk to send
+  SctpForwardTsnChunk? _forwardTsnChunk;
 
   /// Number of outbound streams
   final int outboundStreams;
@@ -289,11 +303,21 @@ class SctpAssociation {
   }
 
   /// Send data on a stream
+  ///
+  /// Partial reliability (RFC 3758) options:
+  /// - [expiry]: Absolute expiration time in seconds since epoch. Data is
+  ///   abandoned if not acknowledged before this time.
+  /// - [maxRetransmits]: Maximum number of retransmissions. Data is abandoned
+  ///   if this count is exceeded.
+  ///
+  /// Note: Only one of [expiry] or [maxRetransmits] should be set.
   Future<void> sendData({
     required int streamId,
     required Uint8List data,
     required int ppid,
     bool unordered = false,
+    double? expiry,
+    int? maxRetransmits,
   }) async {
     if (_state != SctpAssociationState.established) {
       throw StateError('Association not established');
@@ -321,7 +345,7 @@ class SctpAssociation {
             SctpDataChunkFlags.beginningFragment |
             SctpDataChunkFlags.endFragment,
       );
-      _outboundQueue.add(_SentChunk(chunk));
+      _outboundQueue.add(_SentChunk(chunk, expiry: expiry, maxRetransmits: maxRetransmits));
     } else {
       for (var i = 0; i < fragments; i++) {
         final start = i * maxDataSize;
@@ -340,7 +364,7 @@ class SctpAssociation {
           userData: fragment,
           flags: flags,
         );
-        _outboundQueue.add(_SentChunk(chunk));
+        _outboundQueue.add(_SentChunk(chunk, expiry: expiry, maxRetransmits: maxRetransmits));
       }
     }
 
@@ -399,9 +423,97 @@ class SctpAssociation {
     await onSendPacket(data);
   }
 
+  /// Check if a chunk should be abandoned (RFC 3758 partial reliability)
+  ///
+  /// When a chunk is abandoned, all chunks in the same message are also
+  /// marked as abandoned. Returns true if the chunk is (or becomes) abandoned.
+  bool _maybeAbandon(_SentChunk chunk) {
+    if (chunk.abandoned) return true;
+
+    // Check if limits are exceeded
+    final now = DateTime.now().millisecondsSinceEpoch / 1000.0;
+    final abandon =
+        (chunk.maxRetransmits != null && chunk.sentCount > chunk.maxRetransmits!) ||
+        (chunk.expiry != null && chunk.expiry! < now);
+
+    if (!abandon) return false;
+
+    // Find this chunk's position in sentQueue
+    final chunkIdx = _sentQueue.indexOf(chunk);
+    if (chunkIdx < 0) return false;
+
+    // Mark backward to beginning of message (FIRST_FRAG)
+    for (var i = chunkIdx; i >= 0; i--) {
+      final c = _sentQueue[i];
+      c.abandoned = true;
+      c.retransmit = false;
+      if (c.chunk.beginningFragment) break;
+    }
+
+    // Mark forward to end of message (LAST_FRAG)
+    for (var i = chunkIdx; i < _sentQueue.length; i++) {
+      final c = _sentQueue[i];
+      c.abandoned = true;
+      c.retransmit = false;
+      if (c.chunk.endFragment) break;
+    }
+
+    return true;
+  }
+
+  /// Update advanced peer ack point and generate FORWARD-TSN (RFC 3758)
+  ///
+  /// Dequeues abandoned chunks from the front of sentQueue and
+  /// creates a FORWARD-TSN chunk to notify the peer.
+  void _updateAdvancedPeerAckPoint() {
+    if (_uint32Gt(_lastSackedTsn, _advancedPeerAckTsn)) {
+      _advancedPeerAckTsn = _lastSackedTsn;
+    }
+
+    var done = 0;
+    final streams = <int, int>{}; // streamId -> streamSeq
+
+    // Dequeue abandoned chunks from front of sentQueue
+    while (_sentQueue.isNotEmpty && _sentQueue.first.abandoned) {
+      final chunk = _sentQueue.removeAt(0);
+      _advancedPeerAckTsn = chunk.tsn;
+      done++;
+
+      // Track stream sequence numbers for ordered chunks
+      if (!chunk.chunk.unordered) {
+        streams[chunk.chunk.streamId] = chunk.chunk.streamSeq;
+      }
+    }
+
+    if (done > 0) {
+      // Create FORWARD-TSN chunk
+      _forwardTsnChunk = SctpForwardTsnChunk(
+        newCumulativeTsn: _advancedPeerAckTsn,
+        streams: streams.entries
+            .map((e) => ForwardTsnStream(streamId: e.key, streamSeq: e.value))
+            .toList(),
+      );
+    }
+  }
+
   /// Transmit outbound data (RFC 4960 Section 6.1)
   Future<void> _transmit() async {
     _log.fine('[SCTP] _transmit: outboundQueue=${_outboundQueue.length}, sentQueue=${_sentQueue.length}');
+
+    // Send FORWARD-TSN first (RFC 3758)
+    if (_forwardTsnChunk != null) {
+      try {
+        await _sendChunk(_forwardTsnChunk!);
+      } catch (e) {
+        _log.fine('[SCTP] Failed to send FORWARD-TSN: $e');
+      }
+      _forwardTsnChunk = null;
+
+      if (_t3Timer == null && _sentQueue.isNotEmpty) {
+        _t3Start();
+      }
+    }
+
     // Calculate effective cwnd for this burst
     final burstSize = _fastRecoveryExit != null
         ? 2 * SctpConstants.userDataMaxLength
@@ -716,7 +828,10 @@ class SctpAssociation {
           sChunk.misses++;
           if (sChunk.misses == 3) {
             sChunk.misses = 0;
-            sChunk.retransmit = true;
+            // Try to abandon if partial reliability is enabled, otherwise retransmit
+            if (!_maybeAbandon(sChunk)) {
+              sChunk.retransmit = true;
+            }
             sChunk.acked = false;
             _flightSizeDecrease(sChunk);
             loss = true;
@@ -724,6 +839,9 @@ class SctpAssociation {
         }
       }
     }
+
+    // Update advanced peer ack point for partial reliability
+    _updateAdvancedPeerAckPoint();
 
     // Adjust congestion window (RFC 4960 Section 7.2)
     if (_fastRecoveryExit == null) {
@@ -1138,10 +1256,15 @@ class SctpAssociation {
   void _t3Expired() {
     _t3Timer = null;
 
-    // Mark all sent chunks for retransmission
+    // Mark all sent chunks for retransmission (or abandon if partial reliability)
     for (final chunk in _sentQueue) {
-      chunk.retransmit = true;
+      if (!_maybeAbandon(chunk)) {
+        chunk.retransmit = true;
+      }
     }
+
+    // Update advanced peer ack point for partial reliability
+    _updateAdvancedPeerAckPoint();
 
     // Reset congestion control (RFC 4960 Section 7.2.3)
     _fastRecoveryExit = null;

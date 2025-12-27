@@ -516,6 +516,41 @@ npm install
 npx playwright install
 ```
 
+### Shared Browser Utilities (browser_utils.mjs)
+
+All 35 test files use the shared `browser_utils.mjs` module for consistent browser setup. This ensures:
+- Browser-specific flags are configured correctly (Chrome fake media, Firefox prefs, Safari canvas fallback)
+- Changes to browser configuration only need to be made in one place
+- Consistent error handling and logging across all tests
+
+**Key exports:**
+```javascript
+import {
+  getBrowserArg,       // Get browser from env/argv: 'chrome', 'firefox', 'safari', 'all'
+  getBrowserType,      // Get Playwright browser type object
+  getAllBrowsers,      // Get list of all browser configs
+  launchBrowser,       // Launch browser with correct options (headless, flags, prefs)
+  closeBrowser,        // Graceful cleanup
+  setupConsoleLogging, // Forward browser console to Node
+  checkServer,         // Health check with helpful error message
+  getLaunchOptions,    // Get launch options for a browser
+  getContextOptions,   // Get context options for a browser
+  MEDIA_HELPERS_SCRIPT,// In-page helpers for canvas stream
+} from './browser_utils.mjs';
+```
+
+**Usage pattern:**
+```javascript
+const { browser, context, page } = await launchBrowser(browserName, { headless: true });
+setupConsoleLogging(page, browserName);
+try {
+  await page.goto(SERVER_URL);
+  // ... test logic
+} finally {
+  await closeBrowser({ browser, context, page });
+}
+```
+
 ### Running Tests with Scripts (RECOMMENDED)
 
 Use the provided shell scripts to run tests. They handle server startup, timeouts, and cleanup automatically:

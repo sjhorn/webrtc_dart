@@ -19,7 +19,7 @@ async function runTest(browserType) {
                     browserType === 'firefox' ? firefox : webkit;
 
     const context = await browser.launch({
-        headless: false,
+        headless: true,
         args: browserType === 'chrome' ? [
             '--use-fake-device-for-media-stream',
             '--use-fake-ui-for-media-stream',
@@ -95,12 +95,38 @@ async function runTest(browserType) {
             await pc.setRemoteDescription(new RTCSessionDescription(offerData));
             log('Remote description set');
 
-            // Get camera with simulcast
+            // Get camera with simulcast (with canvas fallback for Safari)
             log('Getting camera stream...');
-            const stream = await navigator.mediaDevices.getUserMedia({
-                video: { width: 1280, height: 720 }
-            });
-            log('Got camera stream');
+            let stream;
+            try {
+                stream = await navigator.mediaDevices.getUserMedia({
+                    video: { width: 1280, height: 720 }
+                });
+                log('Got camera stream');
+            } catch (e) {
+                log('Camera unavailable, using canvas fallback: ' + e.message);
+                // Create canvas stream as fallback
+                const canvas = document.createElement('canvas');
+                canvas.width = 1280;
+                canvas.height = 720;
+                const ctx = canvas.getContext('2d');
+                let frame = 0;
+                function draw() {
+                    ctx.fillStyle = '#1a1a2e';
+                    ctx.fillRect(0, 0, 1280, 720);
+                    const x = 640 + Math.sin(frame * 0.05) * 200;
+                    const y = 360 + Math.cos(frame * 0.03) * 150;
+                    ctx.beginPath();
+                    ctx.arc(x, y, 50, 0, Math.PI * 2);
+                    ctx.fillStyle = '#ff6b6b';
+                    ctx.fill();
+                    frame++;
+                    requestAnimationFrame(draw);
+                }
+                draw();
+                stream = canvas.captureStream(30);
+                log('Canvas stream created');
+            }
 
             // Add video track
             const videoTrack = stream.getVideoTracks()[0];
@@ -214,7 +240,7 @@ async function main() {
         process.exit(1);
     }
 
-    const browser = process.env.BROWSER || 'chrome';
+    const browser = process.env.BROWSER || process.argv[2] || 'chrome';
     const result = await runTest(browser);
 
     if (result.success) {

@@ -21,7 +21,7 @@ async function runTest(browserType, browserName) {
 
     try {
         // Launch browser with permissions for microphone
-        // Note: We use headless: false because audio requires real audio context
+        // Note: Safari headless can't access microphone, needs Web Audio API fallback
         browser = await browserType.launch({
             headless: false,
             args: browserName === 'chromium' ? [
@@ -32,7 +32,8 @@ async function runTest(browserType, browserName) {
         });
 
         context = await browser.newContext({
-            permissions: ['microphone'],
+            // Only chromium supports permissions grant
+            ...(browserName === 'chromium' ? { permissions: ['microphone'] } : {}),
             // Firefox/WebKit specific settings
             ...(browserName !== 'chromium' ? {
                 bypassCSP: true
@@ -104,7 +105,7 @@ async function runTest(browserType, browserName) {
 }
 
 async function main() {
-    const browserArg = process.env.BROWSER || 'chrome';
+    const browserArg = process.env.BROWSER || process.argv[2] || 'chrome';
 
     let browserType;
     let browserName;

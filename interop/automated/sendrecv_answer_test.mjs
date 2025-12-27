@@ -42,9 +42,9 @@ async function runBrowserTest(browserType, browserName) {
       '--autoplay-policy=no-user-gesture-required',
     ] : [];
 
-    // Note: headless: false required for video decoding to work properly
+    // headless: true works with canvas fallback for Safari
     browser = await browserType.launch({
-      headless: false,
+      headless: true,
       args: launchArgs,
     });
 

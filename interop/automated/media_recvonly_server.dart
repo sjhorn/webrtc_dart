@@ -384,22 +384,24 @@ class MediaRecvonlyServer {
                 log('Browser detected: ' + browser);
                 setStatus('Starting test for ' + browser);
 
-                // Get camera access first
-                setStatus('Requesting camera access...');
+                // Get video stream - try camera first, fall back to canvas
+                setStatus('Requesting video stream...');
                 try {
                     localStream = await navigator.mediaDevices.getUserMedia({
                         video: { width: 640, height: 480 },
                         audio: false
                     });
                     log('Camera access granted', 'success');
-
-                    // Show local preview
-                    const localVideo = document.getElementById('localVideo');
-                    localVideo.srcObject = localStream;
                 } catch (e) {
-                    log('Camera access denied: ' + e.message, 'error');
-                    throw new Error('Camera access required for this test');
+                    log('Camera unavailable: ' + e.message + ', using canvas fallback', 'warn');
+                    // Create canvas stream as fallback (works in Safari headless)
+                    localStream = createCanvasStream(640, 480, 30);
+                    log('Canvas stream created', 'success');
                 }
+
+                // Show local preview
+                const localVideo = document.getElementById('localVideo');
+                localVideo.srcObject = localStream;
 
                 // Start server-side peer
                 await fetch(serverBase + '/start?browser=' + browser);
@@ -537,6 +539,33 @@ class MediaRecvonlyServer {
                 };
                 check();
             });
+        }
+
+        // Create animated canvas stream as fallback for Safari headless
+        function createCanvasStream(width, height, frameRate) {
+            const canvas = document.createElement('canvas');
+            canvas.width = width;
+            canvas.height = height;
+            const ctx = canvas.getContext('2d');
+            let frame = 0;
+
+            function draw() {
+                ctx.fillStyle = '#1a1a2e';
+                ctx.fillRect(0, 0, width, height);
+                const x = width/2 + Math.sin(frame * 0.05) * (width/4);
+                const y = height/2 + Math.cos(frame * 0.03) * (height/4);
+                ctx.beginPath();
+                ctx.arc(x, y, 40, 0, Math.PI * 2);
+                ctx.fillStyle = '#ff6b6b';
+                ctx.fill();
+                ctx.fillStyle = '#fff';
+                ctx.font = '20px sans-serif';
+                ctx.fillText('Canvas Stream - Frame ' + frame, 20, 30);
+                frame++;
+                requestAnimationFrame(draw);
+            }
+            draw();
+            return canvas.captureStream(frameRate);
         }
 
         function detectBrowser() {

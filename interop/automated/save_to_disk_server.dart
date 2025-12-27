@@ -458,7 +458,9 @@ class SaveToDiskServer {
                     document.getElementById('videoInfo').textContent =
                         'Camera: ' + localStream.getVideoTracks()[0].label;
                 } catch (e) {
-                    throw new Error('Failed to get camera: ' + e.message);
+                    log('Camera unavailable: ' + e.message + ', using canvas fallback', 'info');
+                    localStream = createCanvasStream(640, 480, 30);
+                    log('Canvas stream created', 'success');
                 }
 
                 // Start server-side peer
@@ -604,6 +606,33 @@ class SaveToDiskServer {
                 };
                 check();
             });
+        }
+
+        // Create animated canvas stream as fallback for Safari headless
+        function createCanvasStream(width, height, frameRate) {
+            const canvas = document.createElement('canvas');
+            canvas.width = width;
+            canvas.height = height;
+            const ctx = canvas.getContext('2d');
+            let frame = 0;
+
+            function draw() {
+                ctx.fillStyle = '#1a1a2e';
+                ctx.fillRect(0, 0, width, height);
+                const x = width/2 + Math.sin(frame * 0.05) * (width/4);
+                const y = height/2 + Math.cos(frame * 0.03) * (height/4);
+                ctx.beginPath();
+                ctx.arc(x, y, 40, 0, Math.PI * 2);
+                ctx.fillStyle = '#ff6b6b';
+                ctx.fill();
+                ctx.fillStyle = '#fff';
+                ctx.font = '20px sans-serif';
+                ctx.fillText('Canvas Stream - Frame ' + frame, 20, 30);
+                frame++;
+                requestAnimationFrame(draw);
+            }
+            draw();
+            return canvas.captureStream(frameRate);
         }
 
         function detectBrowser() {

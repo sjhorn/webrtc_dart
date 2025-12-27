@@ -27,7 +27,8 @@ The Dart port achieves **~95-100% feature parity** with the TypeScript werift-we
 - ✅ Added H.264 SPS parser for High Profile MP4 support (parity with werift)
 - ✅ Added ICE Role Conflict Recovery (RFC 8445 Section 7.2.1.1) with 487 error handling
 - ✅ Added STUN Transaction class with exponential backoff retry (RFC 5389)
-- ✅ All 1993+ tests passing, 0 analyzer issues
+- ✅ Added ICE Early Check Queue for out-of-order connectivity checks (RFC 8445 Section 7.2.1)
+- ✅ All 2010+ tests passing, 0 analyzer issues
 
 ---
 
@@ -126,7 +127,7 @@ The Dart port achieves **~95-100% feature parity** with the TypeScript werift-we
 | Connectivity Checks | RFC 5245 full | Simplified | **Gap** |
 | Consent Freshness | RFC 7675 | ✅ RFC 7675 | Parity |
 | Role Conflict Recovery | Full | ✅ Full RFC 8445 | Parity |
-| Early Check Queue | ✅ | ❌ | **Gap** |
+| Early Check Queue | ✅ | ✅ RFC 8445 Section 7.2.1 | Parity |
 
 ### State Comparison
 
@@ -145,7 +146,7 @@ The Dart port achieves **~95-100% feature parity** with the TypeScript werift-we
 
 1. ~~**Add Consent Freshness Checks (RFC 7675)** - Required for long-lived connections~~ ✅ **DONE**
 2. ~~**Improve Role Conflict Recovery** - Full recovery instead of detection only~~ ✅ **DONE** (RFC 8445 Section 7.2.1.1 - 487 error handling)
-3. **Consider porting Early Check Queue** - Helps with out-of-order connectivity checks (low priority)
+3. ~~**Consider porting Early Check Queue** - Helps with out-of-order connectivity checks~~ ✅ **DONE** (RFC 8445 Section 7.2.1)
 
 ---
 

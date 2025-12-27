@@ -227,6 +227,11 @@ class IceConnectionImpl implements IceConnection {
   bool _localCandidatesEnd = false;
   bool _remoteCandidatesEnd = false;
 
+  // Early check queue (RFC 8445 Section 7.2.1)
+  // Queues incoming connectivity checks that arrive before check list is ready
+  final List<_EarlyCheck> _earlyChecks = [];
+  bool _earlyChecksDone = false;
+
   // Map of candidate foundation to socket
   final Map<String, RawDatagramSocket> _sockets = {};
 
@@ -936,6 +941,9 @@ class IceConnectionImpl implements IceConnection {
           '$labelStr   - ${pair.localCandidate.host}:${pair.localCandidate.port} -> ${pair.remoteCandidate.host}:${pair.remoteCandidate.port}');
     }
 
+    // RFC 8445 Section 7.2.1: Process early checks that were queued
+    _processEarlyChecks();
+
     // RFC 5245: Perform checks with retries
     // Try up to 3 rounds of connectivity checks to allow remote to be ready
     const maxRounds = 3;
@@ -1081,6 +1089,14 @@ class IceConnectionImpl implements IceConnection {
   /// Handle incoming STUN binding request
   void _handleStunRequest(
       StunMessage request, InternetAddress address, int port) {
+    // RFC 8445 Section 7.2.1: Queue early checks if check list isn't ready
+    if (_checkList.isEmpty && !_earlyChecksDone) {
+      _log.fine('[ICE] Queueing early check from ${address.address}:$port '
+          '(check list not ready, ${_earlyChecks.length + 1} queued)');
+      _earlyChecks.add(_EarlyCheck(request, address, port));
+      return;
+    }
+
     // RFC 8445 Section 7.2.1.1: Detecting and Repairing Role Conflicts
     if (!_handleRoleConflict(request, address, port)) {
       return; // Role conflict detected, 487 error response sent
@@ -1265,6 +1281,30 @@ class IceConnectionImpl implements IceConnection {
       sendSocket.send(responseBytes, address, port);
       _log.fine('[ICE] Sent 487 Role Conflict response to ${address.address}:$port');
     }
+  }
+
+  /// RFC 8445 Section 7.2.1: Process queued early connectivity checks
+  ///
+  /// Early checks are STUN requests that arrived before the check list was ready.
+  /// This handles them now that we have candidate pairs to work with.
+  void _processEarlyChecks() {
+    if (_earlyChecks.isEmpty) {
+      _earlyChecksDone = true;
+      return;
+    }
+
+    _log.fine('[ICE] Processing ${_earlyChecks.length} early checks');
+
+    for (final check in _earlyChecks) {
+      _log.fine('[ICE] Replaying early check from ${check.address.address}:${check.port}');
+      // Process the check now that check list is ready
+      // Skip the early check queue logic since we're already processing
+      _earlyChecksDone = true; // Prevent re-queueing
+      _handleStunRequest(check.request, check.address, check.port);
+    }
+
+    _earlyChecks.clear();
+    _earlyChecksDone = true;
   }
 
   /// Handle a triggered check - when controlled agent receives a check from controlling
@@ -2070,6 +2110,8 @@ class IceConnectionImpl implements IceConnection {
     _nominated = null;
     _localCandidatesEnd = false;
     _remoteCandidatesEnd = false;
+    _earlyChecks.clear();
+    _earlyChecksDone = false;
     _setState(IceState.newState);
   }
 
@@ -2082,4 +2124,14 @@ class IceConnectionImpl implements IceConnection {
     }
     return _localCandidates.isNotEmpty ? _localCandidates.first : null;
   }
+}
+
+/// Queued early connectivity check (RFC 8445 Section 7.2.1)
+/// Holds STUN requests that arrive before the check list is ready
+class _EarlyCheck {
+  final StunMessage request;
+  final InternetAddress address;
+  final int port;
+
+  _EarlyCheck(this.request, this.address, this.port);
 }

@@ -12,7 +12,7 @@ The Dart port achieves **~95-100% feature parity** with the TypeScript werift-we
 
 - ✅ **100%** parity on codec depacketizers (VP8, VP9, H.264, AV1, Opus)
 - ✅ **100%** parity on DTLS handshake and WebRTC-essential cipher suites
-- ✅ **100%** parity on SCTP core functionality
+- ✅ **100%** parity on SCTP (including partial reliability - RFC 3758)
 - ✅ **100%** parity on SRTP encryption/decryption
 - ✅ **100%** parity on RTP/RTCP (SR, RR, SDES compound packets)
 - ✅ **100%** parity on ICE (including consent freshness - RFC 7675)
@@ -23,7 +23,8 @@ The Dart port achieves **~95-100% feature parity** with the TypeScript werift-we
 - ✅ Added RTCP SDES (Source Description) packet support
 - ✅ Integrated SDES into compound RTCP packets (SR+SDES, RR+SDES)
 - ✅ Added ICE Consent Freshness (RFC 7675) with 5-second interval checks
-- ✅ All 1680+ tests passing, 0 analyzer issues
+- ✅ Added SCTP Partial Reliability (RFC 3758) with maxRetransmits/maxPacketLifeTime
+- ✅ All 1700+ tests passing, 0 analyzer issues
 
 ---
 
@@ -256,14 +257,13 @@ The Dart port achieves **~95-100% feature parity** with the TypeScript werift-we
 | Ordered/Unordered | ✅ | ✅ | Parity |
 | Congestion Control | ✅ | ✅ | Parity |
 | Fast Retransmit | ✅ | ✅ | Parity |
-| **Partial Reliability (send)** | ✅ | ❌ | **Gap** |
+| **Partial Reliability (send)** | ✅ | ✅ | Parity (Dec 2025) |
 | **Add Streams (RFC 6525)** | ✅ | ❌ | **Gap** |
 | User Data Max Length | 1200 | 1024 | Different default |
 
 ### Recommended Refactoring
 
-1. **Consider implementing send-side Partial Reliability** - Allows message expiry and max retransmits
-2. **Fragment size alignment** - Consider matching TypeScript's 1200 bytes for throughput
+1. **Fragment size alignment** - Consider matching TypeScript's 1200 bytes for throughput
 
 ---
 
@@ -428,10 +428,10 @@ The Dart port achieves **~95-100% feature parity** with the TypeScript werift-we
    - Useful for recording scenarios
    - Estimated effort: 3-5 days
 
-4. **Add SCTP Partial Reliability**
-   - File: `lib/src/sctp/association.dart`
-   - Enables message expiry for data channels
-   - Estimated effort: 1-2 days
+4. **~~Add SCTP Partial Reliability~~** ✅ DONE (December 2025)
+   - RFC 3758 support in `lib/src/sctp/association.dart`
+   - maxRetransmits and maxPacketLifeTime now supported
+   - DataChannel exposes reliability parameters to SCTP layer
 
 5. **Extract SDP Manager**
    - Consider separating SDP logic from PeerConnection
@@ -509,6 +509,7 @@ The Dart port successfully achieves WebRTC interoperability with all major brows
 **Gaps to Address:**
 - ~~RTCP SR/RR/SDES/BYE~~ ✅ DONE (December 2025)
 - ~~ICE consent freshness~~ ✅ DONE (December 2025)
+- ~~SCTP Partial Reliability~~ ✅ DONE (December 2025)
 - MP4 container completeness (medium priority)
 
-The port is production-ready for WebRTC data channels and media streaming, with the noted RTCP gaps primarily affecting advanced synchronization scenarios.
+The port is production-ready for WebRTC data channels and media streaming, now with full partial reliability support for unreliable DataChannels.

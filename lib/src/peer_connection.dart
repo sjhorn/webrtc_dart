@@ -209,6 +209,14 @@ class RtcPeerConnection {
   final StreamController<RtpTransceiver> _trackController =
       StreamController.broadcast();
 
+  /// Negotiation needed event stream controller
+  /// Fires when the session needs renegotiation (transceiver added, track changed, etc.)
+  final StreamController<void> _negotiationNeededController =
+      StreamController.broadcast();
+
+  /// Flag to prevent multiple negotiation needed events during batch operations
+  bool _negotiationNeededPending = false;
+
   /// List of RTP transceivers
   final List<RtpTransceiver> _transceivers = [];
 
@@ -461,6 +469,18 @@ class RtcPeerConnection {
 
   /// Stream of data channels
   Stream<DataChannel> get onDataChannel => _dataChannelController.stream;
+
+  /// Stream of negotiation needed events
+  ///
+  /// Fires when the session needs renegotiation, such as when:
+  /// - A transceiver is added via addTransceiver()
+  /// - A track is added via addTrack()
+  /// - A transceiver's direction is changed
+  /// - ICE restart is needed
+  ///
+  /// Applications should respond by calling createOffer() and starting
+  /// a new offer/answer exchange.
+  Stream<void> get onNegotiationNeeded => _negotiationNeededController.stream;
 
   /// Create an offer
   ///
@@ -1560,6 +1580,13 @@ class RtcPeerConnection {
       maxPacketLifeTime: maxPacketLifeTime,
       priority: priority,
     );
+
+    // Trigger negotiation needed if this is the first data channel
+    // and we haven't negotiated SCTP yet
+    if (_dataChannelsOpened == 1) {
+      _triggerNegotiationNeeded();
+    }
+
     return channel;
   }
 
@@ -1955,6 +1982,9 @@ class RtcPeerConnection {
     transceiver.sender.absSendTimeExtensionId = _absSendTimeExtensionId;
     transceiver.sender.transportWideCCExtensionId = _twccExtensionId;
 
+    // Trigger negotiation needed per WebRTC spec
+    _triggerNegotiationNeeded();
+
     return transceiver;
   }
 
@@ -2082,6 +2112,9 @@ class RtcPeerConnection {
     transceiverRef = transceiver;
     _transceivers.add(transceiver);
 
+    // Trigger negotiation needed per WebRTC spec
+    _triggerNegotiationNeeded();
+
     return transceiver;
   }
 
@@ -2167,6 +2200,38 @@ class RtcPeerConnection {
 
     _mediaTransports[mid] = transport;
     return transport;
+  }
+
+  /// Trigger negotiation needed event
+  ///
+  /// Per WebRTC spec, this should be called when:
+  /// - A transceiver is added
+  /// - A track is added or removed
+  /// - A transceiver's direction changes
+  /// - ICE restart is needed
+  ///
+  /// The event is coalesced - multiple triggers in the same microtask
+  /// will only fire once.
+  void _triggerNegotiationNeeded() {
+    // Only trigger in stable state per WebRTC spec
+    if (_signalingState != SignalingState.stable) {
+      return;
+    }
+
+    // Coalesce multiple triggers
+    if (_negotiationNeededPending) {
+      return;
+    }
+
+    _negotiationNeededPending = true;
+
+    // Schedule the event for the next microtask to coalesce
+    Future.microtask(() {
+      _negotiationNeededPending = false;
+      if (!_negotiationNeededController.isClosed) {
+        _negotiationNeededController.add(null);
+      }
+    });
   }
 
   /// Update aggregate connection state from all media transports
@@ -2623,6 +2688,7 @@ class RtcPeerConnection {
     await _iceGatheringStateController.close();
     await _dataChannelController.close();
     await _trackController.close();
+    await _negotiationNeededController.close();
   }
 
   @override

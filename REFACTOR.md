@@ -209,10 +209,10 @@ The Dart port achieves **~95-100% feature parity** with the TypeScript werift-we
 
 | Message Type | PT | TypeScript | Dart | Status |
 |--------------|----|-----------:|------|--------|
-| Sender Report (SR) | 200 | ✅ | ❌ | **Critical Gap** |
-| Receiver Report (RR) | 201 | ✅ | ❌ | **Critical Gap** |
-| Source Description (SDES) | 202 | ✅ | ❌ | **Gap** |
-| Goodbye (BYE) | 203 | ✅ | ❌ | **Gap** |
+| Sender Report (SR) | 200 | ✅ | ✅ | Parity |
+| Receiver Report (RR) | 201 | ✅ | ✅ | Parity |
+| Source Description (SDES) | 202 | ✅ | ✅ | Parity |
+| Goodbye (BYE) | 203 | ✅ | ❌ | **Gap** (not in werift either) |
 | Generic NACK | 205/FMT=1 | ✅ | ✅ | Parity |
 | TWCC | 205/FMT=15 | ✅ | ✅ | Parity |
 | PLI | 206/FMT=1 | ✅ | ✅ | Parity |
@@ -341,7 +341,7 @@ The Dart port achieves **~95-100% feature parity** with the TypeScript werift-we
 | restartIce | ✅ | ✅ | Parity |
 | setConfiguration | ✅ | ❌ | **Gap** (intentional) |
 | getConfiguration | ✅ | ❌ | **Gap** (intentional) |
-| onNegotiationNeeded | ✅ | ❌ | **Gap** |
+| onNegotiationNeeded | ✅ | ✅ | Parity |
 | waitForReady | ❌ | ✅ | **Dart unique** |
 
 ### Architecture Difference
@@ -355,7 +355,7 @@ The Dart port achieves **~95-100% feature parity** with the TypeScript werift-we
 ### Recommended Refactoring
 
 1. **Consider extracting SDP logic** - Might improve maintainability
-2. **Add onNegotiationNeeded** - Would improve W3C compliance
+2. ~~**Add onNegotiationNeeded**~~ - DONE (implemented with event coalescing)
 
 ---
 

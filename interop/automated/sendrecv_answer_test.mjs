@@ -18,51 +18,27 @@
  *   node interop/automated/sendrecv_answer_test.mjs [chrome|firefox|webkit|all]
  */
 
-import { chromium, firefox, webkit } from 'playwright';
-import { getBrowserArg } from './test_utils.mjs';
+import {
+  getBrowserArg,
+  getBrowserType,
+  getAllBrowsers,
+  launchBrowser,
+  closeBrowser,
+  setupConsoleLogging,
+  checkServer,
+} from './browser_utils.mjs';
 
 const SERVER_URL = 'http://localhost:8777';
-const TEST_TIMEOUT = 60000;
 
-async function runBrowserTest(browserType, browserName) {
+async function runBrowserTest(browserName) {
   console.log(`\n${'='.repeat(60)}`);
   console.log(`Testing Sendrecv Answer (Echo): ${browserName}`);
   console.log('='.repeat(60));
 
-  let browser;
-  let context;
-  let page;
+  const { browser, context, page } = await launchBrowser(browserName, { headless: true });
+  setupConsoleLogging(page, browserName);
 
   try {
-    console.log(`[${browserName}] Launching browser...`);
-
-    // Browser-specific launch args
-    // Note: Removed fake device flags as they interfere with video echo detection
-    const launchArgs = browserName === 'chrome' ? [
-      '--autoplay-policy=no-user-gesture-required',
-    ] : [];
-
-    // headless: true works with canvas fallback for Safari
-    browser = await browserType.launch({
-      headless: true,
-      args: launchArgs,
-    });
-
-    // Only Chrome supports permission grants in Playwright this way
-    const contextOptions = browserName === 'chrome'
-      ? { permissions: ['microphone', 'camera'] }
-      : {};
-
-    context = await browser.newContext(contextOptions);
-    page = await context.newPage();
-
-    page.on('console', msg => {
-      const text = msg.text();
-      if (!text.startsWith('TEST_RESULT:')) {
-        console.log(`[${browserName}] ${text}`);
-      }
-    });
-
     console.log(`[${browserName}] Loading test page...`);
     await page.goto(SERVER_URL, { timeout: 10000 });
 
@@ -77,11 +53,7 @@ async function runBrowserTest(browserType, browserName) {
           }
         };
         setTimeout(check, 100);
-
-        // Timeout after 50 seconds
-        setTimeout(() => {
-          resolve({ success: false, error: 'Test timeout' });
-        }, 50000);
+        setTimeout(() => resolve({ success: false, error: 'Test timeout' }), 50000);
       });
     });
 
@@ -97,28 +69,18 @@ async function runBrowserTest(browserType, browserName) {
       console.log(`  Error: ${result.error}`);
     }
 
-    return {
-      browser: browserName,
-      ...result,
-    };
+    return { browser: browserName, ...result };
 
   } catch (error) {
     console.error(`[${browserName}] Error: ${error.message}`);
-    return {
-      browser: browserName,
-      success: false,
-      error: error.message,
-    };
+    return { browser: browserName, success: false, error: error.message };
   } finally {
-    if (page) await page.close().catch(() => {});
-    if (context) await context.close().catch(() => {});
-    if (browser) await browser.close().catch(() => {});
+    await closeBrowser({ browser, context, page });
   }
 }
 
 async function main() {
-  // Support both: BROWSER=firefox node test.mjs OR node test.mjs firefox
-  const browserArg = getBrowserArg() || 'all';
+  const browserArg = getBrowserArg();
 
   console.log('WebRTC Sendrecv Answer (Echo) Browser Test');
   console.log('==========================================');
@@ -126,33 +88,24 @@ async function main() {
   console.log(`Browser: ${browserArg}`);
   console.log('Pattern: Browser=Offerer, Dart=Answerer (Echo)');
 
-  // Check if server is running
-  try {
-    const resp = await fetch(`${SERVER_URL}/status`);
-    if (!resp.ok) throw new Error('Server not responding');
-  } catch (e) {
-    console.error('\nError: Sendrecv Answer server is not running!');
-    console.error('Start it with: dart run interop/automated/sendrecv_answer_server.dart');
-    process.exit(1);
-  }
+  await checkServer(SERVER_URL, 'dart run interop/automated/sendrecv_answer_server.dart');
 
   const results = [];
 
-  if (browserArg === 'all' || browserArg === 'chrome') {
-    results.push(await runBrowserTest(chromium, 'chrome'));
-    await new Promise(r => setTimeout(r, 2000)); // Increased delay for server cleanup
-  }
-
-  // Firefox - ICE fails with our implementation (known issue)
-  // Still run in 'all' mode to verify cleanup works between tests
-  if (browserArg === 'all' || browserArg === 'firefox') {
-    console.log('\n[firefox] Note: Firefox ICE typically fails with Dart implementation');
-    results.push(await runBrowserTest(firefox, 'firefox'));
-    await new Promise(r => setTimeout(r, 2000));
-  }
-
-  if (browserArg === 'all' || browserArg === 'webkit' || browserArg === 'safari') {
-    results.push(await runBrowserTest(webkit, 'safari'));
+  if (browserArg === 'all') {
+    for (const { browserName } of getAllBrowsers()) {
+      if (browserName === 'firefox') {
+        console.log('\n[firefox] Note: Firefox ICE typically fails with Dart implementation');
+      }
+      results.push(await runBrowserTest(browserName));
+      await new Promise(r => setTimeout(r, 2000));
+    }
+  } else {
+    const { browserName } = getBrowserType(browserArg);
+    if (browserName === 'firefox') {
+      console.log('\n[firefox] Note: Firefox ICE typically fails with Dart implementation');
+    }
+    results.push(await runBrowserTest(browserName));
   }
 
   console.log('\n' + '='.repeat(60));
@@ -160,7 +113,7 @@ async function main() {
   console.log('='.repeat(60));
 
   for (const result of results) {
-    const status = result.success ? '+ PASS' : 'x FAIL';
+    const status = result.success ? '✓ PASS' : '✗ FAIL';
     console.log(`${status} - ${result.browser}`);
     if (result.success) {
       console.log(`       Recv: ${result.packetsReceived}, Echo: ${result.packetsEchoed}`);

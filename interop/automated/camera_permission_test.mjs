@@ -13,10 +13,12 @@
  *   node camera_permission_test.mjs safari   # Test Safari only
  */
 
-import { chromium, firefox, webkit } from 'playwright';
 import http from 'http';
-
-const browserArg = process.argv[2] || 'all';
+import {
+  getBrowserArg,
+  launchBrowser,
+  closeBrowser,
+} from './browser_utils.mjs';
 
 // Simple HTML page with getUserMedia test
 const testHtml = `
@@ -103,49 +105,15 @@ function startServer(port) {
   });
 }
 
-async function testBrowser(browserType, name, serverUrl, headless = true) {
+async function testBrowser(browserName, serverUrl, headless = true) {
   const mode = headless ? 'headless' : 'headed';
   console.log(`\n${'='.repeat(50)}`);
-  console.log(`Testing ${name} (${mode})...`);
+  console.log(`Testing ${browserName} (${mode})...`);
   console.log('='.repeat(50));
 
-  let browser = null;
-  let context = null;
-  let page = null;
+  const { browser, context, page } = await launchBrowser(browserName, { headless });
 
   try {
-    // Launch options - match our working test patterns
-    const launchOptions = { headless };
-
-    // Chrome: use fake media devices
-    if (name === 'Chrome') {
-      launchOptions.args = [
-        '--use-fake-ui-for-media-stream',
-        '--use-fake-device-for-media-stream',
-      ];
-    }
-
-    // Firefox: use firefoxUserPrefs in launch
-    if (name === 'Firefox') {
-      launchOptions.firefoxUserPrefs = {
-        'media.navigator.streams.fake': true,
-        'media.navigator.permission.disabled': true,
-      };
-    }
-
-    browser = await browserType.launch(launchOptions);
-
-    // Context options - match our working patterns
-    const contextOptions = {};
-
-    if (name === 'Chrome') {
-      // Chrome uses permissions array
-      contextOptions.permissions = ['camera'];
-    }
-
-    context = await browser.newContext(contextOptions);
-    page = await context.newPage();
-
     // Navigate to localhost server
     await page.goto(serverUrl, { timeout: 10000 });
 
@@ -169,7 +137,7 @@ async function testBrowser(browserType, name, serverUrl, headless = true) {
     });
 
     if (result.success) {
-      console.log(`  ✓ SUCCESS: Camera access granted`);
+      console.log(`  \u2713 SUCCESS: Camera access granted`);
       console.log(`    Secure context: ${result.isSecureContext}`);
       console.log(`    Label: ${result.label}`);
       console.log(`    State: ${result.readyState}`);
@@ -177,23 +145,21 @@ async function testBrowser(browserType, name, serverUrl, headless = true) {
       if (result.frameRate) {
         console.log(`    Frame rate: ${result.frameRate}`);
       }
-      return { browser: name, mode, success: true, details: result };
+      return { browser: browserName, mode, success: true, details: result };
     } else {
-      console.log(`  ✗ FAILED: ${result.error}`);
+      console.log(`  \u2717 FAILED: ${result.error}`);
       console.log(`    Secure context: ${result.isSecureContext}`);
       if (result.errorName) {
         console.log(`    Error type: ${result.errorName}`);
       }
-      return { browser: name, mode, success: false, error: result.error };
+      return { browser: browserName, mode, success: false, error: result.error };
     }
 
   } catch (err) {
-    console.log(`  ✗ ERROR: ${err.message}`);
-    return { browser: name, mode, success: false, error: err.message };
+    console.log(`  \u2717 ERROR: ${err.message}`);
+    return { browser: browserName, mode, success: false, error: err.message };
   } finally {
-    if (page) await page.close().catch(() => {});
-    if (context) await context.close().catch(() => {});
-    if (browser) await browser.close().catch(() => {});
+    await closeBrowser({ browser, context, page });
   }
 }
 
@@ -218,21 +184,19 @@ async function main() {
 
   const results = [];
 
-  const browsers = [
-    { type: chromium, name: 'Chrome' },
-    { type: firefox, name: 'Firefox' },
-    { type: webkit, name: 'Safari' },
-  ];
+  const browserArg = getBrowserArg() || 'all';
 
-  // Filter browsers based on argument
-  const browsersToTest = browsers.filter(b => {
-    if (browserArg === 'all') return true;
-    const arg = browserArg.toLowerCase();
-    if (arg === 'chrome' || arg === 'chromium') return b.name === 'Chrome';
-    if (arg === 'firefox') return b.name === 'Firefox';
-    if (arg === 'safari' || arg === 'webkit') return b.name === 'Safari';
-    return false;
-  });
+  // Determine which browsers to test
+  const browsersToTest = [];
+  if (browserArg === 'all' || browserArg === 'chrome' || browserArg === 'chromium') {
+    browsersToTest.push('chrome');
+  }
+  if (browserArg === 'all' || browserArg === 'firefox') {
+    browsersToTest.push('firefox');
+  }
+  if (browserArg === 'all' || browserArg === 'safari' || browserArg === 'webkit') {
+    browsersToTest.push('safari');
+  }
 
   if (browsersToTest.length === 0) {
     console.log(`Unknown browser: ${browserArg}`);
@@ -243,20 +207,20 @@ async function main() {
 
   // Test headless mode
   console.log('\n*** HEADLESS MODE TESTS ***');
-  for (const { type, name } of browsersToTest) {
-    const result = await testBrowser(type, name, serverUrl, true);
+  for (const browserName of browsersToTest) {
+    const result = await testBrowser(browserName, serverUrl, true);
     results.push(result);
   }
 
   // Test headed mode for browsers that failed headless
   console.log('\n\n*** HEADED MODE TESTS (for failed headless) ***');
-  for (const { type, name } of browsersToTest) {
-    const headlessResult = results.find(r => r.browser === name && r.mode === 'headless');
+  for (const browserName of browsersToTest) {
+    const headlessResult = results.find(r => r.browser === browserName && r.mode === 'headless');
     if (!headlessResult?.success) {
-      const result = await testBrowser(type, name, serverUrl, false);
+      const result = await testBrowser(browserName, serverUrl, false);
       results.push(result);
     } else {
-      console.log(`\nSkipping ${name} headed test (headless works)`);
+      console.log(`\nSkipping ${browserName} headed test (headless works)`);
     }
   }
 
@@ -273,7 +237,7 @@ async function main() {
 
   console.log('\nHeadless mode:');
   for (const r of headlessResults) {
-    const status = r.success ? '✓ PASS' : '✗ FAIL';
+    const status = r.success ? '\u2713 PASS' : '\u2717 FAIL';
     const shortError = r.error ? ` (${r.error.substring(0, 50)}...)` : '';
     console.log(`  ${r.browser}: ${status}${shortError}`);
   }
@@ -281,7 +245,7 @@ async function main() {
   if (headedResults.length > 0) {
     console.log('\nHeaded mode:');
     for (const r of headedResults) {
-      const status = r.success ? '✓ PASS' : '✗ FAIL';
+      const status = r.success ? '\u2713 PASS' : '\u2717 FAIL';
       const shortError = r.error ? ` (${r.error.substring(0, 50)}...)` : '';
       console.log(`  ${r.browser}: ${status}${shortError}`);
     }
@@ -289,24 +253,24 @@ async function main() {
 
   // Recommendations
   console.log('\n\nRECOMMENDATIONS:');
-  for (const { type, name } of browsersToTest) {
-    const headless = results.find(r => r.browser === name && r.mode === 'headless');
-    const headed = results.find(r => r.browser === name && r.mode === 'headed');
+  for (const browserName of browsersToTest) {
+    const headless = results.find(r => r.browser === browserName && r.mode === 'headless');
+    const headed = results.find(r => r.browser === browserName && r.mode === 'headed');
 
     if (headless?.success) {
-      console.log(`  ${name}: ✓ Use headless mode`);
-      if (name === 'Chrome') {
+      console.log(`  ${browserName}: \u2713 Use headless mode`);
+      if (browserName === 'chrome') {
         console.log(`           args: ['--use-fake-ui-for-media-stream', '--use-fake-device-for-media-stream']`);
         console.log(`           permissions: ['camera']`);
-      } else if (name === 'Firefox') {
+      } else if (browserName === 'firefox') {
         console.log(`           firefoxUserPrefs: { 'media.navigator.streams.fake': true, 'media.navigator.permission.disabled': true }`);
-      } else if (name === 'Safari') {
+      } else if (browserName === 'safari') {
         console.log(`           No special config needed (uses fake media by default)`);
       }
     } else if (headed?.success) {
-      console.log(`  ${name}: ⚠ Use headed mode only (headless not supported)`);
+      console.log(`  ${browserName}: Warning - Use headed mode only (headless not supported)`);
     } else {
-      console.log(`  ${name}: ✗ Camera not available`);
+      console.log(`  ${browserName}: \u2717 Camera not available`);
     }
   }
 

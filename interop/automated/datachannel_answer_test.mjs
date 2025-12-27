@@ -17,49 +17,27 @@
  *   node interop/automated/datachannel_answer_test.mjs [chrome|firefox|webkit|all]
  */
 
-import { chromium, firefox, webkit } from 'playwright';
-import { getBrowserArg } from './test_utils.mjs';
+import {
+  getBrowserArg,
+  getBrowserType,
+  getAllBrowsers,
+  launchBrowser,
+  closeBrowser,
+  setupConsoleLogging,
+  checkServer,
+} from './browser_utils.mjs';
 
 const SERVER_URL = 'http://localhost:8775';
-const TEST_TIMEOUT = 60000;
 
-async function runBrowserTest(browserType, browserName) {
+async function runBrowserTest(browserName) {
   console.log(`\n${'='.repeat(60)}`);
   console.log(`Testing DataChannel Answer: ${browserName}`);
   console.log('='.repeat(60));
 
-  let browser;
-  let context;
-  let page;
+  const { browser, context, page } = await launchBrowser(browserName, { headless: true });
+  setupConsoleLogging(page, browserName);
 
   try {
-    console.log(`[${browserName}] Launching browser...`);
-
-    // Launch options - firefoxUserPrefs must be at launch time
-    const launchOptions = {
-      headless: true,
-    };
-
-    if (browserName === 'firefox') {
-      launchOptions.firefoxUserPrefs = {
-        'media.navigator.permission.disabled': true,
-      };
-    }
-
-    browser = await browserType.launch(launchOptions);
-
-    const contextOptions = {};
-
-    context = await browser.newContext(contextOptions);
-    page = await context.newPage();
-
-    page.on('console', msg => {
-      const text = msg.text();
-      if (!text.startsWith('TEST_RESULT:')) {
-        console.log(`[${browserName}] ${text}`);
-      }
-    });
-
     console.log(`[${browserName}] Loading test page...`);
     await page.goto(SERVER_URL, { timeout: 10000 });
 
@@ -74,11 +52,7 @@ async function runBrowserTest(browserType, browserName) {
           }
         };
         setTimeout(check, 100);
-
-        // Timeout after 40 seconds
-        setTimeout(() => {
-          resolve({ success: false, error: 'Test timeout' });
-        }, 40000);
+        setTimeout(() => resolve({ success: false, error: 'Test timeout' }), 40000);
       });
     });
 
@@ -93,28 +67,18 @@ async function runBrowserTest(browserType, browserName) {
       console.log(`  Error: ${result.error}`);
     }
 
-    return {
-      browser: browserName,
-      ...result,
-    };
+    return { browser: browserName, ...result };
 
   } catch (error) {
     console.error(`[${browserName}] Error: ${error.message}`);
-    return {
-      browser: browserName,
-      success: false,
-      error: error.message,
-    };
+    return { browser: browserName, success: false, error: error.message };
   } finally {
-    if (page) await page.close().catch(() => {});
-    if (context) await context.close().catch(() => {});
-    if (browser) await browser.close().catch(() => {});
+    await closeBrowser({ browser, context, page });
   }
 }
 
 async function main() {
-  // Support both: BROWSER=firefox node test.mjs OR node test.mjs firefox
-  const browserArg = getBrowserArg() || 'all';
+  const browserArg = getBrowserArg();
 
   console.log('WebRTC DataChannel Answer Browser Test');
   console.log('======================================');
@@ -122,32 +86,24 @@ async function main() {
   console.log(`Browser: ${browserArg}`);
   console.log('Pattern: Browser=Offerer, Dart=Answerer');
 
-  // Check if server is running
-  try {
-    const resp = await fetch(`${SERVER_URL}/status`);
-    if (!resp.ok) throw new Error('Server not responding');
-  } catch (e) {
-    console.error('\nError: DataChannel Answer server is not running!');
-    console.error('Start it with: dart run interop/automated/datachannel_answer_server.dart');
-    process.exit(1);
-  }
+  await checkServer(SERVER_URL, 'dart run interop/automated/datachannel_answer_server.dart');
 
   const results = [];
 
-  if (browserArg === 'all' || browserArg === 'chrome') {
-    results.push(await runBrowserTest(chromium, 'chrome'));
-    await new Promise(r => setTimeout(r, 1000));
-  }
-
-  // Try Firefox! This pattern (browser=offerer) might work
-  if (browserArg === 'all' || browserArg === 'firefox') {
-    console.log('\n[firefox] Testing Firefox (browser is offerer - may work!)');
-    results.push(await runBrowserTest(firefox, 'firefox'));
-    await new Promise(r => setTimeout(r, 1000));
-  }
-
-  if (browserArg === 'all' || browserArg === 'webkit' || browserArg === 'safari') {
-    results.push(await runBrowserTest(webkit, 'safari'));
+  if (browserArg === 'all') {
+    for (const { browserName } of getAllBrowsers()) {
+      if (browserName === 'firefox') {
+        console.log('\n[firefox] Testing Firefox (browser is offerer - may work!)');
+      }
+      results.push(await runBrowserTest(browserName));
+      await new Promise(r => setTimeout(r, 1000));
+    }
+  } else {
+    const { browserName } = getBrowserType(browserArg);
+    if (browserName === 'firefox') {
+      console.log('\n[firefox] Testing Firefox (browser is offerer - may work!)');
+    }
+    results.push(await runBrowserTest(browserName));
   }
 
   console.log('\n' + '='.repeat(60));
@@ -155,7 +111,7 @@ async function main() {
   console.log('='.repeat(60));
 
   for (const result of results) {
-    const status = result.success ? '+ PASS' : 'x FAIL';
+    const status = result.success ? '✓ PASS' : '✗ FAIL';
     console.log(`${status} - ${result.browser}`);
     if (result.success) {
       console.log(`       Sent: ${result.messagesSent}, Received: ${result.messagesReceived}`);

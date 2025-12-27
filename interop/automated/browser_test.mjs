@@ -15,53 +15,25 @@
  *   node interop/automated/browser_test.mjs all
  */
 
-import { chromium, firefox, webkit } from 'playwright';
-import { getBrowserArg } from './test_utils.mjs';
+import {
+  getBrowserArg,
+  launchBrowser,
+  closeBrowser,
+  setupConsoleLogging,
+  checkServer,
+} from './browser_utils.mjs';
 
 const SERVER_URL = 'http://localhost:8765';
-const TEST_TIMEOUT = 60000; // 60 seconds
 
-async function runBrowserTest(browserType, browserName) {
+async function runBrowserTest(browserName) {
   console.log(`\n${'='.repeat(60)}`);
   console.log(`Testing: ${browserName}`);
   console.log('='.repeat(60));
 
-  let browser;
-  let context;
-  let page;
+  const { browser, context, page } = await launchBrowser(browserName, { headless: true });
+  setupConsoleLogging(page, browserName);
 
   try {
-    // Launch browser
-    console.log(`[${browserName}] Launching browser...`);
-    browser = await browserType.launch({
-      headless: true,
-      args: browserName === 'chrome' ? [
-        '--use-fake-ui-for-media-stream',
-        '--use-fake-device-for-media-stream',
-      ] : [],
-    });
-
-    // Only Chromium supports media permissions - skip for Firefox/WebKit
-    // For DataChannel tests we don't need media permissions anyway
-    const contextOptions = browserName === 'chrome'
-      ? { permissions: ['microphone', 'camera'] }
-      : {};
-    context = await browser.newContext(contextOptions);
-
-    page = await context.newPage();
-
-    // Listen for console messages
-    const logs = [];
-    page.on('console', msg => {
-      const text = msg.text();
-      logs.push(text);
-      if (text.startsWith('TEST_RESULT:')) {
-        // Will be captured by evaluate
-      } else {
-        console.log(`[${browserName}] ${text}`);
-      }
-    });
-
     // Navigate to test page
     console.log(`[${browserName}] Loading test page...`);
     await page.goto(SERVER_URL, { timeout: 10000 });
@@ -112,9 +84,7 @@ async function runBrowserTest(browserType, browserName) {
       error: error.message,
     };
   } finally {
-    if (page) await page.close().catch(() => {});
-    if (context) await context.close().catch(() => {});
-    if (browser) await browser.close().catch(() => {});
+    await closeBrowser({ browser, context, page });
   }
 }
 
@@ -127,29 +97,21 @@ async function main() {
   console.log(`Server: ${SERVER_URL}`);
   console.log(`Browser: ${browserArg}`);
 
-  // Check server is running
-  try {
-    const resp = await fetch(`${SERVER_URL}/status`);
-    if (!resp.ok) throw new Error('Server not responding');
-  } catch (e) {
-    console.error('\nError: Dart signaling server is not running!');
-    console.error('Start it with: dart run interop/automated/dart_signaling_server.dart');
-    process.exit(1);
-  }
+  await checkServer(SERVER_URL, 'dart run interop/automated/dart_signaling_server.dart');
 
   const results = [];
 
   // Run tests based on argument
   if (browserArg === 'all' || browserArg === 'chrome') {
-    results.push(await runBrowserTest(chromium, 'chrome'));
+    results.push(await runBrowserTest('chrome'));
   }
 
   if (browserArg === 'all' || browserArg === 'firefox') {
-    results.push(await runBrowserTest(firefox, 'firefox'));
+    results.push(await runBrowserTest('firefox'));
   }
 
   if (browserArg === 'all' || browserArg === 'webkit' || browserArg === 'safari') {
-    results.push(await runBrowserTest(webkit, 'safari'));
+    results.push(await runBrowserTest('safari'));
   }
 
   // Print summary
@@ -159,7 +121,7 @@ async function main() {
 
   let allPassed = true;
   for (const result of results) {
-    const status = result.success ? '✓ PASS' : '✗ FAIL';
+    const status = result.success ? '\u2713 PASS' : '\u2717 FAIL';
     console.log(`${status} - ${result.browser}`);
     if (!result.success) {
       allPassed = false;

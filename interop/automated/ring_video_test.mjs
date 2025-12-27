@@ -14,12 +14,15 @@
  *   node interop/automated/ring_video_test.mjs [chrome|firefox|webkit]
  */
 
-import { chromium, firefox, webkit } from 'playwright';
-import { getBrowserArg } from './test_utils.mjs';
+import {
+  getBrowserArg,
+  launchBrowser,
+  closeBrowser,
+  setupConsoleLogging,
+} from './browser_utils.mjs';
 
 const HTTP_SERVER_URL = 'http://localhost:8080';
 const STATUS_URL = `${HTTP_SERVER_URL}/status`;
-const TEST_TIMEOUT = 60000; // 60 seconds
 
 async function waitForRingConnection(maxWaitMs = 30000) {
   console.log('[Test] Waiting for Ring camera connection...');
@@ -49,14 +52,10 @@ async function waitForRingConnection(maxWaitMs = 30000) {
   return false;
 }
 
-async function runBrowserTest(browserType, browserName) {
+async function runBrowserTest(browserName) {
   console.log(`\n${'='.repeat(60)}`);
   console.log(`Testing: ${browserName}`);
   console.log('='.repeat(60));
-
-  let browser;
-  let context;
-  let page;
 
   try {
     // Wait for Ring camera to be streaming
@@ -71,74 +70,60 @@ async function runBrowserTest(browserType, browserName) {
 
     // Launch browser
     console.log(`[${browserName}] Launching browser...`);
-    browser = await browserType.launch({
-      headless: true,
-      args: browserName === 'chrome' ? [
-        '--use-fake-ui-for-media-stream',
-        '--use-fake-device-for-media-stream',
-        '--autoplay-policy=no-user-gesture-required',
-      ] : [],
-    });
+    const { browser, context, page } = await launchBrowser(browserName, { headless: true });
+    setupConsoleLogging(page, browserName);
 
-    context = await browser.newContext();
-    page = await context.newPage();
+    try {
+      // Navigate to test page
+      console.log(`[${browserName}] Loading test page...`);
+      await page.goto(HTTP_SERVER_URL, { timeout: 10000 });
 
-    // Listen for console messages
-    const logs = [];
-    page.on('console', msg => {
-      const text = msg.text();
-      logs.push(text);
-      if (!text.startsWith('TEST_RESULT:')) {
-        console.log(`[${browserName}] ${text}`);
-      }
-    });
+      // Wait for test to complete
+      console.log(`[${browserName}] Running video streaming test...`);
+      const result = await page.evaluate(async () => {
+        return new Promise((resolve) => {
+          const check = () => {
+            if (window.testResult) {
+              resolve(window.testResult);
+            } else {
+              setTimeout(check, 100);
+            }
+          };
+          setTimeout(check, 100);
 
-    // Navigate to test page
-    console.log(`[${browserName}] Loading test page...`);
-    await page.goto(HTTP_SERVER_URL, { timeout: 10000 });
-
-    // Wait for test to complete
-    console.log(`[${browserName}] Running video streaming test...`);
-    const result = await page.evaluate(async () => {
-      return new Promise((resolve) => {
-        const check = () => {
-          if (window.testResult) {
-            resolve(window.testResult);
-          } else {
-            setTimeout(check, 100);
-          }
-        };
-        setTimeout(check, 100);
-
-        // Timeout after 45 seconds
-        setTimeout(() => {
-          resolve({
-            success: false,
-            error: 'Test timeout waiting for video',
-            videoFrameCount: window.videoFrameCount || 0,
-          });
-        }, 45000);
+          // Timeout after 45 seconds
+          setTimeout(() => {
+            resolve({
+              success: false,
+              error: 'Test timeout waiting for video',
+              videoFrameCount: window.videoFrameCount || 0,
+            });
+          }, 45000);
+        });
       });
-    });
 
-    // Print results
-    console.log(`\n[${browserName}] Test Result:`);
-    console.log(`  Success: ${result.success}`);
-    console.log(`  Video frames received: ${result.videoFrameCount || 0}`);
-    if (result.testDurationMs) {
-      console.log(`  Test duration: ${result.testDurationMs}ms`);
-    }
-    if (result.connectionState) {
-      console.log(`  Connection state: ${result.connectionState}`);
-    }
-    if (result.error) {
-      console.log(`  Error: ${result.error}`);
-    }
+      // Print results
+      console.log(`\n[${browserName}] Test Result:`);
+      console.log(`  Success: ${result.success}`);
+      console.log(`  Video frames received: ${result.videoFrameCount || 0}`);
+      if (result.testDurationMs) {
+        console.log(`  Test duration: ${result.testDurationMs}ms`);
+      }
+      if (result.connectionState) {
+        console.log(`  Connection state: ${result.connectionState}`);
+      }
+      if (result.error) {
+        console.log(`  Error: ${result.error}`);
+      }
 
-    return {
-      browser: browserName,
-      ...result,
-    };
+      return {
+        browser: browserName,
+        ...result,
+      };
+
+    } finally {
+      await closeBrowser({ browser, context, page });
+    }
 
   } catch (error) {
     console.error(`[${browserName}] Error: ${error.message}`);
@@ -147,10 +132,6 @@ async function runBrowserTest(browserType, browserName) {
       success: false,
       error: error.message,
     };
-  } finally {
-    if (page) await page.close().catch(() => {});
-    if (context) await context.close().catch(() => {});
-    if (browser) await browser.close().catch(() => {});
   }
 }
 
@@ -189,7 +170,7 @@ async function main() {
 
   // Run tests based on argument
   if (browserArg === 'all' || browserArg === 'chrome') {
-    results.push(await runBrowserTest(chromium, 'chrome'));
+    results.push(await runBrowserTest('chrome'));
   }
 
   // Firefox skipped - H264 not available in headless Playwright
@@ -199,7 +180,7 @@ async function main() {
   }
 
   if (browserArg === 'all' || browserArg === 'webkit' || browserArg === 'safari') {
-    results.push(await runBrowserTest(webkit, 'safari'));
+    results.push(await runBrowserTest('safari'));
   }
 
   // Print summary
@@ -209,7 +190,7 @@ async function main() {
 
   let allPassed = true;
   for (const result of results) {
-    const status = result.success ? '✓ PASS' : '✗ FAIL';
+    const status = result.success ? '\u2713 PASS' : '\u2717 FAIL';
     const frames = result.videoFrameCount ? ` (${result.videoFrameCount} frames)` : '';
     console.log(`${status} - ${result.browser}${frames}`);
     if (!result.success) {

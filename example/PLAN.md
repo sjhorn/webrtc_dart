@@ -141,15 +141,15 @@ This document tracks verification of each example against werift-webrtc behavior
 **Media Recvonly Test Results (Dec 2025):**
 - Test infrastructure: `interop/automated/media_recvonly_server.dart` + `media_recvonly_test.mjs`
 - Chrome: **PASS** - 211 RTP packets received from browser camera
-- Safari: **PASS** - 202 RTP packets received from browser camera
-- Firefox: **SKIP** - getUserMedia not supported in headless Playwright Firefox
+- Safari: **PASS** - 202 RTP packets received (uses canvas stream fallback)
+- Firefox: **PASS** - 232 RTP packets received (requires `firefoxUserPrefs` at launch time)
 
 **Media Sendrecv (Echo) Test Results (Dec 2025):**
 - Test infrastructure: `interop/automated/media_sendrecv_server.dart` + `media_sendrecv_test.mjs`
 - Pattern: Dart receives browser camera video, echoes it back via RTP forwarding
 - Chrome: **PASS** - 210 packets received, 75 echo frames displayed
-- Safari: **PASS** - 198 packets received, 161 echo frames displayed
-- Firefox: **SKIP** - getUserMedia not supported in headless Playwright Firefox
+- Safari: **PASS** - 196 packets received, 115 echo frames displayed (uses canvas stream fallback)
+- Firefox: **PASS** - 259 packets received, 154 echo frames displayed
 
 **Multi-Client Sendonly (Broadcast) Test Results (Dec 2025):**
 - Test infrastructure: `interop/automated/multi_client_sendonly_server.dart` + `multi_client_sendonly_test.mjs`
@@ -654,9 +654,46 @@ context = await browser.newContext({});
 ```
 
 **Safari/WebKit:**
-- Headless mode does NOT support getUserMedia
-- Must use `headless: false` for camera access tests
-- Safari uses fake media by default in Playwright
+- Headless mode does NOT support `getUserMedia()` - permission always denied
+- `grantPermissions(['camera'])` API is NOT supported by WebKit
+- **Solution: Canvas Stream Fallback**
+  - When `getUserMedia()` fails, use `canvas.captureStream(30)` instead
+  - Create an animated canvas drawing at 30fps
+  - This produces a valid MediaStream that works with WebRTC
+  - No permissions required - works in headless mode
+- All server files include a `createCanvasStream()` helper function:
+```javascript
+// Canvas stream fallback for Safari headless
+function createCanvasStream(width, height, frameRate) {
+    const canvas = document.createElement('canvas');
+    canvas.width = width;
+    canvas.height = height;
+    const ctx = canvas.getContext('2d');
+    let frame = 0;
+    function draw() {
+        ctx.fillStyle = '#1a1a2e';
+        ctx.fillRect(0, 0, width, height);
+        const x = width/2 + Math.sin(frame * 0.05) * (width/4);
+        const y = height/2 + Math.cos(frame * 0.03) * (height/4);
+        ctx.beginPath();
+        ctx.arc(x, y, 40, 0, Math.PI * 2);
+        ctx.fillStyle = '#ff6b6b';
+        ctx.fill();
+        frame++;
+        requestAnimationFrame(draw);
+    }
+    draw();
+    return canvas.captureStream(frameRate);
+}
+
+// Usage in test:
+try {
+    localStream = await navigator.mediaDevices.getUserMedia({video: true});
+} catch (e) {
+    console.log('Camera unavailable, using canvas fallback');
+    localStream = createCanvasStream(640, 480, 30);
+}
+```
 
 ### Manual Browser Testing
 
@@ -824,3 +861,21 @@ For each placeholder:
      - `example/mediachannel/pubsub/offer.dart` - VP8 keyframe detection and caching logic
    - **Result**: Video now plays (640x480) for subscribers - cached keyframe enables immediate decoding
    - **Test files**: `interop/automated/pubsub_test.mjs`
+
+6. **Safari headless camera access** (FIXED Dec 2025)
+   - **Status**: RESOLVED with canvas stream fallback
+   - **Root Cause**: Safari/WebKit headless mode always denies `getUserMedia()` permission
+   - **The Bug**: Unlike Chrome (which has `--use-fake-device-for-media-stream`) and Firefox (which has `firefoxUserPrefs`), Safari has no way to grant camera permission in headless mode. The `grantPermissions(['camera'])` API throws "Unknown permission: camera".
+   - **Investigation**: Tested various approaches:
+     - `headless: false` with fake streams - still prompts for permission
+     - `grantPermissions(['camera'])` - not supported by WebKit
+     - `about:blank` with inline JS - not a secure context
+   - **Solution**: Use `canvas.captureStream()` as fallback when `getUserMedia()` fails
+     - Canvas API works without permissions in all modes
+     - `captureStream(30)` produces a valid MediaStream at 30fps
+     - Animated canvas provides varied video content for testing
+   - **Files Changed**: 30 server files in `interop/automated/` - added `createCanvasStream()` helper and fallback logic
+   - **Result**: All Safari media tests now pass in headless mode
+   - **Commits**:
+     - `5830dd9` - Fix Firefox headless camera access (firefoxUserPrefs at launch time)
+     - `9b41c90` - Add canvas stream fallback for Safari headless camera access

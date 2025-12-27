@@ -32,14 +32,20 @@ class SrtcpCipher {
   /// Encrypt RTCP packet
   /// Returns encrypted SRTCP packet bytes
   Future<Uint8List> encrypt(RtcpPacket packet) async {
+    return encryptBytes(packet.serialize());
+  }
+
+  /// Encrypt compound RTCP packet (pre-serialized bytes)
+  /// Used for RTCP compound packets (SR/RR + SDES) per RFC 3550
+  Future<Uint8List> encryptBytes(Uint8List fullRtcp) async {
+    // Extract SSRC from header (bytes 4-7)
+    final ssrc = ByteData.sublistView(fullRtcp, 4, 8).getUint32(0);
+
     // Get and increment SRTCP index for this SSRC
-    final index = _getAndIncrementIndex(packet.ssrc);
+    final index = _getAndIncrementIndex(ssrc);
 
     // Build nonce (IV) for SRTCP
-    final nonce = _buildNonce(masterSalt, packet.ssrc, index);
-
-    // Serialize full RTCP packet
-    final fullRtcp = packet.serialize();
+    final nonce = _buildNonce(masterSalt, ssrc, index);
 
     // Extract header (first 8 bytes) and payload
     final header = fullRtcp.sublist(0, RtcpPacket.headerSize);

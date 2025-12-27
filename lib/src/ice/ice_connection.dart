@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:io';
+import 'dart:math';
 import 'dart:typed_data';
 
 import 'package:webrtc_dart/src/common/crypto.dart';
@@ -15,6 +16,10 @@ import 'package:webrtc_dart/src/stun/message.dart';
 import 'package:webrtc_dart/src/turn/turn_client.dart';
 
 final _log = WebRtcLogging.ice;
+
+/// ICE Consent Freshness constants per RFC 7675
+const _consentIntervalSeconds = 5;
+const _consentMaxFailures = 6;
 
 /// ICE connection state
 /// See RFC 5245
@@ -249,6 +254,11 @@ class IceConnectionImpl implements IceConnection {
   // Whether mDNS service is started
   bool _mdnsStarted = false;
 
+  // ICE Consent Freshness (RFC 7675)
+  Timer? _consentTimer;
+  int _consentFailureCount = 0;
+  final Random _random = Random();
+
   final IceOptions options;
 
   /// Debug label for tracing (e.g., "audio" or "video")
@@ -344,6 +354,11 @@ class IceConnectionImpl implements IceConnection {
       _log.fine('$labelStr State: $_state -> $newState');
       _state = newState;
       _stateController.add(newState);
+
+      // Start consent freshness checks when connection is established
+      if (newState == IceState.completed) {
+        _startConsentChecks();
+      }
     }
   }
 
@@ -1646,8 +1661,171 @@ class IceConnectionImpl implements IceConnection {
     await _turnClient!.sendChannelData(channelNumber, data);
   }
 
+  /// Start ICE consent freshness checks (RFC 7675)
+  /// Called after connection reaches completed state
+  void _startConsentChecks() {
+    _stopConsentChecks(); // Clear any existing timer
+    _consentFailureCount = 0;
+
+    _log.fine('[ICE] Starting consent freshness checks');
+    _scheduleNextConsentCheck();
+  }
+
+  /// Stop consent freshness checks
+  void _stopConsentChecks() {
+    _consentTimer?.cancel();
+    _consentTimer = null;
+  }
+
+  /// Schedule the next consent check with randomized interval
+  void _scheduleNextConsentCheck() {
+    final interval = _getRandomizedConsentInterval();
+    _consentTimer = Timer(interval, () => _performConsentCheck());
+  }
+
+  /// Get randomized consent interval (4-6 seconds per RFC 7675)
+  Duration _getRandomizedConsentInterval() {
+    // RFC 7675: CONSENT_INTERVAL * (0.8 + 0.4 * random)
+    // Results in 80% to 120% of base interval = 4 to 6 seconds
+    final jitter = 0.8 + (_random.nextDouble() * 0.4);
+    final ms = (_consentIntervalSeconds * 1000 * jitter).toInt();
+    return Duration(milliseconds: ms);
+  }
+
+  /// Perform a consent freshness check on the nominated pair
+  Future<void> _performConsentCheck() async {
+    if (_nominated == null || _state == IceState.closed) {
+      return;
+    }
+
+    final pair = _nominated!;
+    final labelStr = debugLabel.isNotEmpty ? ':$debugLabel' : '';
+
+    try {
+      // Send STUN binding request to nominated pair
+      final success = await _sendConsentRequest(pair);
+
+      if (success) {
+        // Reset failure count on success
+        _consentFailureCount = 0;
+
+        // If we were disconnected, restore to connected state
+        if (_state == IceState.disconnected) {
+          _log.fine('$labelStr Consent check succeeded, restoring connection');
+          _setState(IceState.connected);
+        }
+      } else {
+        // Increment failure count
+        _consentFailureCount++;
+        _log.fine(
+            '$labelStr Consent check failed ($_consentFailureCount/$_consentMaxFailures)');
+
+        if (_consentFailureCount >= _consentMaxFailures) {
+          // Too many failures - close the connection
+          _log.fine(
+              '$labelStr Consent freshness failed after $_consentMaxFailures attempts');
+          _stopConsentChecks();
+          _setState(IceState.failed);
+          return;
+        } else if (_state == IceState.completed ||
+            _state == IceState.connected) {
+          // First failure - transition to disconnected
+          _setState(IceState.disconnected);
+        }
+      }
+
+      // Schedule next check
+      _scheduleNextConsentCheck();
+    } catch (e) {
+      _log.fine('$labelStr Error during consent check: $e');
+      _consentFailureCount++;
+      if (_consentFailureCount >= _consentMaxFailures) {
+        _stopConsentChecks();
+        _setState(IceState.failed);
+      } else {
+        _scheduleNextConsentCheck();
+      }
+    }
+  }
+
+  /// Send a consent request to the nominated pair
+  Future<bool> _sendConsentRequest(CandidatePair pair) async {
+    final localCandidate = pair.localCandidate;
+    final remoteCandidate = pair.remoteCandidate;
+
+    // For relay candidates, we need TURN client
+    final isRelay = localCandidate.type == 'relay';
+    if (isRelay && _turnClient == null) {
+      return false;
+    }
+
+    // For non-relay candidates, get the socket
+    RawDatagramSocket? socket;
+    if (!isRelay) {
+      socket = _sockets[localCandidate.foundation];
+      if (socket == null) {
+        return false;
+      }
+    }
+
+    // Resolve remote address
+    final remoteAddr = InternetAddress(remoteCandidate.host);
+
+    // Create STUN binding request (simpler than connectivity check)
+    final request = StunMessage(
+      method: StunMethod.binding,
+      messageClass: StunClass.request,
+    );
+
+    // Add USERNAME attribute
+    request.setAttribute(
+      StunAttributeType.username,
+      '$_remoteUsername:$_localUsername',
+    );
+
+    // Add MESSAGE-INTEGRITY
+    if (_remotePassword.isNotEmpty) {
+      final passwordBytes = Uint8List.fromList(_remotePassword.codeUnits);
+      request.addMessageIntegrity(passwordBytes);
+    }
+
+    // Add FINGERPRINT
+    request.addFingerprint();
+
+    // Register pending transaction
+    final tid = request.transactionIdHex;
+    final completer = Completer<StunMessage>();
+    _pendingStunTransactions[tid] = completer;
+
+    // Send request
+    final requestBytes = request.toBytes();
+    if (isRelay) {
+      final peerAddress = (remoteCandidate.host, remoteCandidate.port);
+      await _turnClient!.sendData(peerAddress, requestBytes);
+    } else {
+      socket!.send(requestBytes, remoteAddr, remoteCandidate.port);
+    }
+
+    // Wait for response with short timeout (consent checks should be quick)
+    try {
+      final response = await completer.future.timeout(
+        const Duration(seconds: 2),
+        onTimeout: () {
+          _pendingStunTransactions.remove(tid);
+          throw TimeoutException('Consent check timed out');
+        },
+      );
+
+      return response.messageClass == StunClass.successResponse;
+    } catch (e) {
+      _pendingStunTransactions.remove(tid);
+      return false;
+    }
+  }
+
   @override
   Future<void> close() async {
+    _stopConsentChecks();
     _setState(IceState.closed);
 
     // Cancel TURN receive subscription
@@ -1688,6 +1866,7 @@ class IceConnectionImpl implements IceConnection {
 
   @override
   Future<void> restart() async {
+    _stopConsentChecks();
     _generation++;
     _localUsername = randomString(4);
     _localPassword = randomString(22);

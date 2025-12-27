@@ -228,6 +228,16 @@ class SrtpSession {
     }
   }
 
+  /// Encrypt compound RTCP packet (pre-serialized bytes)
+  /// Used for RTCP compound packets (SR/RR + SDES) per RFC 3550
+  Future<Uint8List> encryptRtcpCompound(Uint8List compoundRtcp) async {
+    if (_useCtrMode) {
+      return _ctrOutbound!.encryptRtcpBytes(compoundRtcp);
+    } else {
+      return await _srtcpOutbound!.encryptBytes(compoundRtcp);
+    }
+  }
+
   /// Decrypt incoming SRTCP packet
   Future<RtcpPacket> decryptSrtcp(Uint8List srtcpPacket) async {
     if (_useCtrMode) {

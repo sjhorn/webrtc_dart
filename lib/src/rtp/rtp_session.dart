@@ -4,6 +4,7 @@ import 'dart:typed_data';
 import 'package:webrtc_dart/src/common/logging.dart';
 import 'package:webrtc_dart/src/rtcp/nack.dart';
 import 'package:webrtc_dart/src/rtcp/psfb/psfb.dart';
+import 'package:webrtc_dart/src/rtcp/sdes.dart';
 import 'package:webrtc_dart/src/rtp/header_extension.dart';
 import 'package:webrtc_dart/src/rtp/nack_handler.dart';
 import 'package:webrtc_dart/src/rtp/retransmission_buffer.dart';
@@ -53,6 +54,10 @@ class HeaderExtensionConfig {
 class RtpSession {
   /// Local SSRC
   final int localSsrc;
+
+  /// CNAME for RTCP SDES packets (Canonical Name)
+  /// Per RFC 3550, CNAME should remain constant for a participant
+  final String? cname;
 
   /// SRTP session for encryption/decryption
   SrtpSession? srtpSession;
@@ -158,6 +163,7 @@ class RtpSession {
 
   RtpSession({
     required this.localSsrc,
+    this.cname,
     this.srtpSession,
     this.rtcpIntervalMs = 5000,
     this.onSendRtcp,
@@ -543,7 +549,7 @@ class RtpSession {
     }
   }
 
-  /// Send RTCP Sender Report
+  /// Send RTCP Sender Report (with SDES if cname is set)
   Future<void> _sendSenderReport() async {
     if (onSendRtcp == null) return;
 
@@ -569,22 +575,33 @@ class RtpSession {
     // Update sender statistics with SR send time
     senderStats.updateWithSentSr(ntpTimestamp: ntpTimestamp);
 
-    // Convert to RTCP packet
-    final packet = sr.toPacket();
-
-    // Encrypt if SRTCP is enabled
+    // Build compound RTCP packet: SR + SDES (if cname is set)
+    // Per RFC 3550, compound RTCP should include SR/RR + SDES
     final Uint8List data;
-    if (srtpSession != null) {
-      data = await srtpSession!.encryptRtcp(packet);
+    if (cname != null && srtpSession != null) {
+      // Create SDES packet with CNAME
+      final sdes = RtcpSourceDescription.withCname(ssrc: localSsrc, cname: cname!);
+
+      // Serialize compound: SR + SDES
+      final srBytes = sr.toPacket().serialize();
+      final sdesBytes = sdes.serialize();
+      final compound = Uint8List(srBytes.length + sdesBytes.length);
+      compound.setRange(0, srBytes.length, srBytes);
+      compound.setRange(srBytes.length, compound.length, sdesBytes);
+
+      // Encrypt compound packet
+      data = await srtpSession!.encryptRtcpCompound(compound);
+    } else if (srtpSession != null) {
+      data = await srtpSession!.encryptRtcp(sr.toPacket());
     } else {
-      data = packet.serialize();
+      data = sr.toPacket().serialize();
     }
 
     // Send
     await onSendRtcp!(data);
   }
 
-  /// Send RTCP Receiver Report
+  /// Send RTCP Receiver Report (with SDES if cname is set)
   Future<void> _sendReceiverReport() async {
     if (onSendRtcp == null) return;
 
@@ -597,15 +614,26 @@ class RtpSession {
       receptionReports: receptionReports,
     );
 
-    // Convert to RTCP packet
-    final packet = rr.toPacket();
-
-    // Encrypt if SRTCP is enabled
+    // Build compound RTCP packet: RR + SDES (if cname is set)
+    // Per RFC 3550, compound RTCP should include SR/RR + SDES
     final Uint8List data;
-    if (srtpSession != null) {
-      data = await srtpSession!.encryptRtcp(packet);
+    if (cname != null && srtpSession != null) {
+      // Create SDES packet with CNAME
+      final sdes = RtcpSourceDescription.withCname(ssrc: localSsrc, cname: cname!);
+
+      // Serialize compound: RR + SDES
+      final rrBytes = rr.toPacket().serialize();
+      final sdesBytes = sdes.serialize();
+      final compound = Uint8List(rrBytes.length + sdesBytes.length);
+      compound.setRange(0, rrBytes.length, rrBytes);
+      compound.setRange(rrBytes.length, compound.length, sdesBytes);
+
+      // Encrypt compound packet
+      data = await srtpSession!.encryptRtcpCompound(compound);
+    } else if (srtpSession != null) {
+      data = await srtpSession!.encryptRtcp(rr.toPacket());
     } else {
-      data = packet.serialize();
+      data = rr.toPacket().serialize();
     }
 
     // Send

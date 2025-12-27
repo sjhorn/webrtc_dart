@@ -184,8 +184,14 @@ class SrtpCipherCtr {
 
   /// Encrypt RTCP packet
   Uint8List encryptRtcp(RtcpPacket packet) {
-    final plainRtcp = packet.serialize();
-    final ssrc = packet.ssrc;
+    return encryptRtcpBytes(packet.serialize());
+  }
+
+  /// Encrypt compound RTCP packet (pre-serialized bytes)
+  /// Used for RTCP compound packets (SR/RR + SDES) per RFC 3550
+  Uint8List encryptRtcpBytes(Uint8List plainRtcp) {
+    // Extract SSRC from header (bytes 4-7)
+    final ssrc = ByteData.sublistView(plainRtcp, 4, 8).getUint32(0);
 
     // Increment SRTCP index first (werift compatibility: first packet uses index 1)
     _srtcpIndex++;

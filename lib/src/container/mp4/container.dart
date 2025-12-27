@@ -904,8 +904,19 @@ class H264Utils {
   }
 
   /// Create AVCDecoderConfigurationRecord from SPS and PPS
+  ///
+  /// For High Profile (100, 110, 122, 244) and other advanced profiles,
+  /// additional fields are added per ISO/IEC 14496-15.
   static Uint8List createAvccFromSpsPps(Uint8List sps, Uint8List pps) {
     final builder = BytesBuilder();
+    final profileIdc = sps[1];
+
+    // Parse SPS to get chroma/bit depth for High Profile
+    SpsInfo? spsInfo;
+    final needsExtraFields = _isHighProfile(profileIdc);
+    if (needsExtraFields) {
+      spsInfo = SpsParser.parse(sps);
+    }
 
     builder.addByte(1); // configurationVersion
     builder.addByte(sps[1]); // AVCProfileIndication
@@ -925,6 +936,285 @@ class H264Utils {
     builder.addByte(pps.length & 0xFF);
     builder.add(pps);
 
+    // Extra fields for High Profile (ISO/IEC 14496-15 Section 5.2.4.1.1)
+    if (needsExtraFields && spsInfo != null) {
+      builder.addByte(0xFC | (spsInfo.chromaFormatIdc & 0x03));
+      builder.addByte(0xF8 | ((spsInfo.bitDepthLuma - 8) & 0x07));
+      builder.addByte(0xF8 | ((spsInfo.bitDepthChroma - 8) & 0x07));
+      builder.addByte(0); // numOfSequenceParameterSetExt = 0
+    }
+
     return builder.toBytes();
+  }
+
+  /// Check if profile requires extra avcC fields
+  static bool _isHighProfile(int profileIdc) {
+    // High Profile family and related profiles
+    return profileIdc == 100 || // High
+        profileIdc == 110 || // High 10
+        profileIdc == 122 || // High 4:2:2
+        profileIdc == 244 || // High 4:4:4 Predictive
+        profileIdc == 44 || // CAVLC 4:4:4 Intra
+        profileIdc == 83 || // Scalable Baseline
+        profileIdc == 86 || // Scalable High
+        profileIdc == 118 || // Multiview High
+        profileIdc == 128 || // Stereo High
+        profileIdc == 138 || // Multiview Depth High
+        profileIdc == 144; // HEVC extension
+  }
+}
+
+/// H.264 SPS (Sequence Parameter Set) information
+class SpsInfo {
+  final int profileIdc;
+  final int levelIdc;
+  final int chromaFormatIdc;
+  final int bitDepthLuma;
+  final int bitDepthChroma;
+  final int width;
+  final int height;
+
+  SpsInfo({
+    required this.profileIdc,
+    required this.levelIdc,
+    required this.chromaFormatIdc,
+    required this.bitDepthLuma,
+    required this.bitDepthChroma,
+    required this.width,
+    required this.height,
+  });
+
+  @override
+  String toString() {
+    return 'SpsInfo(profile=$profileIdc, level=$levelIdc, '
+        'chroma=$chromaFormatIdc, bitDepth=$bitDepthLuma/$bitDepthChroma, '
+        'size=${width}x$height)';
+  }
+}
+
+/// H.264 SPS parser
+///
+/// Parses Sequence Parameter Set NAL unit to extract codec parameters.
+/// Based on ITU-T H.264 / ISO/IEC 14496-10.
+class SpsParser {
+  /// Parse SPS NAL unit (without start code)
+  static SpsInfo parse(Uint8List sps) {
+    // Remove emulation prevention bytes (EBSP to RBSP)
+    final rbsp = _ebspToRbsp(sps);
+    final gb = _ExpGolombReader(rbsp);
+
+    // NAL unit header
+    gb.readBits(8); // forbidden_zero_bit + nal_ref_idc + nal_unit_type
+
+    final profileIdc = gb.readBits(8);
+    gb.readBits(8); // constraint_set_flags + reserved_zero_2bits
+    final levelIdc = gb.readBits(8);
+    gb.readUE(); // seq_parameter_set_id
+
+    var chromaFormatIdc = 1;
+    var bitDepthLuma = 8;
+    var bitDepthChroma = 8;
+
+    // High Profile and above have additional parameters
+    if (H264Utils._isHighProfile(profileIdc)) {
+      chromaFormatIdc = gb.readUE();
+      if (chromaFormatIdc == 3) {
+        gb.readBits(1); // separate_colour_plane_flag
+      }
+      bitDepthLuma = gb.readUE() + 8;
+      bitDepthChroma = gb.readUE() + 8;
+      gb.readBits(1); // qpprime_y_zero_transform_bypass_flag
+      if (gb.readBool()) {
+        // seq_scaling_matrix_present_flag
+        final scalingListCount = chromaFormatIdc != 3 ? 8 : 12;
+        for (var i = 0; i < scalingListCount; i++) {
+          if (gb.readBool()) {
+            _skipScalingList(gb, i < 6 ? 16 : 64);
+          }
+        }
+      }
+    }
+
+    gb.readUE(); // log2_max_frame_num_minus4
+    final picOrderCntType = gb.readUE();
+    if (picOrderCntType == 0) {
+      gb.readUE(); // log2_max_pic_order_cnt_lsb_minus4
+    } else if (picOrderCntType == 1) {
+      gb.readBits(1); // delta_pic_order_always_zero_flag
+      gb.readSE(); // offset_for_non_ref_pic
+      gb.readSE(); // offset_for_top_to_bottom_field
+      final numRefFrames = gb.readUE();
+      for (var i = 0; i < numRefFrames; i++) {
+        gb.readSE(); // offset_for_ref_frame
+      }
+    }
+    gb.readUE(); // max_num_ref_frames
+    gb.readBits(1); // gaps_in_frame_num_value_allowed_flag
+
+    final picWidthInMbsMinus1 = gb.readUE();
+    final picHeightInMapUnitsMinus1 = gb.readUE();
+    final frameMbsOnlyFlag = gb.readBits(1);
+    if (frameMbsOnlyFlag == 0) {
+      gb.readBits(1); // mb_adaptive_frame_field_flag
+    }
+    gb.readBits(1); // direct_8x8_inference_flag
+
+    var frameCropLeftOffset = 0;
+    var frameCropRightOffset = 0;
+    var frameCropTopOffset = 0;
+    var frameCropBottomOffset = 0;
+
+    if (gb.readBool()) {
+      // frame_cropping_flag
+      frameCropLeftOffset = gb.readUE();
+      frameCropRightOffset = gb.readUE();
+      frameCropTopOffset = gb.readUE();
+      frameCropBottomOffset = gb.readUE();
+    }
+
+    // Calculate dimensions
+    int cropUnitX, cropUnitY;
+    if (chromaFormatIdc == 0) {
+      cropUnitX = 1;
+      cropUnitY = 2 - frameMbsOnlyFlag;
+    } else {
+      final subWc = chromaFormatIdc == 3 ? 1 : 2;
+      final subHc = chromaFormatIdc == 1 ? 2 : 1;
+      cropUnitX = subWc;
+      cropUnitY = subHc * (2 - frameMbsOnlyFlag);
+    }
+
+    var width = (picWidthInMbsMinus1 + 1) * 16;
+    var height = (2 - frameMbsOnlyFlag) * ((picHeightInMapUnitsMinus1 + 1) * 16);
+    width -= (frameCropLeftOffset + frameCropRightOffset) * cropUnitX;
+    height -= (frameCropTopOffset + frameCropBottomOffset) * cropUnitY;
+
+    return SpsInfo(
+      profileIdc: profileIdc,
+      levelIdc: levelIdc,
+      chromaFormatIdc: chromaFormatIdc,
+      bitDepthLuma: bitDepthLuma,
+      bitDepthChroma: bitDepthChroma,
+      width: width,
+      height: height,
+    );
+  }
+
+  /// Remove emulation prevention bytes (0x03 after 0x0000)
+  static Uint8List _ebspToRbsp(Uint8List data) {
+    final result = BytesBuilder();
+    for (var i = 0; i < data.length; i++) {
+      if (i >= 2 &&
+          data[i] == 0x03 &&
+          data[i - 1] == 0x00 &&
+          data[i - 2] == 0x00) {
+        continue; // Skip emulation prevention byte
+      }
+      result.addByte(data[i]);
+    }
+    return result.toBytes();
+  }
+
+  /// Skip scaling list in SPS
+  static void _skipScalingList(_ExpGolombReader gb, int count) {
+    var lastScale = 8;
+    var nextScale = 8;
+    for (var i = 0; i < count; i++) {
+      if (nextScale != 0) {
+        final deltaScale = gb.readSE();
+        nextScale = (lastScale + deltaScale + 256) % 256;
+      }
+      lastScale = nextScale == 0 ? lastScale : nextScale;
+    }
+  }
+}
+
+/// Exponential-Golomb bit reader
+///
+/// Reads variable-length coded integers from H.264 bitstreams.
+class _ExpGolombReader {
+  final Uint8List _buffer;
+  int _bufferIndex = 0;
+  int _currentWord = 0;
+  int _bitsLeft = 0;
+
+  _ExpGolombReader(this._buffer);
+
+  /// Fill the current word buffer
+  void _fillWord() {
+    final bytesLeft = _buffer.length - _bufferIndex;
+    if (bytesLeft <= 0) {
+      throw StateError('ExpGolomb: No bytes left');
+    }
+
+    final bytesToRead = bytesLeft < 4 ? bytesLeft : 4;
+    _currentWord = 0;
+    for (var i = 0; i < bytesToRead; i++) {
+      _currentWord = (_currentWord << 8) | _buffer[_bufferIndex + i];
+    }
+    // Left-align if less than 4 bytes
+    _currentWord <<= (4 - bytesToRead) * 8;
+    _bufferIndex += bytesToRead;
+    _bitsLeft = bytesToRead * 8;
+  }
+
+  /// Read n bits (max 32)
+  int readBits(int n) {
+    if (n > 32) throw ArgumentError('Cannot read more than 32 bits');
+
+    if (n <= _bitsLeft) {
+      final result = (_currentWord >>> (32 - n)) & ((1 << n) - 1);
+      _currentWord <<= n;
+      _bitsLeft -= n;
+      return result;
+    }
+
+    // Need more bits
+    var result = _bitsLeft > 0 ? (_currentWord >>> (32 - _bitsLeft)) : 0;
+    final bitsStillNeeded = n - _bitsLeft;
+
+    _fillWord();
+
+    final bitsToRead = bitsStillNeeded < _bitsLeft ? bitsStillNeeded : _bitsLeft;
+    final nextBits = (_currentWord >>> (32 - bitsToRead)) & ((1 << bitsToRead) - 1);
+    _currentWord <<= bitsToRead;
+    _bitsLeft -= bitsToRead;
+
+    result = (result << bitsToRead) | nextBits;
+    return result;
+  }
+
+  /// Read a single bit as boolean
+  bool readBool() => readBits(1) == 1;
+
+  /// Count leading zeros
+  int _skipLeadingZeros() {
+    var zeroCount = 0;
+    while (_bitsLeft > 0) {
+      if ((_currentWord & 0x80000000) != 0) {
+        return zeroCount;
+      }
+      _currentWord <<= 1;
+      _bitsLeft--;
+      zeroCount++;
+    }
+    _fillWord();
+    return zeroCount + _skipLeadingZeros();
+  }
+
+  /// Read unsigned Exp-Golomb coded integer
+  int readUE() {
+    final leadingZeros = _skipLeadingZeros();
+    return readBits(leadingZeros + 1) - 1;
+  }
+
+  /// Read signed Exp-Golomb coded integer
+  int readSE() {
+    final value = readUE();
+    if ((value & 1) == 1) {
+      return (value + 1) >>> 1;
+    } else {
+      return -(value >>> 1);
+    }
   }
 }

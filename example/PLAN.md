@@ -695,6 +695,28 @@ try {
 }
 ```
 
+### Safari Headless Test Support (Dec 2025)
+
+Tests verified to work with Safari `headless: true` using canvas fallback:
+
+| Test | Safari headless:true | Notes |
+|------|---------------------|-------|
+| media_recvonly | ✓ | Canvas fallback in server |
+| media_sendrecv | ✓ | Canvas fallback in server |
+| save_to_disk_* | ✓ | Canvas fallback in server |
+| sendrecv_answer | ✓ | Canvas fallback in server |
+| simulcast_sfu | ✓ | Canvas fallback added to test |
+| rtx, twcc, simulcast | ✓ | Canvas fallback in server |
+
+Tests that require `headless: false`:
+
+| Test | Reason |
+|------|--------|
+| red_sendrecv | Audio tests need Web Audio API fallback (not implemented) |
+| pubsub_* (4 tests) | Chrome-only, need major refactoring for multi-browser support |
+
+**Note**: On macOS, Safari/WebKit in Playwright may still briefly show browser windows even with `headless: true`. This appears to be a Playwright/WebKit limitation on macOS.
+
 ### Manual Browser Testing
 
 1. Start Dart server: `dart run example/<path>/server.dart`

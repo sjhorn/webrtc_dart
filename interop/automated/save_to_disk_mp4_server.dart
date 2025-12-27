@@ -643,23 +643,40 @@ class SaveToDiskMp4Server {
 
                 // Get local camera stream with H.264 preference
                 setStatus('Getting camera access...');
-                try {
-                    localStream = await navigator.mediaDevices.getUserMedia({
-                        video: {
-                            width: 640,
-                            height: 480,
-                        },
-                        audio: false
-                    });
+                if (browser === 'safari') {
+
+                    log('Safari detected, using canvas stream (avoids permission dialog)');
+
+                    localStream = createCanvasStream(640, 480, 30);
+
+                    log('Canvas stream created', 'success');
+
+                } else {
+
+                    try {
+
+                        localStream = await navigator.mediaDevices.getUserMedia({
+
+                            video: { width: 640, height: 480 },
+
+                            audio: false
+
+                        });
                     log('Got local camera stream');
                     const localVideo = document.getElementById('localVideo');
                     localVideo.srcObject = localStream;
                     document.getElementById('videoInfo').textContent =
                         'Camera: ' + localStream.getVideoTracks()[0].label;
                 } catch (e) {
-                    log('Camera unavailable: ' + e.message + ', using canvas fallback', 'info');
-                    localStream = createCanvasStream(640, 480, 30);
-                    log('Canvas stream created', 'success');
+
+                        log('Camera unavailable: ' + e.message + ', using canvas fallback', 'info');
+
+                        localStream = createCanvasStream(640, 480, 30);
+
+                        log('Canvas stream created', 'success');
+
+                    }
+
                 }
 
                 // Start server-side peer

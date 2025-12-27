@@ -2,7 +2,7 @@
  * Automated Media Recvonly Browser Test using Playwright
  *
  * Tests WebRTC video streaming from browser to Dart:
- * - Browser uses getUserMedia to capture camera
+ * - Browser uses getUserMedia to capture camera (or canvas for Safari)
  * - Dart receives RTP packets
  *
  * Usage:
@@ -10,73 +10,33 @@
  *   dart run interop/automated/media_recvonly_server.dart
  *
  *   # Then run browser tests:
- *   node interop/automated/media_recvonly_test.mjs [chrome|firefox|webkit|all]
- *
- * Note: Firefox is skipped by default due to known ICE issues when Dart is offerer.
+ *   node interop/automated/media_recvonly_test.mjs [chrome|firefox|safari|all]
  */
 
-import { chromium, firefox, webkit } from 'playwright';
-import { getBrowserArg } from './test_utils.mjs';
+import {
+  getBrowserArg,
+  getBrowserType,
+  getAllBrowsers,
+  launchBrowser,
+  closeBrowser,
+  setupConsoleLogging,
+  checkServer,
+} from './browser_utils.mjs';
 
 const SERVER_URL = 'http://localhost:8767';
-const TEST_TIMEOUT = 60000;
 
-async function runBrowserTest(browserType, browserName) {
+async function runBrowserTest(browserName) {
   console.log(`\n${'='.repeat(60)}`);
   console.log(`Testing Media Recvonly: ${browserName}`);
   console.log('='.repeat(60));
 
-  let browser;
-  let context;
-  let page;
+  const { browser, context, page } = await launchBrowser(browserName, { headless: true });
+  setupConsoleLogging(page, browserName);
 
   try {
-    console.log(`[${browserName}] Launching browser...`);
-
-    // Launch options - firefoxUserPrefs must be at launch time
-    const launchOptions = {
-      headless: true,
-    };
-
-    if (browserName === 'chrome') {
-      launchOptions.args = [
-        '--use-fake-ui-for-media-stream',
-        '--use-fake-device-for-media-stream',
-      ];
-    }
-
-    if (browserName === 'firefox') {
-      launchOptions.firefoxUserPrefs = {
-        'media.navigator.streams.fake': true,
-        'media.navigator.permission.disabled': true,
-      };
-    }
-
-    browser = await browserType.launch(launchOptions);
-
-    // Grant camera permissions (Chrome only - Firefox uses prefs above)
-    const contextOptions = {
-      permissions: browserName === 'chrome' ? ['camera'] : [],
-    };
-
-    context = await browser.newContext(contextOptions);
-    page = await context.newPage();
-
-    // Note: WebKit/Safari in Playwright uses fake media by default in headless mode
-
-    // Listen for console messages
-    page.on('console', msg => {
-      const text = msg.text();
-      if (!text.startsWith('TEST_RESULT:')) {
-        console.log(`[${browserName}] ${text}`);
-      }
-    });
-
-    // Navigate to test page
     console.log(`[${browserName}] Loading test page...`);
     await page.goto(SERVER_URL, { timeout: 10000 });
 
-    // Wait for test to complete
     console.log(`[${browserName}] Running test...`);
     const result = await page.evaluate(async () => {
       return new Promise((resolve) => {
@@ -88,15 +48,10 @@ async function runBrowserTest(browserType, browserName) {
           }
         };
         setTimeout(check, 100);
-
-        // Timeout after 45 seconds
-        setTimeout(() => {
-          resolve({ success: false, error: 'Test timeout' });
-        }, 45000);
+        setTimeout(() => resolve({ success: false, error: 'Test timeout' }), 45000);
       });
     });
 
-    // Print results
     console.log(`\n[${browserName}] Test Result:`);
     console.log(`  Success: ${result.success}`);
     console.log(`  Video Received: ${result.videoReceived || false}`);
@@ -108,62 +63,35 @@ async function runBrowserTest(browserType, browserName) {
       console.log(`  Error: ${result.error}`);
     }
 
-    return {
-      browser: browserName,
-      ...result,
-    };
+    return { browser: browserName, ...result };
 
   } catch (error) {
     console.error(`[${browserName}] Error: ${error.message}`);
-    return {
-      browser: browserName,
-      success: false,
-      error: error.message,
-    };
+    return { browser: browserName, success: false, error: error.message };
   } finally {
-    if (page) await page.close().catch(() => {});
-    if (context) await context.close().catch(() => {});
-    if (browser) await browser.close().catch(() => {});
+    await closeBrowser({ browser, context, page });
   }
 }
 
 async function main() {
-  // Support both: BROWSER=firefox node test.mjs OR node test.mjs firefox
-  const browserArg = getBrowserArg() || 'all';
+  const browserArg = getBrowserArg();
 
   console.log('WebRTC Media Recvonly Browser Test');
   console.log('===================================');
   console.log(`Server: ${SERVER_URL}`);
   console.log(`Browser: ${browserArg}`);
 
-  // Check server is running
-  try {
-    const resp = await fetch(`${SERVER_URL}/status`);
-    if (!resp.ok) throw new Error('Server not responding');
-  } catch (e) {
-    console.error('\nError: Media recvonly server is not running!');
-    console.error('Start it with: dart run interop/automated/media_recvonly_server.dart');
-    process.exit(1);
-  }
+  await checkServer(SERVER_URL, 'dart run interop/automated/media_recvonly_server.dart');
 
   const results = [];
 
-  // Run tests based on argument
-  if (browserArg === 'all' || browserArg === 'chrome') {
-    results.push(await runBrowserTest(chromium, 'chrome'));
-  }
-
-  // Skip Firefox by default due to ICE issues when Dart is offerer
-  if (browserArg === 'firefox') {
-    console.log('\n[firefox] Note: Firefox has known ICE issues when Dart is offerer');
-    results.push(await runBrowserTest(firefox, 'firefox'));
-  } else if (browserArg === 'all') {
-    console.log('\n[firefox] Skipping Firefox (known ICE issue when Dart is offerer)');
-    results.push({ browser: 'firefox', success: false, error: 'Skipped - ICE issue', skipped: true });
-  }
-
-  if (browserArg === 'all' || browserArg === 'webkit' || browserArg === 'safari') {
-    results.push(await runBrowserTest(webkit, 'safari'));
+  if (browserArg === 'all') {
+    for (const { browserName } of getAllBrowsers()) {
+      results.push(await runBrowserTest(browserName));
+    }
+  } else {
+    const { browserName } = getBrowserType(browserArg);
+    results.push(await runBrowserTest(browserName));
   }
 
   // Print summary
@@ -173,16 +101,11 @@ async function main() {
 
   let allPassed = true;
   for (const result of results) {
-    if (result.skipped) {
-      console.log(`⊘ SKIP - ${result.browser} (${result.error})`);
-      continue;
-    }
     const status = result.success ? '✓ PASS' : '✗ FAIL';
     console.log(`${status} - ${result.browser}`);
     if (result.success) {
       console.log(`       Packets: ${result.packetsReceived || 0}`);
-    }
-    if (!result.success && !result.skipped) {
+    } else {
       allPassed = false;
       if (result.error) {
         console.log(`       Error: ${result.error}`);
@@ -192,16 +115,12 @@ async function main() {
 
   console.log('='.repeat(60));
 
-  // Don't count skipped tests as failures
-  const actualResults = results.filter(r => !r.skipped);
-  const passed = actualResults.filter(r => r.success).length;
-  const total = actualResults.length;
-
-  if (passed === total) {
-    console.log(`\nAll tested browsers PASSED! (${passed}/${total})`);
+  const passed = results.filter(r => r.success).length;
+  if (passed === results.length) {
+    console.log(`\nAll tested browsers PASSED! (${passed}/${results.length})`);
     process.exit(0);
   } else {
-    console.log(`\nSome tests FAILED! (${passed}/${total} passed)`);
+    console.log(`\nSome tests FAILED! (${passed}/${results.length} passed)`);
     process.exit(1);
   }
 }

@@ -352,17 +352,23 @@ class MediaAnswerServer {
 
                 // Get camera access
                 setStatus('Getting camera access...');
-                try {
-                    localStream = await navigator.mediaDevices.getUserMedia({
-                        video: { width: 640, height: 480 },
-                        audio: false
-                    });
-                    log('Got camera stream');
+                if (browser === 'safari') {
+                    log('Safari detected, using canvas stream (avoids permission dialog)');
+                    localStream = createCanvasStream(640, 480, 30);
+                    log('Canvas stream created', 'success');
+                } else {
+                    try {
+                        localStream = await navigator.mediaDevices.getUserMedia({
+                            video: { width: 640, height: 480 },
+                            audio: false
+                        });
+                        log('Got camera stream');
                     document.getElementById('localVideo').srcObject = localStream;
                 } catch (e) {
                     log('Camera unavailable: ' + e.message + ', using canvas fallback', 'info');
                     localStream = createCanvasStream(640, 480, 30);
                     log('Canvas stream created', 'success');
+                }
                 }
 
                 // Start server-side peer

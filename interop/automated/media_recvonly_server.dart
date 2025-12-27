@@ -384,19 +384,26 @@ class MediaRecvonlyServer {
                 log('Browser detected: ' + browser);
                 setStatus('Starting test for ' + browser);
 
-                // Get video stream - try camera first, fall back to canvas
+                // Get video stream
+                // Safari: Use canvas directly (getUserMedia triggers permission dialog)
+                // Chrome/Firefox: Try camera first, fall back to canvas
                 setStatus('Requesting video stream...');
-                try {
-                    localStream = await navigator.mediaDevices.getUserMedia({
-                        video: { width: 640, height: 480 },
-                        audio: false
-                    });
-                    log('Camera access granted', 'success');
-                } catch (e) {
-                    log('Camera unavailable: ' + e.message + ', using canvas fallback', 'warn');
-                    // Create canvas stream as fallback (works in Safari headless)
+                if (browser === 'safari') {
+                    log('Safari detected, using canvas stream (avoids permission dialog)');
                     localStream = createCanvasStream(640, 480, 30);
                     log('Canvas stream created', 'success');
+                } else {
+                    try {
+                        localStream = await navigator.mediaDevices.getUserMedia({
+                            video: { width: 640, height: 480 },
+                            audio: false
+                        });
+                        log('Camera access granted', 'success');
+                    } catch (e) {
+                        log('Camera unavailable: ' + e.message + ', using canvas fallback', 'warn');
+                        localStream = createCanvasStream(640, 480, 30);
+                        log('Canvas stream created', 'success');
+                    }
                 }
 
                 // Show local preview

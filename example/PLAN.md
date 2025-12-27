@@ -715,7 +715,25 @@ Tests that require `headless: false`:
 | red_sendrecv | Audio tests need Web Audio API fallback (not implemented) |
 | pubsub_* (4 tests) | Chrome-only, need major refactoring for multi-browser support |
 
-**Note**: On macOS, Safari/WebKit in Playwright may still briefly show browser windows even with `headless: true`. This appears to be a Playwright/WebKit limitation on macOS.
+**WebKit/Safari Permission Issue (Dec 2025):**
+
+Investigated Playwright issue [#4959](https://github.com/microsoft/playwright/issues/4959):
+
+- **Problem**: WebKit shows macOS system permission dialogs for camera/microphone in BOTH headless and headed modes
+- **Workaround suggested in issue**: `context.grantPermissions(['camera', 'microphone'])`
+- **Reality**: This does NOT work for WebKit - throws "Unknown permission: camera"
+- **Solution**: Skip `getUserMedia()` entirely for Safari headless, use `canvas.captureStream()` directly
+
+```javascript
+// For Safari/WebKit tests - use canvas stream directly, don't attempt getUserMedia
+if (browserName === 'safari') {
+  stream = createCanvasStream(640, 480, 30);
+} else {
+  stream = await navigator.mediaDevices.getUserMedia({ video: true });
+}
+```
+
+This avoids triggering the macOS permission dialog entirely.
 
 ### Manual Browser Testing
 

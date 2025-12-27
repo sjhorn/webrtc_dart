@@ -446,16 +446,38 @@ class MediaSendrecvServer {
 
                 // Get local camera stream (with canvas fallback for Safari headless)
                 setStatus('Getting camera access...');
-                try {
-                    localStream = await navigator.mediaDevices.getUserMedia({
-                        video: { width: 640, height: 480 },
-                        audio: false
-                    });
-                    log('Got local camera stream', 'success');
-                } catch (e) {
-                    log('Camera unavailable: ' + e.message + ', using canvas fallback', 'info');
+                if (browser === 'safari') {
+
+                    log('Safari detected, using canvas stream (avoids permission dialog)');
+
                     localStream = createCanvasStream(640, 480, 30);
+
                     log('Canvas stream created', 'success');
+
+                } else {
+
+                    try {
+
+                        localStream = await navigator.mediaDevices.getUserMedia({
+
+                            video: { width: 640, height: 480 },
+
+                            audio: false
+
+                        });
+
+                        log('Camera access granted', 'success');
+
+                    } catch (e) {
+
+                        log('Camera unavailable: ' + e.message + ', using canvas fallback', 'warn');
+
+                        localStream = createCanvasStream(640, 480, 30);
+
+                        log('Canvas stream created', 'success');
+
+                    }
+
                 }
                 document.getElementById('localVideo').srcObject = localStream;
 

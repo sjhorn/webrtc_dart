@@ -552,10 +552,18 @@ class MultiClientSendrecvServer {
                 }
             };
 
-            // Get camera stream
-            const stream = await navigator.mediaDevices.getUserMedia({
-                video: { width: 640, height: 480 }
-            });
+            // Get video stream
+            // Safari: Use canvas directly to avoid permission dialog
+            let stream;
+            if (detectBrowser() === 'safari') {
+                stream = createCanvasStream(640, 480, 30);
+                log('[' + clientId + '] Using canvas stream (Safari)');
+            } else {
+                stream = await navigator.mediaDevices.getUserMedia({
+                    video: { width: 640, height: 480 }
+                });
+                log('[' + clientId + '] Using camera stream');
+            }
             conn.stream = stream;
 
             // Get offer from server

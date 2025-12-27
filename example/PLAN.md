@@ -614,6 +614,50 @@ const browserArg = getBrowserArg() || 'all';
 
 The helper checks `process.env.BROWSER` first, then `process.argv[2]`, defaulting to `'chrome'`.
 
+### Camera/Microphone Access in Playwright (IMPORTANT)
+
+For tests requiring `getUserMedia()` (camera/microphone access), browsers need specific configuration:
+
+**Chrome:**
+```javascript
+// At launch time
+const launchOptions = {
+  headless: true,
+  args: [
+    '--use-fake-ui-for-media-stream',      // Auto-accept permission prompts
+    '--use-fake-device-for-media-stream',  // Use synthetic video/audio
+  ],
+};
+browser = await chromium.launch(launchOptions);
+
+// At context time
+const contextOptions = {
+  permissions: ['camera', 'microphone'],
+};
+context = await browser.newContext(contextOptions);
+```
+
+**Firefox:**
+```javascript
+// CRITICAL: firefoxUserPrefs MUST be at launch time, NOT newContext()
+const launchOptions = {
+  headless: true,
+  firefoxUserPrefs: {
+    'media.navigator.streams.fake': true,       // Use fake media devices
+    'media.navigator.permission.disabled': true, // Skip permission prompts
+  },
+};
+browser = await firefox.launch(launchOptions);
+
+// Context options - no special config needed
+context = await browser.newContext({});
+```
+
+**Safari/WebKit:**
+- Headless mode does NOT support getUserMedia
+- Must use `headless: false` for camera access tests
+- Safari uses fake media by default in Playwright
+
 ### Manual Browser Testing
 
 1. Start Dart server: `dart run example/<path>/server.dart`
@@ -730,7 +774,9 @@ For each placeholder:
    - **Root Cause**: Local firewall was blocking incoming connections from Firefox
    - **Fix**: After firewall configuration, Firefox works with Dart as offerer
    - **Verified working**: ICE trickle (197ms), ICE restart, media sendonly (161 frames), basic DataChannel
-   - **Still skipped**: Tests requiring Firefox headless getUserMedia (recvonly, sendrecv, save_to_disk) - this is a Playwright limitation, not WebRTC
+   - **Further Update (Dec 2025)**: Firefox headless getUserMedia NOW WORKS - was a Playwright configuration issue, not a browser limitation
+   - **Fix**: `firefoxUserPrefs` must be passed at `browserType.launch()` time, NOT at `browser.newContext()` time
+   - **All Firefox camera tests now pass** (media_recvonly, media_sendrecv, save_to_disk)
 
 2. **~~DCEP/DataChannel failure when PeerConnection created just-in-time~~** (FIXED Dec 2025)
    - **Status**: RESOLVED

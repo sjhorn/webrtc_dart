@@ -34,17 +34,21 @@ async function runBrowserTest(browserType, browserName) {
 
   try {
     console.log(`[${browserName}] Launching browser...`);
-    browser = await browserType.launch({
-      headless: true,
-    });
 
-    const contextOptions = {};
+    // Launch options - firefoxUserPrefs must be at launch time
+    const launchOptions = {
+      headless: true,
+    };
 
     if (browserName === 'firefox') {
-      contextOptions.firefoxUserPrefs = {
+      launchOptions.firefoxUserPrefs = {
         'media.navigator.permission.disabled': true,
       };
     }
+
+    browser = await browserType.launch(launchOptions);
+
+    const contextOptions = {};
 
     context = await browser.newContext(contextOptions);
     page = await context.newPage();

@@ -34,26 +34,31 @@ async function runBrowserTest(browserType, browserName) {
 
   try {
     console.log(`[${browserName}] Launching browser...`);
-    browser = await browserType.launch({
+    // Launch options - firefoxUserPrefs must be at launch time
+    const launchOptions = {
       headless: true,
-      args: browserName === 'chrome' ? [
-        '--use-fake-ui-for-media-stream',
-        '--use-fake-device-for-media-stream',
-      ] : [],
-    });
-
-    // Grant camera permissions
-    const contextOptions = {
-      permissions: browserName === 'chrome' ? ['camera'] : [],
     };
 
-    // For Firefox, we need different handling - use fake media
+    if (browserName === 'chrome') {
+      launchOptions.args = [
+        '--use-fake-ui-for-media-stream',
+        '--use-fake-device-for-media-stream',
+      ];
+    }
+
     if (browserName === 'firefox') {
-      contextOptions.firefoxUserPrefs = {
+      launchOptions.firefoxUserPrefs = {
         'media.navigator.streams.fake': true,
         'media.navigator.permission.disabled': true,
       };
     }
+
+    browser = await browserType.launch(launchOptions);
+
+    // Grant camera permissions (Chrome only - Firefox uses prefs above)
+    const contextOptions = {
+      permissions: browserName === 'chrome' ? ['camera'] : [],
+    };
 
     context = await browser.newContext(contextOptions);
     page = await context.newPage();

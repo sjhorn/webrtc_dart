@@ -969,3 +969,17 @@ For each placeholder:
    - **Commits**:
      - `5830dd9` - Fix Firefox headless camera access (firefoxUserPrefs at launch time)
      - `9b41c90` - Add canvas stream fallback for Safari headless camera access
+
+7. **Multi-client tests timeout in run_all_tests.sh** (TODO)
+   - **Status**: Needs investigation
+   - **Symptom**: 3 tests timeout when run via `./run_all_tests.sh chrome`:
+     - `multi_client_sendonly` - FAIL
+     - `multi_client_recvonly` - FAIL (Test timeout)
+     - `multi_client_sendrecv` - FAIL (Test timeout)
+   - **Context**: These tests were previously passing (documented above as Chrome PASS)
+   - **Possible Causes**:
+     - Server startup race condition in batch runner
+     - Resource exhaustion when running many tests sequentially
+     - Port conflicts from previous tests not cleaning up
+   - **Workaround**: Tests may pass when run individually via `./run_test.sh`
+   - **Action**: Investigate and fix in future session

@@ -15,7 +15,7 @@ The Dart port achieves **~95-100% feature parity** with the TypeScript werift-we
 - ✅ **100%** parity on SCTP (including partial reliability - RFC 3758)
 - ✅ **100%** parity on SRTP encryption/decryption
 - ✅ **100%** parity on RTP/RTCP (SR, RR, SDES compound packets)
-- ✅ **100%** parity on ICE (including consent freshness - RFC 7675)
+- ✅ **100%** parity on ICE (including consent freshness - RFC 7675, role conflict - RFC 8445)
 - ✅ **Enhanced** VP9 SVC support, simulcast layer management
 - ✅ **Enhanced** TCP ICE, mDNS obfuscation (RFC 8828)
 
@@ -25,7 +25,8 @@ The Dart port achieves **~95-100% feature parity** with the TypeScript werift-we
 - ✅ Added ICE Consent Freshness (RFC 7675) with 5-second interval checks
 - ✅ Added SCTP Partial Reliability (RFC 3758) with maxRetransmits/maxPacketLifeTime
 - ✅ Added H.264 SPS parser for High Profile MP4 support (parity with werift)
-- ✅ All 1960+ tests passing, 0 analyzer issues
+- ✅ Added ICE Role Conflict Recovery (RFC 8445 Section 7.2.1.1) with 487 error handling
+- ✅ All 1976+ tests passing, 0 analyzer issues
 
 ---
 
@@ -122,8 +123,8 @@ The Dart port achieves **~95-100% feature parity** with the TypeScript werift-we
 | **mDNS Obfuscation** | ❌ | **RFC 8828** | **Dart enhanced** |
 | **Relay-Only Mode** | `forceTurn` flag | `relayOnly` flag | Parity (different name) |
 | Connectivity Checks | RFC 5245 full | Simplified | **Gap** |
-| Consent Freshness | RFC 7675 | ❌ | **Gap** |
-| Role Conflict Recovery | Full | Detection only | **Gap** |
+| Consent Freshness | RFC 7675 | ✅ RFC 7675 | Parity |
+| Role Conflict Recovery | Full | ✅ Full RFC 8445 | Parity |
 | Early Check Queue | ✅ | ❌ | **Gap** |
 
 ### State Comparison
@@ -141,9 +142,9 @@ The Dart port achieves **~95-100% feature parity** with the TypeScript werift-we
 
 ### Recommended Refactoring
 
-1. **Add Consent Freshness Checks (RFC 7675)** - Required for long-lived connections
-2. **Improve Role Conflict Recovery** - Full recovery instead of detection only
-3. **Consider porting Early Check Queue** - Helps with out-of-order connectivity checks
+1. ~~**Add Consent Freshness Checks (RFC 7675)** - Required for long-lived connections~~ ✅ **DONE**
+2. ~~**Improve Role Conflict Recovery** - Full recovery instead of detection only~~ ✅ **DONE** (RFC 8445 Section 7.2.1.1 - 487 error handling)
+3. **Consider porting Early Check Queue** - Helps with out-of-order connectivity checks (low priority)
 
 ---
 

@@ -1081,6 +1081,11 @@ class IceConnectionImpl implements IceConnection {
   /// Handle incoming STUN binding request
   void _handleStunRequest(
       StunMessage request, InternetAddress address, int port) {
+    // RFC 8445 Section 7.2.1.1: Detecting and Repairing Role Conflicts
+    if (!_handleRoleConflict(request, address, port)) {
+      return; // Role conflict detected, 487 error response sent
+    }
+
     // Create a success response
     final response = StunMessage(
       method: request.method,
@@ -1135,6 +1140,130 @@ class IceConnectionImpl implements IceConnection {
       _log.fine(' Sent STUN response to ${address.address}:$port');
     } else {
       _log.fine(' No socket available to send STUN response');
+    }
+  }
+
+  /// RFC 8445 Section 7.2.1.1: Detecting and Repairing Role Conflicts
+  ///
+  /// Returns true if the request should continue processing, false if a 487 error was sent.
+  bool _handleRoleConflict(
+      StunMessage request, InternetAddress address, int port) {
+    final remoteControlling =
+        request.getAttribute(StunAttributeType.iceControlling);
+    final remoteControlled =
+        request.getAttribute(StunAttributeType.iceControlled);
+
+    // No role attribute means no conflict possible
+    if (remoteControlling == null && remoteControlled == null) {
+      return true;
+    }
+
+    // Extract remote tie-breaker (returned as BigInt from parsed STUN message)
+    final BigInt remoteTieBreaker;
+    final bool remoteIsControlling;
+    if (remoteControlling != null) {
+      remoteTieBreaker = remoteControlling as BigInt;
+      remoteIsControlling = true;
+    } else {
+      remoteTieBreaker = remoteControlled as BigInt;
+      remoteIsControlling = false;
+    }
+
+    // Check for role conflict
+    final bool isConflict;
+    if (_iceControlling && remoteIsControlling) {
+      // Both agents think they're controlling
+      isConflict = true;
+    } else if (!_iceControlling && !remoteIsControlling) {
+      // Both agents think they're controlled
+      isConflict = true;
+    } else {
+      // No conflict
+      return true;
+    }
+
+    if (!isConflict) {
+      return true;
+    }
+
+    _log.fine('[ICE] Role conflict detected: we are '
+        '${_iceControlling ? "controlling" : "controlled"}, '
+        'remote is ${remoteIsControlling ? "controlling" : "controlled"}');
+
+    // Compare tie-breakers to resolve conflict (both are BigInt)
+    final theirTieBreaker = remoteTieBreaker;
+
+    if (_iceControlling) {
+      // We are controlling, remote also thinks they're controlling
+      if (theirTieBreaker >= _tieBreaker) {
+        // Remote wins - we switch to controlled
+        _log.fine('[ICE] Tie-breaker: remote wins ($theirTieBreaker >= $_tieBreaker), '
+            'switching to controlled');
+        _iceControlling = false;
+        return true; // Continue processing
+      } else {
+        // We win - send 487 error response
+        _log.fine('[ICE] Tie-breaker: we win ($_tieBreaker > $theirTieBreaker), '
+            'sending 487 Role Conflict');
+        _send487RoleConflict(request, address, port);
+        return false;
+      }
+    } else {
+      // We are controlled, remote also thinks they're controlled
+      if (theirTieBreaker >= _tieBreaker) {
+        // Remote wins - they should be controlled, we switch to controlling
+        _log.fine('[ICE] Tie-breaker: remote wins ($theirTieBreaker >= $_tieBreaker), '
+            'switching to controlling');
+        _iceControlling = true;
+        return true; // Continue processing
+      } else {
+        // We win - we should be controlled, send 487 error response
+        _log.fine('[ICE] Tie-breaker: we win ($_tieBreaker > $theirTieBreaker), '
+            'sending 487 Role Conflict');
+        _send487RoleConflict(request, address, port);
+        return false;
+      }
+    }
+  }
+
+  /// Send a 487 Role Conflict error response
+  void _send487RoleConflict(
+      StunMessage request, InternetAddress address, int port) {
+    final response = StunMessage(
+      method: request.method,
+      messageClass: StunClass.errorResponse,
+      transactionId: request.transactionId,
+    );
+
+    // Add ERROR-CODE attribute with 487 Role Conflict
+    response.setAttribute(
+      StunAttributeType.errorCode,
+      (487, 'Role Conflict'),
+    );
+
+    // Add MESSAGE-INTEGRITY if request had it
+    if (request.getAttribute(StunAttributeType.messageIntegrity) != null) {
+      final passwordBytes = Uint8List.fromList(_localPassword.codeUnits);
+      response.addMessageIntegrity(passwordBytes);
+    }
+
+    // Always add FINGERPRINT for ICE
+    response.addFingerprint();
+
+    // Find socket to send response
+    RawDatagramSocket? sendSocket;
+    for (final socket in _sockets.values) {
+      if (socket.address.type == address.type) {
+        sendSocket = socket;
+        break;
+      }
+    }
+    sendSocket ??= _sockets.values.isNotEmpty ? _sockets.values.first : null;
+
+    if (sendSocket != null) {
+      final responseBytes = response.toBytes();
+      sendSocket.send(responseBytes, address, port);
+      _log.fine('[ICE] Sent 487 Role Conflict response to ${address.address}:$port');
     }
   }
 
@@ -1342,6 +1471,22 @@ class IceConnectionImpl implements IceConnection {
           return true;
         }
 
+        // RFC 8445 Section 7.2.1.1: Handle 487 Role Conflict error
+        if (response.messageClass == StunClass.errorResponse) {
+          final errorCode = response.getAttribute(StunAttributeType.errorCode);
+          if (errorCode != null) {
+            final (code, reason) = errorCode as (int, String);
+            if (code == 487) {
+              _log.fine('[ICE] Received 487 Role Conflict - switching role and retrying');
+              // Switch role and retry the check
+              _iceControlling = !_iceControlling;
+              // Recursive retry with new role
+              return _performConnectivityCheck(pair);
+            }
+            _log.fine('[ICE] Connectivity check failed with error $code: $reason');
+          }
+        }
+
         return false;
       } catch (e) {
         _pendingStunTransactions.remove(tid);
@@ -1487,6 +1632,22 @@ class IceConnectionImpl implements IceConnection {
           });
 
           return true;
+        }
+
+        // RFC 8445 Section 7.2.1.1: Handle 487 Role Conflict error
+        if (response.messageClass == StunClass.errorResponse) {
+          final errorCode = response.getAttribute(StunAttributeType.errorCode);
+          if (errorCode != null) {
+            final (code, reason) = errorCode as (int, String);
+            if (code == 487) {
+              _log.fine('[TCP] Received 487 Role Conflict - switching role and retrying');
+              _iceControlling = !_iceControlling;
+              await tcpConnection.close();
+              _tcpConnections.remove(connectionKey);
+              return _performTcpConnectivityCheck(pair);
+            }
+            _log.fine('[TCP] Connectivity check failed with error $code: $reason');
+          }
         }
 
         _log.fine('[TCP] Connectivity check failed - not a success response');

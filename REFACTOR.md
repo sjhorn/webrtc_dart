@@ -26,7 +26,8 @@ The Dart port achieves **~95-100% feature parity** with the TypeScript werift-we
 - ✅ Added SCTP Partial Reliability (RFC 3758) with maxRetransmits/maxPacketLifeTime
 - ✅ Added H.264 SPS parser for High Profile MP4 support (parity with werift)
 - ✅ Added ICE Role Conflict Recovery (RFC 8445 Section 7.2.1.1) with 487 error handling
-- ✅ All 1976+ tests passing, 0 analyzer issues
+- ✅ Added STUN Transaction class with exponential backoff retry (RFC 5389)
+- ✅ All 1993+ tests passing, 0 analyzer issues
 
 ---
 
@@ -86,7 +87,7 @@ The Dart port achieves **~95-100% feature parity** with the TypeScript werift-we
 | STUN Attributes (20 types) | ✅ | ✅ | Parity |
 | Message Integrity | ✅ | ✅ | Parity |
 | Fingerprint (CRC32) | External lib | Inline impl | Different approach |
-| Transaction Retry | Full class | Simplified | **Gap** |
+| Transaction Retry | Full class | ✅ StunTransaction class | Parity |
 | TURN Allocate | ✅ | ✅ | Parity |
 | TURN Permissions | ✅ | ✅ | Parity |
 | TURN Channel Binding | ✅ | ✅ | Parity |
@@ -104,8 +105,8 @@ The Dart port achieves **~95-100% feature parity** with the TypeScript werift-we
 
 ### Recommended Refactoring
 
-1. **Add Transaction class** - TypeScript has robust retry logic; consider porting for unreliable networks
-2. **Normalize parameter order** - Decide on consistent `(data, addr)` or `(addr, data)` convention
+1. ~~**Add Transaction class** - TypeScript has robust retry logic; consider porting for unreliable networks~~ ✅ **DONE** (StunTransaction with exponential backoff)
+2. **Normalize parameter order** - Decide on consistent `(data, addr)` or `(addr, data)` convention (low priority)
 
 ---
 

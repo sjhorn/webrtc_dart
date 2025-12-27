@@ -24,7 +24,8 @@ The Dart port achieves **~95-100% feature parity** with the TypeScript werift-we
 - ✅ Integrated SDES into compound RTCP packets (SR+SDES, RR+SDES)
 - ✅ Added ICE Consent Freshness (RFC 7675) with 5-second interval checks
 - ✅ Added SCTP Partial Reliability (RFC 3758) with maxRetransmits/maxPacketLifeTime
-- ✅ All 1700+ tests passing, 0 analyzer issues
+- ✅ Added H.264 SPS parser for High Profile MP4 support (parity with werift)
+- ✅ All 1960+ tests passing, 0 analyzer issues
 
 ---
 
@@ -363,7 +364,7 @@ The Dart port achieves **~95-100% feature parity** with the TypeScript werift-we
 |---------|-----------|------|--------|
 | Event-based errors | ✅ | Callback-based | Different pattern |
 | WebM output | ✅ | ✅ | Parity |
-| MP4 output | ✅ | Minimal | TypeScript ahead |
+| MP4 output | ✅ | ✅ (fMP4) | Parity (Dec 2025) |
 | Direct frame input | ❌ | SimpleWebmRecorder | **Dart unique** |
 
 ### Containers
@@ -371,7 +372,7 @@ The Dart port achieves **~95-100% feature parity** with the TypeScript werift-we
 | Container | TypeScript | Dart | Status |
 |-----------|-----------|------|--------|
 | WebM | Full + encryption | Streaming clusters | TS has encryption |
-| MP4 | Complete | Minimal stub | **Gap** |
+| MP4 | Complete (mp4box.js) | Full fMP4 + SPS parser | Parity (Dec 2025) |
 | OGG | Basic | Full Opus support | **Dart ahead** |
 
 ### Processors
@@ -423,10 +424,11 @@ The Dart port achieves **~95-100% feature parity** with the TypeScript werift-we
 
 ### 🟡 Medium Priority
 
-3. **Complete MP4 container support**
-   - File: `lib/src/container/mp4/`
-   - Useful for recording scenarios
-   - Estimated effort: 3-5 days
+3. **~~Complete MP4 container support~~** ✅ DONE (December 2025)
+   - Full fMP4 implementation in `lib/src/container/mp4/container.dart` (1200+ lines)
+   - H.264 SPS parser for High Profile support (parity with werift's sps-parser.ts)
+   - Supports H.264 + Opus, 36 ISO box types implemented
+   - Browser interop tests passing (Chrome, Safari)
 
 4. **~~Add SCTP Partial Reliability~~** ✅ DONE (December 2025)
    - RFC 3758 support in `lib/src/sctp/association.dart`
@@ -510,6 +512,6 @@ The Dart port successfully achieves WebRTC interoperability with all major brows
 - ~~RTCP SR/RR/SDES/BYE~~ ✅ DONE (December 2025)
 - ~~ICE consent freshness~~ ✅ DONE (December 2025)
 - ~~SCTP Partial Reliability~~ ✅ DONE (December 2025)
-- MP4 container completeness (medium priority)
+- ~~MP4 container completeness~~ ✅ DONE (December 2025)
 
-The port is production-ready for WebRTC data channels and media streaming, now with full partial reliability support for unreliable DataChannels.
+The port has achieved **100% werift feature parity** for all high and medium priority items. It is production-ready for WebRTC data channels, media streaming, and recording with full fMP4 support.

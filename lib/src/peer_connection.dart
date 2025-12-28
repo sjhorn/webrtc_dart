@@ -16,6 +16,7 @@ import 'package:webrtc_dart/src/media/rtp_router.dart';
 import 'package:webrtc_dart/src/media/rtp_transceiver.dart';
 import 'package:webrtc_dart/src/media/transceiver_manager.dart';
 import 'package:webrtc_dart/src/nonstandard/media/track.dart' as nonstandard;
+import 'package:webrtc_dart/src/sctp/sctp_transport_manager.dart';
 import 'package:webrtc_dart/src/rtp/rtp_session.dart';
 import 'package:webrtc_dart/src/sdp/sdp.dart';
 import 'package:webrtc_dart/src/sdp/sdp_manager.dart';
@@ -204,9 +205,8 @@ class RtcPeerConnection {
   final StreamController<IceGatheringState> _iceGatheringStateController =
       StreamController.broadcast();
 
-  /// Data channel stream controller
-  final StreamController<DataChannel> _dataChannelController =
-      StreamController.broadcast();
+  /// SCTP transport manager for DataChannel lifecycle
+  final SctpTransportManager _sctpManager = SctpTransportManager();
 
   /// Track event stream controller
   final StreamController<RtpTransceiver> _trackController =
@@ -263,12 +263,6 @@ class RtcPeerConnection {
   /// Default extension ID for transport-wide-cc header extension
   /// Chrome typically uses ID 4 for transport-wide-cc
   static const int _twccExtensionId = 4;
-
-  /// Counter for data channels opened (for stats)
-  int _dataChannelsOpened = 0;
-
-  /// Counter for data channels closed (for stats)
-  final int _dataChannelsClosed = 0;
 
   /// Debug label for this peer connection
   static int _instanceCounter = 0;
@@ -353,9 +347,9 @@ class RtcPeerConnection {
       }
     });
 
-    // Forward incoming data channels
+    // Forward incoming data channels to SCTP manager
     _transport!.onDataChannel.listen((channel) {
-      _dataChannelController.add(channel);
+      _sctpManager.registerRemoteChannel(channel);
     });
 
     // Handle incoming RTP/RTCP packets
@@ -481,7 +475,7 @@ class RtcPeerConnection {
       _iceGatheringStateController.stream;
 
   /// Stream of data channels
-  Stream<DataChannel> get onDataChannel => _dataChannelController.stream;
+  Stream<DataChannel> get onDataChannel => _sctpManager.onDataChannel;
 
   /// Stream of negotiation needed events
   ///
@@ -1228,7 +1222,9 @@ class RtcPeerConnection {
       );
     }
 
-    _dataChannelsOpened++;
+    // Check if this is the first data channel (before incrementing counter)
+    final isFirstChannel = _sctpManager.dataChannelsOpened == 0;
+
     final channel = _transport!.createDataChannel(
       label: label,
       protocol: protocol,
@@ -1238,9 +1234,12 @@ class RtcPeerConnection {
       priority: priority,
     );
 
+    // Register with SCTP manager
+    _sctpManager.registerLocalChannel(channel);
+
     // Trigger negotiation needed if this is the first data channel
     // and we haven't negotiated SCTP yet
-    if (_dataChannelsOpened == 1) {
+    if (isFirstChannel) {
       _triggerNegotiationNeeded();
     }
 
@@ -2165,10 +2164,13 @@ class RtcPeerConnection {
       RTCPeerConnectionStats(
         timestamp: timestamp,
         id: pcId,
-        dataChannelsOpened: _dataChannelsOpened,
-        dataChannelsClosed: _dataChannelsClosed,
+        dataChannelsOpened: _sctpManager.dataChannelsOpened,
+        dataChannelsClosed: _sctpManager.dataChannelsClosed,
       ),
     );
+
+    // Add DataChannel stats from SCTP manager
+    stats.addAll(_sctpManager.getStats());
 
     // Track which MIDs have been processed
     final processedMids = <String>{};
@@ -2243,7 +2245,7 @@ class RtcPeerConnection {
     await _connectionStateController.close();
     await _iceConnectionStateController.close();
     await _iceGatheringStateController.close();
-    await _dataChannelController.close();
+    await _sctpManager.close();
     await _trackController.close();
     await _negotiationNeededController.close();
   }

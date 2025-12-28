@@ -446,9 +446,9 @@ The Dart port achieves **~95-100% feature parity** with the TypeScript werift-we
 ### 🟢 Low Priority (Nice to Have)
 
 6. **Add more cipher suites (AES-256, ChaCha20)**
-7. **Port STUN Transaction class for retry logic**
+7. ~~**Port STUN Transaction class for retry logic**~~ ✅ DONE (December 2025)
 8. **Add WebM encryption support**
-9. **Improve ICE role conflict recovery**
+9. ~~**Improve ICE role conflict recovery**~~ ✅ DONE (December 2025)
 
 ---
 
@@ -516,5 +516,10 @@ The Dart port successfully achieves WebRTC interoperability with all major brows
 - ~~ICE consent freshness~~ ✅ DONE (December 2025)
 - ~~SCTP Partial Reliability~~ ✅ DONE (December 2025)
 - ~~MP4 container completeness~~ ✅ DONE (December 2025)
+- ~~SCTP Add Streams (RFC 6525)~~ ✅ DONE (December 2025)
+- ~~ICE Role Conflict Recovery~~ ✅ DONE (December 2025)
+- ~~STUN Transaction Retry~~ ✅ DONE (December 2025)
+- ~~ICE Early Check Queue~~ ✅ DONE (December 2025)
+- ~~onNegotiationNeeded~~ ✅ DONE (December 2025)
 
-The port has achieved **100% werift feature parity** for all high and medium priority items. It is production-ready for WebRTC data channels, media streaming, and recording with full fMP4 support.
+The port has achieved **100% werift feature parity** for all high, medium, and most low priority items. It is production-ready for WebRTC data channels, media streaming, and recording with full fMP4 support.

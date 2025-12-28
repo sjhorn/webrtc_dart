@@ -14,6 +14,7 @@ import 'package:webrtc_dart/src/media/media_stream_track.dart';
 import 'package:webrtc_dart/src/media/parameters.dart' show SimulcastDirection;
 import 'package:webrtc_dart/src/media/rtp_router.dart';
 import 'package:webrtc_dart/src/media/rtp_transceiver.dart';
+import 'package:webrtc_dart/src/media/transceiver_manager.dart';
 import 'package:webrtc_dart/src/nonstandard/media/track.dart' as nonstandard;
 import 'package:webrtc_dart/src/rtp/rtp_session.dart';
 import 'package:webrtc_dart/src/sdp/sdp.dart';
@@ -219,8 +220,11 @@ class RtcPeerConnection {
   /// Flag to prevent multiple negotiation needed events during batch operations
   bool _negotiationNeededPending = false;
 
-  /// List of RTP transceivers
-  final List<RtpTransceiver> _transceivers = [];
+  /// Transceiver manager for RTP transceiver lifecycle
+  final TransceiverManager _transceiverManager = TransceiverManager();
+
+  /// List of RTP transceivers (delegating to TransceiverManager)
+  List<RtpTransceiver> get _transceivers => _transceiverManager.transceivers;
 
   /// Established m-line order (MIDs) after first negotiation.
   /// Used to preserve m-line order in subsequent offers per RFC 3264.
@@ -924,23 +928,20 @@ class RtcPeerConnection {
           : MediaStreamTrackKind.video;
 
       // First, try to match by MID (exact match)
-      var existingTransceiver =
-          _transceivers.where((t) => t.mid == mid).firstOrNull;
+      var existingTransceiver = _transceiverManager.getTransceiverByMid(mid);
 
       // If no MID match, try to match by kind for pre-created transceivers
       // This matches werift's behavior where pre-created transceivers have mid=undefined
       // and are matched by kind when processing the remote offer
       if (existingTransceiver == null) {
-        existingTransceiver = _transceivers
-            .where((t) =>
-                t.kind == mediaKind &&
-                !matchedTransceivers.contains(t) &&
-                // Match if MID is null OR if MID doesn't match any remote m-line
-                // (meaning it was assigned locally but not yet negotiated)
-                (t.mid == null ||
-                    !sdpMessage.mediaDescriptions.any(
-                        (m) => m.getAttributeValue('mid') == t.mid)))
-            .firstOrNull;
+        existingTransceiver = _transceiverManager.findTransceiver((t) =>
+            t.kind == mediaKind &&
+            !matchedTransceivers.contains(t) &&
+            // Match if MID is null OR if MID doesn't match any remote m-line
+            // (meaning it was assigned locally but not yet negotiated)
+            (t.mid == null ||
+                !sdpMessage.mediaDescriptions.any(
+                    (m) => m.getAttributeValue('mid') == t.mid)));
 
         if (existingTransceiver != null) {
           // Found a pre-created transceiver by kind - migrate it to the new MID
@@ -1127,7 +1128,7 @@ class RtcPeerConnection {
         );
       }
 
-      _transceivers.add(transceiver);
+      _transceiverManager.addTransceiver(transceiver);
 
       // Extract header extension IDs from remote SDP and set on sender
       // This is critical for extension regeneration when forwarding RTP
@@ -1443,7 +1444,7 @@ class RtcPeerConnection {
     // Wire up the transceiver reference for the receive callback
     transceiverRef = transceiver;
 
-    _transceivers.add(transceiver);
+    _transceiverManager.addTransceiver(transceiver);
 
     return transceiver.sender;
   }
@@ -1548,7 +1549,7 @@ class RtcPeerConnection {
     transceiver.codecs = assignPayloadTypes(allCodecs);
 
     transceiverRef = transceiver;
-    _transceivers.add(transceiver);
+    _transceiverManager.addTransceiver(transceiver);
 
     // Set sender.mid and extension IDs for RTP header extension regeneration
     transceiver.sender.mid = mid;
@@ -1684,7 +1685,7 @@ class RtcPeerConnection {
     transceiver.sender.registerNonstandardTrack(track);
 
     transceiverRef = transceiver;
-    _transceivers.add(transceiver);
+    _transceiverManager.addTransceiver(transceiver);
 
     // Trigger negotiation needed per WebRTC spec
     _triggerNegotiationNeeded();
@@ -2128,38 +2129,20 @@ class RtcPeerConnection {
     if (_connectionState == PeerConnectionState.closed) {
       throw StateError('PeerConnection is closed');
     }
-
-    // Find transceiver with this sender
-    final transceiver = _transceivers.firstWhere(
-      (t) => t.sender == sender,
-      orElse: () => throw ArgumentError('Sender not found'),
-    );
-
-    // Stop the transceiver
-    transceiver.stop();
-
-    // Note: Don't remove from list to maintain MID mapping
-    // Mark direction as inactive instead
-    transceiver.direction = RtpTransceiverDirection.inactive;
+    _transceiverManager.removeTrack(sender);
   }
 
   /// Get all transceivers
-  List<RtpTransceiver> getTransceivers() {
-    return List.unmodifiable(_transceivers);
-  }
+  List<RtpTransceiver> getTransceivers() => _transceiverManager.getTransceivers();
 
   /// Get all transceivers (getter form)
-  List<RtpTransceiver> get transceivers => List.unmodifiable(_transceivers);
+  List<RtpTransceiver> get transceivers => _transceiverManager.transceivers;
 
   /// Get senders
-  List<RtpSender> getSenders() {
-    return _transceivers.map((t) => t.sender).toList();
-  }
+  List<RtpSender> getSenders() => _transceiverManager.getSenders();
 
   /// Get receivers
-  List<RtpReceiver> getReceivers() {
-    return _transceivers.map((t) => t.receiver).toList();
-  }
+  List<RtpReceiver> getReceivers() => _transceiverManager.getReceivers();
 
   /// Get RTC statistics
   /// Returns statistics about the peer connection

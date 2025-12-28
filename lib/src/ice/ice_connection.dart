@@ -1404,8 +1404,11 @@ class IceConnectionImpl implements IceConnection {
     return false;
   }
 
+  /// Maximum retries for error responses (401/487)
+  static const int _maxConnectivityCheckRetries = 3;
+
   /// Perform a connectivity check on a single candidate pair
-  Future<bool> _performConnectivityCheck(CandidatePair pair) async {
+  Future<bool> _performConnectivityCheck(CandidatePair pair, {int retryCount = 0}) async {
     try {
       pair.updateState(CandidatePairState.inProgress);
 
@@ -1488,6 +1491,10 @@ class IceConnectionImpl implements IceConnection {
       final requestBytes = request.toBytes();
       _log.fine(
           '[ICE] Sending STUN request (${requestBytes.length} bytes) to ${remoteCandidate.host}:${remoteCandidate.port}');
+
+      // Record start time for RTT measurement
+      final startTime = DateTime.now();
+
       if (isRelay) {
         final peerAddress = (remoteCandidate.host, remoteCandidate.port);
         await _turnClient!.sendData(peerAddress, requestBytes);
@@ -1508,21 +1515,45 @@ class IceConnectionImpl implements IceConnection {
         // Check if response is successful
         if (response.messageClass == StunClass.successResponse) {
           pair.stats.packetsReceived++;
+
+          // Calculate RTT
+          final endTime = DateTime.now();
+          final rttMs = endTime.difference(startTime).inMicroseconds / 1000.0;
+          final rttSeconds = rttMs / 1000.0;
+          pair.stats.rtt = rttSeconds;
+          pair.stats.totalRoundTripTime += rttSeconds;
+          pair.stats.roundTripTimeMeasurements++;
+          _log.fine('[ICE] Connectivity check succeeded, RTT: ${rttMs.toStringAsFixed(2)}ms');
+
           return true;
         }
 
-        // RFC 8445 Section 7.2.1.1: Handle 487 Role Conflict error
+        // RFC 8445 Section 7.2.1.1: Handle error responses
         if (response.messageClass == StunClass.errorResponse) {
           final errorCode = response.getAttribute(StunAttributeType.errorCode);
           if (errorCode != null) {
             final (code, reason) = errorCode as (int, String);
+
+            // RFC 8445: 487 Role Conflict - switch role and retry
             if (code == 487) {
-              _log.fine('[ICE] Received 487 Role Conflict - switching role and retrying');
-              // Switch role and retry the check
-              _iceControlling = !_iceControlling;
-              // Recursive retry with new role
-              return _performConnectivityCheck(pair);
+              if (retryCount < _maxConnectivityCheckRetries) {
+                _log.fine('[ICE] Received 487 Role Conflict - switching role and retrying (attempt ${retryCount + 1})');
+                // Switch role and retry the check
+                _iceControlling = !_iceControlling;
+                return _performConnectivityCheck(pair, retryCount: retryCount + 1);
+              }
+              _log.fine('[ICE] Max retries reached for 487 Role Conflict');
             }
+
+            // RFC 5389 Section 7.3.3: 401 Unauthorized - retry with credentials
+            if (code == 401) {
+              if (retryCount < _maxConnectivityCheckRetries) {
+                _log.fine('[ICE] Received 401 Unauthorized - retrying (attempt ${retryCount + 1})');
+                return _performConnectivityCheck(pair, retryCount: retryCount + 1);
+              }
+              _log.fine('[ICE] Max retries reached for 401 Unauthorized');
+            }
+
             _log.fine('[ICE] Connectivity check failed with error $code: $reason');
           }
         }
@@ -1644,6 +1675,10 @@ class IceConnectionImpl implements IceConnection {
       final requestBytes = request.toBytes();
       _log.fine(
           '[ICE-TCP] Sending STUN request (${requestBytes.length} bytes) over TCP');
+
+      // Record start time for RTT measurement
+      final startTime = DateTime.now();
+
       await tcpConnection.send(requestBytes);
 
       // Wait for response
@@ -1659,8 +1694,16 @@ class IceConnectionImpl implements IceConnection {
         await subscription.cancel();
 
         if (response.messageClass == StunClass.successResponse) {
-          _log.fine('[TCP] Connectivity check SUCCEEDED!');
           pair.stats.packetsReceived++;
+
+          // Calculate RTT
+          final endTime = DateTime.now();
+          final rttMs = endTime.difference(startTime).inMicroseconds / 1000.0;
+          final rttSeconds = rttMs / 1000.0;
+          pair.stats.rtt = rttSeconds;
+          pair.stats.totalRoundTripTime += rttSeconds;
+          pair.stats.roundTripTimeMeasurements++;
+          _log.fine('[TCP] Connectivity check SUCCEEDED! RTT: ${rttMs.toStringAsFixed(2)}ms');
 
           // Set up listener for application data
           tcpConnection.onMessage.listen((data) {

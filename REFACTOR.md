@@ -124,7 +124,7 @@ The Dart port achieves **~95-100% feature parity** with the TypeScript werift-we
 | **TCP Candidates** | Via abstraction | **Full RFC 6544** | **Dart enhanced** |
 | **mDNS Obfuscation** | ❌ | **RFC 8828** | **Dart enhanced** |
 | **Relay-Only Mode** | `forceTurn` flag | `relayOnly` flag | Parity (different name) |
-| Connectivity Checks | RFC 5245 full | Simplified | **Gap** |
+| Connectivity Checks | RFC 5245 full | ✅ Full (RTT + 401/487 retry) | Parity |
 | Consent Freshness | RFC 7675 | ✅ RFC 7675 | Parity |
 | Role Conflict Recovery | Full | ✅ Full RFC 8445 | Parity |
 | Early Check Queue | ✅ | ✅ RFC 8445 Section 7.2.1 | Parity |
@@ -158,13 +158,14 @@ The Dart port achieves **~95-100% feature parity** with the TypeScript werift-we
 |--------------|-----------|------|--------|
 | TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256 | ✅ | ✅ | **Primary for WebRTC** |
 | TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256 | ✅ | ✅ | Parity |
-| TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384 | ✅ | ❌ | Missing |
-| TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384 | ✅ | ❌ | Missing |
-| ChaCha20-Poly1305 (3 suites) | ✅ | ❌ | Missing |
-| PSK-based (4 suites) | ✅ | ❌ | Missing |
-| RSA key exchange (2 suites) | ✅ | ❌ | Missing |
+| TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384 | ✅ | ✅ | Parity |
+| TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384 | ✅ | ✅ | Parity |
+| TLS_ECDHE_ECDSA_WITH_CHACHA20_POLY1305_SHA256 | ✅ | ✅ | Parity |
+| TLS_ECDHE_RSA_WITH_CHACHA20_POLY1305_SHA256 | ✅ | ✅ | Parity |
+| PSK-based (4 suites) | ✅ | ❌ | Low priority |
+| RSA key exchange (2 suites) | ✅ | ❌ | Low priority |
 
-**Assessment:** Dart implements **2 of 13** cipher suites. This is intentional - AES-128-GCM with ECDHE is the standard for WebRTC.
+**Assessment:** Dart implements **6 of 13** cipher suites (all ECDHE-based suites). PSK and RSA key exchange are low priority as they're not commonly used in WebRTC.
 
 ### Extensions and Features
 

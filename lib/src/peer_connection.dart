@@ -360,7 +360,6 @@ class RtcPeerConnection {
 
   /// Convert RtcConfiguration to IceOptions
   static IceOptions _configToIceOptions(RtcConfiguration config) {
-    // Extract STUN/TURN servers from configuration
     (String, int)? stunServer;
     (String, int)? turnServer;
     String? turnUsername;
@@ -368,31 +367,26 @@ class RtcPeerConnection {
 
     for (final server in config.iceServers) {
       for (final url in server.urls) {
-        // Parse STUN/TURN URLs which use format: stun:host:port or turn:host:port
-        // Dart's Uri parser expects // for host-based URIs, so we parse manually
-        final (scheme, host, port) = _parseIceServerUrl(url);
-        _log.fine(
-            '[PC] Parsed ICE URL $url -> scheme=$scheme, host=$host, port=$port');
-        if (scheme == 'stun' && host != null && stunServer == null) {
+        // Parse ICE URLs: stun:host:port or turn:host:port
+        // Add // after scheme for Uri.parse() compatibility
+        final normalized =
+            url.contains('://') ? url : url.replaceFirst(':', '://');
+        final uri = Uri.tryParse(normalized.split('?').first);
+        if (uri == null || uri.host.isEmpty) continue;
+
+        final scheme = uri.scheme;
+        final host = uri.host;
+        final port = uri.hasPort ? uri.port : null;
+
+        if (scheme == 'stun' && stunServer == null) {
           stunServer = (host, port ?? 3478);
-          _log.fine(' Using STUN server: $stunServer');
         } else if ((scheme == 'turn' || scheme == 'turns') &&
-            host != null &&
             turnServer == null) {
-          // Support both turn: (UDP/TCP) and turns: (TLS) URLs
-          // Note: Current implementation only supports UDP, TLS support is TODO
           turnServer = (host, port ?? (scheme == 'turns' ? 443 : 3478));
           turnUsername = server.username;
           turnPassword = server.credential;
-          _log.fine('[PC] Using TURN server: $turnServer (scheme=$scheme)');
         }
       }
-    }
-
-    // Set relayOnly based on iceTransportPolicy
-    final relayOnly = config.iceTransportPolicy == IceTransportPolicy.relay;
-    if (relayOnly) {
-      _log.fine('[PC] Relay-only mode enabled (iceTransportPolicy: relay)');
     }
 
     return IceOptions(
@@ -400,45 +394,8 @@ class RtcPeerConnection {
       turnServer: turnServer,
       turnUsername: turnUsername,
       turnPassword: turnPassword,
-      relayOnly: relayOnly,
+      relayOnly: config.iceTransportPolicy == IceTransportPolicy.relay,
     );
-  }
-
-  /// Parse ICE server URL (stun:host:port or turn:host:port)
-  static (String scheme, String? host, int? port) _parseIceServerUrl(
-    String url,
-  ) {
-    // Handle URLs like: stun:stun.l.google.com:19302
-    // or: turn:turn.example.com:3478?transport=udp
-    final colonIdx = url.indexOf(':');
-    if (colonIdx == -1) return (url, null, null);
-
-    final scheme = url.substring(0, colonIdx);
-    var rest = url.substring(colonIdx + 1);
-
-    // Remove leading // if present
-    if (rest.startsWith('//')) {
-      rest = rest.substring(2);
-    }
-
-    // Remove query string if present
-    final queryIdx = rest.indexOf('?');
-    if (queryIdx != -1) {
-      rest = rest.substring(0, queryIdx);
-    }
-
-    // Parse host:port
-    final lastColonIdx = rest.lastIndexOf(':');
-    if (lastColonIdx == -1) {
-      // No port specified
-      return (scheme, rest, null);
-    }
-
-    final host = rest.substring(0, lastColonIdx);
-    final portStr = rest.substring(lastColonIdx + 1);
-    final port = int.tryParse(portStr);
-
-    return (scheme, host, port);
   }
 
   /// Get signaling state

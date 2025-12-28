@@ -21,8 +21,8 @@ import 'package:webrtc_dart/src/rtp/rtp_session.dart';
 import 'package:webrtc_dart/src/sdp/sdp.dart';
 import 'package:webrtc_dart/src/sdp/sdp_manager.dart';
 import 'package:webrtc_dart/src/srtp/rtp_packet.dart';
-import 'package:webrtc_dart/src/srtp/srtp_session.dart';
 import 'package:webrtc_dart/src/stats/rtc_stats.dart';
+import 'package:webrtc_dart/src/transport/secure_transport_manager.dart';
 import 'package:webrtc_dart/src/transport/transport.dart';
 
 final _log = WebRtcLogging.pc;
@@ -239,11 +239,8 @@ class RtcPeerConnection {
   /// RTX SSRC mapping by MID (original SSRC -> RTX SSRC)
   final Map<String, int> _rtxSsrcByMid = {};
 
-  /// SRTP session for encryption/decryption of RTP/RTCP packets (shared transport)
-  SrtpSession? _srtpSession;
-
-  /// SRTP sessions by MID for bundlePolicy:disable (per-transport SRTP)
-  final Map<String, SrtpSession> _srtpSessionsByMid = {};
+  /// Secure transport manager for SRTP session lifecycle
+  final SecureTransportManager _secureManager = SecureTransportManager();
 
   /// Random number generator for SSRC
   final Random _random = Random.secure();
@@ -1443,8 +1440,9 @@ class RtcPeerConnection {
     _rtpSessions[mid] = rtpSession;
 
     // Assign SRTP session if already available
-    if (_srtpSession != null) {
-      rtpSession.srtpSession = _srtpSession;
+    final srtpSession = _secureManager.getSrtpSessionForMid(mid);
+    if (srtpSession != null) {
+      rtpSession.srtpSession = srtpSession;
     }
 
     return rtpSession;
@@ -1601,94 +1599,30 @@ class RtcPeerConnection {
 
   /// Set up SRTP sessions for all media transports
   void _setupSrtpSessionsForAllTransports() {
-    for (final transport in _mediaTransports.values) {
-      final dtlsSocket = transport.dtlsSocket;
-      if (dtlsSocket == null) continue;
+    _secureManager.setupSrtpSessionsForAllTransports(
+      _mediaTransports,
+      _rtpSessions,
+      _getMidsForTransport,
+    );
+  }
 
-      final srtpContext = dtlsSocket.srtpContext;
-      if (srtpContext.localMasterKey == null ||
-          srtpContext.localMasterSalt == null ||
-          srtpContext.remoteMasterKey == null ||
-          srtpContext.remoteMasterSalt == null ||
-          srtpContext.profile == null) {
-        continue;
-      }
-
-      final srtpSession = SrtpSession(
-        profile: srtpContext.profile!,
-        localMasterKey: srtpContext.localMasterKey!,
-        localMasterSalt: srtpContext.localMasterSalt!,
-        remoteMasterKey: srtpContext.remoteMasterKey!,
-        remoteMasterSalt: srtpContext.remoteMasterSalt!,
-      );
-
-      // Store SRTP session by transport ID (MID)
-      _srtpSessionsByMid[transport.id] = srtpSession;
-      _log.fine(
-          '[$_debugLabel] SRTP session created for transport ${transport.id}');
-
-      // Find transceivers using this transport and update their SRTP sessions
-      // For bundlePolicy:disable, transport.id == mid, so match by mid directly
-      for (final transceiver in _transceivers) {
-        if (transceiver.mid == transport.id) {
-          final rtpSession = _rtpSessions[transceiver.mid];
-          if (rtpSession != null) {
-            rtpSession.srtpSession = srtpSession;
-          }
-        }
-      }
-    }
+  /// Get MIDs using a given transport ID (for bundlePolicy:disable)
+  List<String> _getMidsForTransport(String transportId) {
+    return _transceivers
+        .where((t) => t.mid == transportId)
+        .map((t) => t.mid!)
+        .toList();
   }
 
   /// Set up SRTP session for a single media transport when it becomes connected
   /// This is called immediately when an individual transport's DTLS completes
   /// Critical for bundlePolicy: disable where transports connect independently
   void _setupSrtpSessionForTransport(MediaTransport transport) {
-    // Skip if already set up
-    if (_srtpSessionsByMid.containsKey(transport.id)) {
-      return;
-    }
-
-    final dtlsSocket = transport.dtlsSocket;
-    if (dtlsSocket == null) return;
-
-    final srtpContext = dtlsSocket.srtpContext;
-    if (srtpContext.localMasterKey == null ||
-        srtpContext.localMasterSalt == null ||
-        srtpContext.remoteMasterKey == null ||
-        srtpContext.remoteMasterSalt == null ||
-        srtpContext.profile == null) {
-      _log.fine(
-          '[$_debugLabel] SRTP keys not available for transport ${transport.id}');
-      return;
-    }
-
-    final srtpSession = SrtpSession(
-      profile: srtpContext.profile!,
-      localMasterKey: srtpContext.localMasterKey!,
-      localMasterSalt: srtpContext.localMasterSalt!,
-      remoteMasterKey: srtpContext.remoteMasterKey!,
-      remoteMasterSalt: srtpContext.remoteMasterSalt!,
+    _secureManager.setupSrtpSessionForTransport(
+      transport,
+      _rtpSessions,
+      _getMidsForTransport,
     );
-
-    // Store SRTP session by transport ID (MID)
-    _srtpSessionsByMid[transport.id] = srtpSession;
-    _log.fine(
-        '[$_debugLabel] SRTP session created for transport ${transport.id} (per-transport setup)');
-
-    // Find transceivers using this transport and update their SRTP sessions
-    // For bundlePolicy:disable, transport.id == mid, so match by mid directly
-    for (final transceiver in _transceivers) {
-      // Match by MID since transport.id is the MID for bundlePolicy:disable
-      if (transceiver.mid == transport.id) {
-        final rtpSession = _rtpSessions[transceiver.mid];
-        if (rtpSession != null) {
-          rtpSession.srtpSession = srtpSession;
-          _log.fine(
-              '[$_debugLabel] Assigned SRTP session to RTP session for mid=${transceiver.mid}');
-        }
-      }
-    }
   }
 
   /// Get ICE connection for sending RTP/RTCP packets for a given MID
@@ -1706,48 +1640,7 @@ class RtcPeerConnection {
 
   /// Set up SRTP sessions for all RTP sessions once DTLS is connected
   void _setupSrtpSessions() {
-    _log.fine(
-        ' _setupSrtpSessions called, _rtpSessions.length=${_rtpSessions.length}');
-    final dtlsSocket = _transport?.dtlsSocket;
-    if (dtlsSocket == null) {
-      _log.fine(' _setupSrtpSessions: dtlsSocket is null');
-      return;
-    }
-
-    // Get SRTP context from DTLS
-    final srtpContext = dtlsSocket.srtpContext;
-
-    // Check if keying material is available
-    if (srtpContext.localMasterKey == null ||
-        srtpContext.localMasterSalt == null ||
-        srtpContext.remoteMasterKey == null ||
-        srtpContext.remoteMasterSalt == null ||
-        srtpContext.profile == null) {
-      // Keys not yet available, will be set up later
-      _log.fine(
-          ' _setupSrtpSessions: SRTP keys not available - localKey=${srtpContext.localMasterKey != null}, localSalt=${srtpContext.localMasterSalt != null}, remoteKey=${srtpContext.remoteMasterKey != null}, remoteSalt=${srtpContext.remoteMasterSalt != null}, profile=${srtpContext.profile}');
-      return;
-    }
-
-    // Create SRTP session from DTLS keying material
-    final srtpSession = SrtpSession(
-      profile: srtpContext.profile!,
-      localMasterKey: srtpContext.localMasterKey!,
-      localMasterSalt: srtpContext.localMasterSalt!,
-      remoteMasterKey: srtpContext.remoteMasterKey!,
-      remoteMasterSalt: srtpContext.remoteMasterSalt!,
-    );
-
-    // Store at PeerConnection level for use in decryption
-    _srtpSession = srtpSession;
-    _log.fine(
-        ' Created SRTP session, applying to ${_rtpSessions.length} RTP sessions');
-
-    // Apply SRTP session to all RTP sessions
-    for (final entry in _rtpSessions.entries) {
-      _log.fine(' Applying SRTP to RTP session for mid=${entry.key}');
-      entry.value.srtpSession = srtpSession;
-    }
+    _secureManager.setupSrtpSessions(_transport, _rtpSessions);
   }
 
   /// Handle incoming RTP/RTCP data from transport
@@ -1790,13 +1683,10 @@ class RtcPeerConnection {
   /// [mid] is optional - when provided (bundlePolicy:disable), uses per-transport SRTP session
   void _routeRtpPacket(int ssrc, Uint8List data, {String? mid}) async {
     try {
-      // Get SRTP session - prefer per-MID session for bundlePolicy:disable
-      SrtpSession? srtpSession;
-      if (mid != null && _srtpSessionsByMid.containsKey(mid)) {
-        srtpSession = _srtpSessionsByMid[mid];
-      } else {
-        srtpSession = _srtpSession;
-      }
+      // Get SRTP session from manager (prefers per-MID for bundlePolicy:disable)
+      final srtpSession = mid != null
+          ? _secureManager.getSrtpSessionForMid(mid)
+          : _secureManager.srtpSession;
 
       // Decrypt SRTP to RTP first
       RtpPacket packet;
@@ -1839,13 +1729,10 @@ class RtcPeerConnection {
   /// Route RTCP packet to appropriate session
   /// [mid] is optional - when provided (bundlePolicy:disable), uses per-transport SRTP session
   void _routeRtcpPacket(int ssrc, Uint8List data, {String? mid}) async {
-    // Get SRTP session for decryption - prefer per-MID session for bundlePolicy:disable
-    SrtpSession? srtpSession;
-    if (mid != null && _srtpSessionsByMid.containsKey(mid)) {
-      srtpSession = _srtpSessionsByMid[mid];
-    } else {
-      srtpSession = _srtpSession;
-    }
+    // Get SRTP session from manager (prefers per-MID for bundlePolicy:disable)
+    final srtpSession = mid != null
+        ? _secureManager.getSrtpSessionForMid(mid)
+        : _secureManager.srtpSession;
 
     // Route RTCP by SSRC to the appropriate session
     final session = _findSessionBySsrc(ssrc);

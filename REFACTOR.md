@@ -475,7 +475,91 @@ The Dart port achieves **~95-100% feature parity** with the TypeScript werift-we
 
 **Result:** peer_connection.dart reduced from 2,257 → 2,010 lines (-247 lines, 11% reduction)
 
-**Note:** Full reduction to ~1,200 lines would require extracting bundlePolicy:disable logic to SecureTransportManager (significant undertaking). Current architecture is functional and well-tested.
+---
+
+### 🔵 Phase 5: Match werift Manager Architecture (December 2025)
+
+**Goal:** Extract remaining inline code to match werift's manager pattern exactly.
+
+#### werift Manager Structure (Reference)
+
+| Manager | werift Lines | Dart Status |
+|---------|--------------|-------------|
+| SecureTransportManager | 405 | ✅ Complete (202 lines) |
+| TransceiverManager | 424 | ✅ Partial (106 lines) |
+| RtpRouter | 196 | ✅ Exists (165 lines) |
+| SctpManager | 150 | ✅ Complete (117 lines) |
+| SdpManager | 497 | ✅ Complete (719 lines) |
+
+#### Detailed Gap Analysis
+
+| Function | Dart Location | Dart Lines | werift Location | Gap |
+|----------|---------------|------------|-----------------|-----|
+| Transport creation | `_findOrCreateMediaTransport()` inline | 75 | `SecureTransportManager.createTransport()` | +35 |
+| ICE state aggregation | `_updateAggregateConnectionState()` inline | 35 | `SecureTransportManager.updateIceConnectionState()` | -5 |
+| SRTP session setup | 3 methods inline | 130 | In DTLS transport callbacks | +130 |
+| ICE candidate handling | In setRemoteDescription | 60 | `SecureTransportManager.addIceCandidate()` | +30 |
+| Remote media processing | `_processRemoteMediaDescriptions()` | 156 | `TransceiverManager.setRemoteRTP()` | +66 |
+| RTP routing | `_routeRtpPacket()` inline | 40 | `RtpRouter.routeRtp()` | -8 |
+| RTCP routing | `_routeRtcpPacket()` inline | 30 | `RtpRouter.routeRtcp()` | -25 |
+| Packet detection | `_handleIncomingRtpData()` inline | 50 | In transport callback | +45 |
+| Logging | Scattered | 120 | Minimal | +100 |
+
+#### Extraction Plan
+
+| Option | Description | Est. Savings | Status |
+|--------|-------------|--------------|--------|
+| 1. SecureTransportManager | Extract SRTP session lifecycle | ~113 lines | ✅ Complete |
+| 2. TransceiverManager.setRemoteRTP | Move remote media processing | ~60 lines | Pending |
+| 3. RtpRouter enhancement | Move routeRtp/routeRtcp | ~40 lines | Pending |
+| 4. Reduce logging | Remove verbose debug statements | ~80 lines | Pending |
+
+**Current:** peer_connection.dart 1,897 lines
+**Target:** peer_connection.dart ~1,630 lines
+
+#### Option 1: SecureTransportManager ✅ COMPLETE
+
+**File:** `lib/src/transport/secure_transport_manager.dart` (202 lines)
+
+Extracted from peer_connection.dart:
+- `_setupSrtpSessions()` → `setupSrtpSessions()`
+- `_setupSrtpSessionsForAllTransports()` → `setupSrtpSessionsForAllTransports()`
+- `_setupSrtpSessionForTransport()` → `setupSrtpSessionForTransport()`
+- State: `_srtpSession`, `_srtpSessionsByMid` → managed internally
+- SRTP session lookup: `getSrtpSessionForMid()`, `hasSrtpSessionForMid()`
+- ICE connection lookup: `getIceConnectionForMid()`
+- DTLS→SRTP key extraction: `_createSrtpSessionFromDtls()`
+
+**Savings:** 2,010 → 1,897 lines (-113 lines, 5.6% reduction)
+
+#### Option 2: TransceiverManager.setRemoteRTP
+
+Move from peer_connection.dart:
+- `_processRemoteMediaDescriptions()` → `setRemoteRTP()`
+- Transceiver matching logic
+- Track event firing
+- RTP session creation (via callback injection)
+
+**Total extraction:** ~100 lines → ~60 net savings
+
+#### Option 3: RtpRouter Enhancement
+
+Move from peer_connection.dart:
+- `_handleIncomingRtpData()` → `router.handleIncomingData()`
+- `_routeRtpPacket()` → `router.routeRtp()`
+- `_routeRtcpPacket()` → `router.routeRtcp()`
+- RTP vs RTCP detection logic
+
+**Total extraction:** ~120 lines → ~40 net savings
+
+#### Option 4: Reduce Logging
+
+Remove verbose `_log.fine()` calls:
+- 22+ log statements in setRemoteDescription
+- Debug label formatting
+- Redundant state logging
+
+**Total savings:** ~80 lines
 
 ---
 

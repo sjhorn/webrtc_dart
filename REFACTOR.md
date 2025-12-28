@@ -262,7 +262,7 @@ The Dart port achieves **~95-100% feature parity** with the TypeScript werift-we
 | Congestion Control | ✅ | ✅ | Parity |
 | Fast Retransmit | ✅ | ✅ | Parity |
 | **Partial Reliability (send)** | ✅ | ✅ | Parity (Dec 2025) |
-| **Add Streams (RFC 6525)** | ✅ | ❌ | **Gap** |
+| **Add Streams (RFC 6525)** | ✅ | ✅ | Parity (Dec 2025) |
 | User Data Max Length | 1200 | 1024 | Different default |
 
 ### Recommended Refactoring

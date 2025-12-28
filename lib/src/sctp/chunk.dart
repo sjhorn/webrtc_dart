@@ -1098,6 +1098,72 @@ class OutgoingSsnResetRequestParam extends SctpReconfigParam {
       'OutgoingSsnResetRequest(reqSeq=$requestSequence, respSeq=$responseSequence, lastTsn=$lastTsn, streams=$streams)';
 }
 
+/// Add Outgoing Streams Request Parameter (Type 17)
+/// RFC 6525 Section 4.5
+///
+///  0                   1                   2                   3
+///  0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1
+/// +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+/// |     Parameter Type = 17       |      Parameter Length = 12    |
+/// +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+/// |          Re-configuration Request Sequence Number             |
+/// +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+/// |      Number of new streams    |         Reserved              |
+/// +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+class StreamAddOutgoingParam extends SctpReconfigParam {
+  @override
+  final int paramType = ReconfigParamType.addOutgoingStreams;
+
+  /// Re-configuration Request Sequence Number
+  final int requestSequence;
+
+  /// Number of new streams to add
+  final int newStreams;
+
+  StreamAddOutgoingParam({
+    required this.requestSequence,
+    required this.newStreams,
+  });
+
+  @override
+  Uint8List serialize() {
+    // Fixed length: 4 (header) + 4 (request seq) + 2 (new streams) + 2 (reserved)
+    const paramLen = 12;
+    final result = Uint8List(paramLen);
+    final buffer = ByteData.sublistView(result);
+
+    // Parameter header
+    buffer.setUint16(0, paramType);
+    buffer.setUint16(2, paramLen);
+
+    // Request sequence number
+    buffer.setUint32(4, requestSequence);
+
+    // Number of new streams (16-bit) + reserved (16-bit)
+    buffer.setUint16(8, newStreams);
+    buffer.setUint16(10, 0); // Reserved
+
+    return result;
+  }
+
+  static StreamAddOutgoingParam parse(Uint8List data) {
+    final buffer = ByteData.sublistView(data);
+
+    final requestSequence = buffer.getUint32(4);
+    final newStreams = buffer.getUint16(8);
+    // Reserved field at offset 10 is ignored
+
+    return StreamAddOutgoingParam(
+      requestSequence: requestSequence,
+      newStreams: newStreams,
+    );
+  }
+
+  @override
+  String toString() =>
+      'StreamAddOutgoing(reqSeq=$requestSequence, newStreams=$newStreams)';
+}
+
 /// Re-configuration Response Parameter (Type 16)
 /// RFC 6525 Section 4.4
 ///
@@ -1261,6 +1327,9 @@ class SctpReconfigChunk extends SctpChunk {
       switch (paramType) {
         case ReconfigParamType.outgoingSsnResetRequest:
           params.add(OutgoingSsnResetRequestParam.parse(paramData));
+          break;
+        case ReconfigParamType.addOutgoingStreams:
+          params.add(StreamAddOutgoingParam.parse(paramData));
           break;
         case ReconfigParamType.reconfigResponse:
           params.add(ReconfigResponseParam.parse(paramData));

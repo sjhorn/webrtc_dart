@@ -219,6 +219,12 @@ class SctpAssociation {
   /// Callback when streams are reset (for closing data channels)
   void Function(List<int> streamIds)? onReconfigStreams;
 
+  /// Callback when streams are added (RFC 6525 Add Streams)
+  void Function(int newStreams)? onStreamsAdded;
+
+  /// Current number of inbound streams (can increase via Add Streams)
+  late int _currentInboundStreams;
+
   SctpAssociation({
     required this.localPort,
     required this.remotePort,
@@ -235,6 +241,8 @@ class SctpAssociation {
         _localTsn = 0 {
     // _localTsn must start at _localInitialTsn
     _localTsn = _localInitialTsn;
+    // Initialize current inbound streams to the negotiated count
+    _currentInboundStreams = inboundStreams;
     // Reconfig request sequence starts at localTsn (per RFC 6525)
     _reconfigRequestSeq = _localInitialTsn;
     // Generate random HMAC key for cookie generation/verification (matching werift)
@@ -255,6 +263,9 @@ class SctpAssociation {
 
   /// Get remote verification tag
   int? get remoteVerificationTag => _remoteVerificationTag;
+
+  /// Get current number of inbound streams (may increase via Add Streams)
+  int get currentInboundStreams => _currentInboundStreams;
 
   /// Start association as client (send INIT)
   Future<void> connect() async {
@@ -955,6 +966,8 @@ class SctpAssociation {
     for (final param in chunk.params) {
       if (param is OutgoingSsnResetRequestParam) {
         await _handleOutgoingSsnResetRequest(param);
+      } else if (param is StreamAddOutgoingParam) {
+        await _handleStreamAddOutgoing(param);
       } else if (param is ReconfigResponseParam) {
         await _handleReconfigResponse(param);
       }
@@ -986,6 +999,31 @@ class SctpAssociation {
       // Notify about closed streams
       onReconfigStreams?.call(param.streams);
     }
+  }
+
+  /// Handle incoming Add Outgoing Streams Request (RFC 6525 Section 4.5)
+  /// (The remote peer wants to add more outgoing streams, which become our inbound streams)
+  Future<void> _handleStreamAddOutgoing(StreamAddOutgoingParam param) async {
+    // Increase our inbound stream count
+    _currentInboundStreams += param.newStreams;
+
+    // Update our response sequence to match the incoming request
+    _reconfigResponseSeq = param.requestSequence;
+
+    // Send success response
+    final response = ReconfigResponseParam(
+      responseSequence: param.requestSequence,
+      result: ReconfigResult.successPerformed,
+    );
+
+    final chunk = SctpReconfigChunk(params: [response]);
+    await _sendChunk(chunk);
+
+    // Notify about added streams
+    onStreamsAdded?.call(param.newStreams);
+
+    _log.fine(
+        ' Accepted ${param.newStreams} new streams, total inbound: $_currentInboundStreams');
   }
 
   /// Handle incoming Reconfig Response

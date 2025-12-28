@@ -31,7 +31,8 @@ The Dart port achieves **~95-100% feature parity** with the TypeScript werift-we
 - ✅ Added StunOverTurnProtocol for STUN connectivity checks over TURN relay
 - ✅ Added setConfiguration/getConfiguration for runtime ICE server updates
 - ✅ Added RTCP BYE (Goodbye) packet support - goes beyond werift!
-- ✅ All 2430+ tests passing, 0 analyzer issues
+- ✅ Extracted SdpManager, TransceiverManager, SctpTransportManager - matches werift architecture
+- ✅ All 1969+ tests passing, 0 analyzer issues
 
 ---
 
@@ -76,7 +77,7 @@ The Dart port achieves **~95-100% feature parity** with the TypeScript werift-we
 | Event Model | Custom Event class + callbacks | Stream-based (Dart idiom) |
 | Async Pattern | Promises | Futures + async/await |
 | State Management | Mutable objects | Immutable records where possible |
-| Manager Pattern | Separate managers (SDP, Transceiver) | Embedded in PeerConnection |
+| Manager Pattern | Separate managers (SDP, Transceiver, SCTP) | ✅ Separate managers (SdpManager, TransceiverManager, SctpTransportManager) |
 | Protocol Abstraction | Protocol layer wraps sockets | Direct socket/client management |
 
 ---
@@ -352,14 +353,18 @@ The Dart port achieves **~95-100% feature parity** with the TypeScript werift-we
 
 | Aspect | TypeScript | Dart |
 |--------|-----------|------|
-| SDP Management | Separate SDPManager | Embedded in PeerConnection |
-| Code location | ~970 + ~500 lines | ~2600 lines (combined) |
+| SDP Management | Separate SDPManager (497 lines) | ✅ Separate SdpManager (719 lines) |
+| Transceiver Management | TransceiverManager (424 lines) | ✅ TransceiverManager (106 lines) |
+| SCTP Management | SctpTransportManager (150 lines) | ✅ SctpTransportManager (117 lines) |
+| PeerConnection | ~970 lines | ~2,257 lines |
 | RTX handling | Implicit | Explicit RtxSdpBuilder |
 
-### Recommended Refactoring
+### Refactoring Complete (December 2025)
 
-1. **Consider extracting SDP logic** - Might improve maintainability
-2. ~~**Add onNegotiationNeeded**~~ - DONE (implemented with event coalescing)
+1. ~~**Consider extracting SDP logic**~~ - ✅ DONE: Extracted SdpManager with buildOfferSdp, buildAnswerSdp, validation
+2. ~~**Add onNegotiationNeeded**~~ - ✅ DONE (implemented with event coalescing)
+3. ~~**Extract TransceiverManager**~~ - ✅ DONE: Transceiver lifecycle, getters, matching
+4. ~~**Extract SctpTransportManager**~~ - ✅ DONE: DataChannel lifecycle, per-channel stats
 
 ---
 
@@ -442,10 +447,11 @@ The Dart port achieves **~95-100% feature parity** with the TypeScript werift-we
    - maxRetransmits and maxPacketLifeTime now supported
    - DataChannel exposes reliability parameters to SCTP layer
 
-5. **Extract SDP Manager**
-   - Consider separating SDP logic from PeerConnection
-   - Improves testability and maintainability
-   - Estimated effort: 2-3 days
+5. ~~**Extract SDP Manager**~~ ✅ DONE (December 2025)
+   - Extracted SdpManager (719 lines) from PeerConnection
+   - Extracted TransceiverManager (106 lines) for transceiver lifecycle
+   - Extracted SctpTransportManager (117 lines) for DataChannel stats
+   - PeerConnection reduced from 2,726 to 2,257 lines (-17%)
 
 ### 🟢 Low Priority (Nice to Have)
 

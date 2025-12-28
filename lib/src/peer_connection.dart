@@ -917,44 +917,8 @@ class RtcPeerConnection {
         // Mark as matched to avoid reusing in later iterations
         matchedTransceivers.add(existingTransceiver);
 
-        // Transceiver exists (we created it when adding a local track or pre-created)
-        // This is a sendrecv transceiver - it sends our local track and receives the remote track
-
-        // Extract header extension IDs from remote SDP and set on sender
-        // This is critical for extension regeneration when forwarding RTP
-        final headerExtensions = media.getHeaderExtensions();
-        for (final ext in headerExtensions) {
-          if (ext.uri == 'urn:ietf:params:rtp-hdrext:sdes:mid') {
-            existingTransceiver.sender.midExtensionId = ext.id;
-          } else if (ext.uri ==
-              'http://www.webrtc.org/experiments/rtp-hdrext/abs-send-time') {
-            existingTransceiver.sender.absSendTimeExtensionId = ext.id;
-          } else if (ext.uri ==
-              'http://www.ietf.org/id/draft-holmer-rmcat-transport-wide-cc-extensions-01') {
-            existingTransceiver.sender.transportWideCCExtensionId = ext.id;
-          }
-        }
-
-        // Register header extensions with RTP router for RID parsing
-        _rtpRouter.registerHeaderExtensions(headerExtensions);
-
-        // Register simulcast RID handlers if present
-        final simulcastParams = media.getSimulcastParameters();
-        final receiverForClosure = existingTransceiver.receiver;
-        for (final param in simulcastParams) {
-          if (param.direction == SimulcastDirection.send) {
-            // Remote is sending - we need to receive these RIDs
-            _rtpRouter.registerByRid(param.rid, (packet, rid, extensions) {
-              if (rid != null) {
-                receiverForClosure.handleRtpByRid(packet, rid, extensions);
-              } else {
-                // Fallback: RID negotiated but not in packet, use SSRC routing
-                receiverForClosure.handleRtpBySsrc(packet, extensions);
-              }
-            });
-            _log.fine('[$_debugLabel] Registered RID handler: ${param.rid}');
-          }
-        }
+        // Configure transceiver with header extensions and simulcast from remote SDP
+        _configureTransceiverFromRemote(existingTransceiver, media);
 
         // Emit the transceiver so the application can listen to the received track
         _trackController.add(existingTransceiver);
@@ -1005,49 +969,12 @@ class RtcPeerConnection {
       final ssrc = _random.nextInt(0xFFFFFFFF);
 
       // Create RTP session for this remote track
-      // Capture mid for use in closures (for bundlePolicy: disable routing)
-      final transceiverMid = mid;
       RtpTransceiver? transceiver;
-      final rtpSession = RtpSession(
-        localSsrc: ssrc,
-        srtpSession: null,
-        onSendRtp: (packet) async {
-          // SRTP packets go directly over ICE/UDP, not wrapped in DTLS
-          // Use the MID-specific transport for bundlePolicy: disable
-          final iceConnection = _getIceConnectionForMid(transceiverMid);
-          if (iceConnection != null) {
-            _log.fine('[PC:$transceiverMid] ICE send ${packet.length} bytes');
-            await iceConnection.send(packet);
-          } else {
-            _log.fine(
-                '[PC:$transceiverMid] ICE null, _transport=${_transport != null}, _mediaTransports=${_mediaTransports.keys}');
-          }
-        },
-        onSendRtcp: (packet) async {
-          // SRTCP packets go directly over ICE/UDP, not wrapped in DTLS
-          // Use the MID-specific transport for bundlePolicy: disable
-          final iceConnection = _getIceConnectionForMid(transceiverMid);
-          if (iceConnection != null) {
-            try {
-              await iceConnection.send(packet);
-            } on StateError catch (_) {
-              // ICE not yet nominated, silently drop RTCP
-              // This can happen when RTCP timer fires before ICE completes
-            }
-          }
-        },
-        onReceiveRtp: (packet) {
-          if (transceiver != null) {
-            transceiver.receiver.handleRtpPacket(packet);
-          } else {
-            _log.fine(
-                '[$_debugLabel] WARN: onReceiveRtp for mid=$mid but transceiver is null!');
-          }
-        },
+      final rtpSession = _createRtpSession(
+        mid: mid,
+        ssrc: ssrc,
+        getTransceiver: () => transceiver,
       );
-
-      rtpSession.start();
-      _rtpSessions[mid] = rtpSession;
 
       // Determine direction based on remote offer
       // If remote is sendrecv, we should also be sendrecv to allow echo/bidirectional
@@ -1081,42 +1008,9 @@ class RtcPeerConnection {
 
       _transceiverManager.addTransceiver(transceiver);
 
-      // Extract header extension IDs from remote SDP and set on sender
-      // This is critical for extension regeneration when forwarding RTP
+      // Set sender.mid for new transceiver and configure from remote SDP
       transceiver.sender.mid = mid;
-      final headerExtensions = media.getHeaderExtensions();
-      for (final ext in headerExtensions) {
-        if (ext.uri == 'urn:ietf:params:rtp-hdrext:sdes:mid') {
-          transceiver.sender.midExtensionId = ext.id;
-        } else if (ext.uri ==
-            'http://www.webrtc.org/experiments/rtp-hdrext/abs-send-time') {
-          transceiver.sender.absSendTimeExtensionId = ext.id;
-        } else if (ext.uri ==
-            'http://www.ietf.org/id/draft-holmer-rmcat-transport-wide-cc-extensions-01') {
-          transceiver.sender.transportWideCCExtensionId = ext.id;
-        }
-      }
-
-      // Register header extensions with RTP router for RID parsing
-      _rtpRouter.registerHeaderExtensions(headerExtensions);
-
-      // Register simulcast RID handlers if present
-      final simulcastParams = media.getSimulcastParameters();
-      final receiverForClosure = transceiver.receiver;
-      for (final param in simulcastParams) {
-        if (param.direction == SimulcastDirection.send) {
-          // Remote is sending - we need to receive these RIDs
-          _rtpRouter.registerByRid(param.rid, (packet, rid, extensions) {
-            if (rid != null) {
-              receiverForClosure.handleRtpByRid(packet, rid, extensions);
-            } else {
-              // Fallback: RID negotiated but not in packet, use SSRC routing
-              receiverForClosure.handleRtpBySsrc(packet, extensions);
-            }
-          });
-          _log.fine('[$_debugLabel] Registered RID handler: ${param.rid}');
-        }
-      }
+      _configureTransceiverFromRemote(transceiver, media);
 
       // Emit the transceiver via onTrack stream
       _trackController.add(transceiver);
@@ -1290,6 +1184,48 @@ class RtcPeerConnection {
     _log.fine('[$_debugLabel] ICE restart requested');
   }
 
+  /// Configure transceiver with header extensions and simulcast from remote SDP.
+  /// This consolidates the repeated pattern for both existing and new transceivers.
+  void _configureTransceiverFromRemote(
+    RtpTransceiver transceiver,
+    SdpMedia media,
+  ) {
+    // Extract header extension IDs from remote SDP and set on sender
+    final headerExtensions = media.getHeaderExtensions();
+    for (final ext in headerExtensions) {
+      if (ext.uri == 'urn:ietf:params:rtp-hdrext:sdes:mid') {
+        transceiver.sender.midExtensionId = ext.id;
+      } else if (ext.uri ==
+          'http://www.webrtc.org/experiments/rtp-hdrext/abs-send-time') {
+        transceiver.sender.absSendTimeExtensionId = ext.id;
+      } else if (ext.uri ==
+          'http://www.ietf.org/id/draft-holmer-rmcat-transport-wide-cc-extensions-01') {
+        transceiver.sender.transportWideCCExtensionId = ext.id;
+      }
+    }
+
+    // Register header extensions with RTP router for RID parsing
+    _rtpRouter.registerHeaderExtensions(headerExtensions);
+
+    // Register simulcast RID handlers if present
+    final simulcastParams = media.getSimulcastParameters();
+    final receiverForClosure = transceiver.receiver;
+    for (final param in simulcastParams) {
+      if (param.direction == SimulcastDirection.send) {
+        // Remote is sending - we need to receive these RIDs
+        _rtpRouter.registerByRid(param.rid, (packet, rid, extensions) {
+          if (rid != null) {
+            receiverForClosure.handleRtpByRid(packet, rid, extensions);
+          } else {
+            // Fallback: RID negotiated but not in packet, use SSRC routing
+            receiverForClosure.handleRtpBySsrc(packet, extensions);
+          }
+        });
+        _log.fine('[$_debugLabel] Registered RID handler: ${param.rid}');
+      }
+    }
+  }
+
   // ========================================================================
   // Media Track API
   // ========================================================================
@@ -1317,62 +1253,13 @@ class RtcPeerConnection {
     // Generate unique SSRC
     final ssrc = _generateSsrc();
 
-    // Create transceiver first to get receiver
-    // Then create RTP session with receiver callback
-    RtpTransceiver? transceiver;
-
     // Create RTP session with receiver callback
-    // Store the transceiver so the callback can access it
-    RtpTransceiver? transceiverRef;
-    // Capture mid for use in closures (for bundlePolicy: disable routing)
-    final transceiverMid = mid;
-
-    final rtpSession = RtpSession(
-      localSsrc: ssrc,
-      srtpSession: null, // Will be set when DTLS keys are available
-      onSendRtp: (packet) async {
-        // SRTP packets go directly over ICE/UDP, not wrapped in DTLS
-        // Use the MID-specific transport for bundlePolicy: disable
-        final iceConnection = _getIceConnectionForMid(transceiverMid);
-        if (iceConnection != null) {
-          await iceConnection.send(packet);
-        } else {
-          // DEBUG: Print visible message when ICE is null
-          print('[PC] ICE NULL for mid=$transceiverMid');
-        }
-      },
-      onSendRtcp: (packet) async {
-        // SRTCP packets go directly over ICE/UDP, not wrapped in DTLS
-        // Use the MID-specific transport for bundlePolicy: disable
-        final iceConnection = _getIceConnectionForMid(transceiverMid);
-        if (iceConnection != null) {
-          try {
-            await iceConnection.send(packet);
-          } on StateError catch (_) {
-            // ICE not yet nominated, silently drop RTCP
-            // This can happen when RTCP timer fires before ICE completes
-          }
-        }
-      },
-      onReceiveRtp: (packet) {
-        // Route to receiver when available
-        if (transceiverRef != null) {
-          transceiverRef.receiver.handleRtpPacket(packet);
-        }
-      },
+    RtpTransceiver? transceiver;
+    final rtpSession = _createRtpSession(
+      mid: mid,
+      ssrc: ssrc,
+      getTransceiver: () => transceiver,
     );
-
-    // Start the RTP session
-    rtpSession.start();
-
-    // Store session
-    _rtpSessions[mid] = rtpSession;
-
-    // If SRTP session already exists (DTLS completed before this transceiver was added),
-    // assign it now so RTP packets will be encrypted
-    if (_srtpSession != null) {
-      rtpSession.srtpSession = _srtpSession;
-    }
 
     // Create transceiver based on track kind
     if (track.kind == MediaStreamTrackKind.audio) {
@@ -1396,9 +1283,6 @@ class RtcPeerConnection {
         ? (_configuration.codecs.audio ?? supportedAudioCodecs)
         : (_configuration.codecs.video ?? supportedVideoCodecs);
     transceiver.codecs = assignPayloadTypes(allCodecs);
-
-    // Wire up the transceiver reference for the receive callback
-    transceiverRef = transceiver;
 
     _transceiverManager.addTransceiver(transceiver);
 
@@ -1426,52 +1310,13 @@ class RtcPeerConnection {
     final mid = '${_nextMid++}';
     final ssrc = _generateSsrc();
 
-    RtpTransceiver? transceiverRef;
-    // Capture mid for use in closures (for bundlePolicy: disable routing)
-    final transceiverMid = mid;
-
-    final rtpSession = RtpSession(
-      localSsrc: ssrc,
-      srtpSession: null,
-      onSendRtp: (packet) async {
-        // SRTP packets go directly over ICE/UDP, not wrapped in DTLS
-        // Use the MID-specific transport for bundlePolicy: disable
-        final iceConnection = _getIceConnectionForMid(transceiverMid);
-        if (iceConnection != null) {
-          await iceConnection.send(packet);
-        } else {
-          // DEBUG: Print visible message when ICE is null
-          print('[PC] ICE NULL for mid=$transceiverMid');
-        }
-      },
-      onSendRtcp: (packet) async {
-        // SRTCP packets go directly over ICE/UDP, not wrapped in DTLS
-        // Use the MID-specific transport for bundlePolicy: disable
-        final iceConnection = _getIceConnectionForMid(transceiverMid);
-        if (iceConnection != null) {
-          try {
-            await iceConnection.send(packet);
-          } on StateError catch (_) {
-            // ICE not yet nominated, silently drop RTCP
-            // This can happen when RTCP timer fires before ICE completes
-          }
-        }
-      },
-      onReceiveRtp: (packet) {
-        if (transceiverRef != null) {
-          transceiverRef.receiver.handleRtpPacket(packet);
-        }
-      },
+    // Create RTP session with receiver callback
+    RtpTransceiver? transceiver;
+    final rtpSession = _createRtpSession(
+      mid: mid,
+      ssrc: ssrc,
+      getTransceiver: () => transceiver,
     );
-
-    rtpSession.start();
-    _rtpSessions[mid] = rtpSession;
-
-    // If SRTP session already exists (DTLS completed before this transceiver was added),
-    // assign it now so RTP packets will be encrypted
-    if (_srtpSession != null) {
-      rtpSession.srtpSession = _srtpSession;
-    }
 
     // Use configured codecs if no explicit codec provided
     final effectiveCodec = codec ??
@@ -1479,7 +1324,6 @@ class RtcPeerConnection {
             ? _configuration.codecs.audio?.firstOrNull
             : _configuration.codecs.video?.firstOrNull);
 
-    RtpTransceiver transceiver;
     if (kind == MediaStreamTrackKind.audio) {
       transceiver = createAudioTransceiver(
         mid: mid,
@@ -1504,7 +1348,6 @@ class RtcPeerConnection {
         : (_configuration.codecs.video ?? supportedVideoCodecs);
     transceiver.codecs = assignPayloadTypes(allCodecs);
 
-    transceiverRef = transceiver;
     _transceiverManager.addTransceiver(transceiver);
 
     // Set sender.mid and extension IDs for RTP header extension regeneration
@@ -1556,6 +1399,55 @@ class RtcPeerConnection {
   /// Generate random SSRC
   int _generateSsrc() {
     return _random.nextInt(0xFFFFFFFF);
+  }
+
+  /// Create an RTP session for a transceiver with standardized callbacks.
+  /// This consolidates the repeated RtpSession creation pattern.
+  ///
+  /// [mid] - The media ID for this session
+  /// [ssrc] - The local SSRC for this session
+  /// [getTransceiver] - Callback to get the transceiver (may be null initially)
+  RtpSession _createRtpSession({
+    required String mid,
+    required int ssrc,
+    required RtpTransceiver? Function() getTransceiver,
+  }) {
+    final rtpSession = RtpSession(
+      localSsrc: ssrc,
+      srtpSession: null,
+      onSendRtp: (packet) async {
+        final iceConnection = _getIceConnectionForMid(mid);
+        if (iceConnection != null) {
+          await iceConnection.send(packet);
+        }
+      },
+      onSendRtcp: (packet) async {
+        final iceConnection = _getIceConnectionForMid(mid);
+        if (iceConnection != null) {
+          try {
+            await iceConnection.send(packet);
+          } on StateError catch (_) {
+            // ICE not yet nominated, silently drop RTCP
+          }
+        }
+      },
+      onReceiveRtp: (packet) {
+        final transceiver = getTransceiver();
+        if (transceiver != null) {
+          transceiver.receiver.handleRtpPacket(packet);
+        }
+      },
+    );
+
+    rtpSession.start();
+    _rtpSessions[mid] = rtpSession;
+
+    // Assign SRTP session if already available
+    if (_srtpSession != null) {
+      rtpSession.srtpSession = _srtpSession;
+    }
+
+    return rtpSession;
   }
 
   /// Find or create a transport for a media line

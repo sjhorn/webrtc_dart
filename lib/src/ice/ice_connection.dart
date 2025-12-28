@@ -202,6 +202,12 @@ abstract class IceConnection {
 
   /// Get the default candidate (for SDP)
   Candidate? getDefaultCandidate();
+
+  /// Update ICE options (for setConfiguration)
+  ///
+  /// This updates the ICE servers and other options. Changes will take
+  /// effect on the next ICE restart.
+  void updateOptions(IceOptions options);
 }
 
 /// Basic ICE connection implementation
@@ -264,7 +270,10 @@ class IceConnectionImpl implements IceConnection {
   int _consentFailureCount = 0;
   final Random _random = Random();
 
-  final IceOptions options;
+  IceOptions _options;
+
+  /// Current ICE options (can be updated via updateOptions)
+  IceOptions get options => _options;
 
   /// Debug label for tracing (e.g., "audio" or "video")
   final String debugLabel;
@@ -275,9 +284,10 @@ class IceConnectionImpl implements IceConnection {
 
   IceConnectionImpl({
     required bool iceControlling,
-    this.options = const IceOptions(),
+    IceOptions options = const IceOptions(),
     this.debugLabel = '',
   })  : _iceControlling = iceControlling,
+        _options = options,
         _localUsername = randomString(4),
         _localPassword = randomString(22) {
     _generation = 0;
@@ -2166,6 +2176,12 @@ class IceConnectionImpl implements IceConnection {
       return hostCandidates.first;
     }
     return _localCandidates.isNotEmpty ? _localCandidates.first : null;
+  }
+
+  @override
+  void updateOptions(IceOptions options) {
+    _options = options;
+    _log.fine('[ICE] Updated options: stunServer=${options.stunServer}, turnServer=${options.turnServer}');
   }
 }
 

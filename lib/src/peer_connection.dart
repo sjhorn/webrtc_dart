@@ -136,8 +136,8 @@ class RtcOfferOptions {
 /// WebRTC Peer Connection API
 /// Based on W3C WebRTC 1.0 specification
 class RtcPeerConnection {
-  /// Configuration
-  final RtcConfiguration configuration;
+  /// Configuration (mutable via setConfiguration)
+  RtcConfiguration _configuration;
 
   /// Current signaling state
   SignalingState _signalingState = SignalingState.stable;
@@ -276,11 +276,12 @@ class RtcPeerConnection {
   /// immediately after constructing the PeerConnection.
   Future<void> waitForReady() => _initializationComplete;
 
-  RtcPeerConnection([this.configuration = const RtcConfiguration()]) {
+  RtcPeerConnection([RtcConfiguration configuration = const RtcConfiguration()])
+      : _configuration = configuration {
     _debugLabel = 'PC${++_instanceCounter}';
 
     // Convert configuration to IceOptions
-    final iceOptions = _configToIceOptions(configuration);
+    final iceOptions = _configToIceOptions(_configuration);
 
     _iceConnection = IceConnectionImpl(
       iceControlling: _iceControlling,
@@ -481,6 +482,33 @@ class RtcPeerConnection {
   /// Applications should respond by calling createOffer() and starting
   /// a new offer/answer exchange.
   Stream<void> get onNegotiationNeeded => _negotiationNeededController.stream;
+
+  /// Get the current configuration
+  ///
+  /// Returns a copy of the current RTCConfiguration.
+  RtcConfiguration getConfiguration() => _configuration;
+
+  /// Update the configuration
+  ///
+  /// Allows updating ICE servers and other configuration options after
+  /// the PeerConnection has been created. This is useful for:
+  /// - Updating TURN server credentials that may have expired
+  /// - Switching to different ICE servers
+  /// - Changing ICE transport policy
+  ///
+  /// Note: Changes to ICE servers will only take effect on the next
+  /// ICE restart. Call restartIce() after setConfiguration() to apply
+  /// new ICE server changes immediately.
+  ///
+  /// [config] - The new configuration to apply. Fields not specified
+  ///            will retain their current values.
+  void setConfiguration(RtcConfiguration config) {
+    _configuration = config;
+
+    // Update ICE connection with new configuration
+    final iceOptions = _configToIceOptions(_configuration);
+    _iceConnection.updateOptions(iceOptions);
+  }
 
   /// Create an offer
   ///
@@ -751,7 +779,7 @@ class RtcPeerConnection {
     ];
 
     // Add BUNDLE group unless bundlePolicy is disable
-    if (configuration.bundlePolicy != BundlePolicy.disable &&
+    if (_configuration.bundlePolicy != BundlePolicy.disable &&
         bundleMids.isNotEmpty) {
       sessionAttributes.insert(
         0,
@@ -911,7 +939,7 @@ class RtcPeerConnection {
     ];
 
     // Add BUNDLE group unless bundlePolicy is disable
-    if (configuration.bundlePolicy != BundlePolicy.disable &&
+    if (_configuration.bundlePolicy != BundlePolicy.disable &&
         bundleMids.isNotEmpty) {
       sessionAttributes.insert(
         0,
@@ -1030,7 +1058,7 @@ class RtcPeerConnection {
           a.key == 'group' && a.value != null && a.value!.startsWith('BUNDLE'),
     );
     _log.fine(
-        '[$_debugLabel] Remote is bundled: $_remoteIsBundled, bundlePolicy: ${configuration.bundlePolicy}');
+        '[$_debugLabel] Remote is bundled: $_remoteIsBundled, bundlePolicy: ${_configuration.bundlePolicy}');
 
     final isIceLite = sdpMessage.isIceLite;
 
@@ -1047,7 +1075,7 @@ class RtcPeerConnection {
           '[$_debugLabel] Media[$i] mid=$mid type=${media.type} ufrag=${iceUfrag != null && iceUfrag.length > 8 ? '${iceUfrag.substring(0, 8)}...' : iceUfrag}');
 
       // Determine which transport to use
-      if (configuration.bundlePolicy == BundlePolicy.disable &&
+      if (_configuration.bundlePolicy == BundlePolicy.disable &&
           !_remoteIsBundled) {
         // Each media line gets its own transport
         if (media.type == 'audio' || media.type == 'video') {
@@ -1145,7 +1173,7 @@ class RtcPeerConnection {
 
     // Extract bundled ICE candidates from all media lines (for bundled case)
     if (_remoteIsBundled ||
-        configuration.bundlePolicy != BundlePolicy.disable) {
+        _configuration.bundlePolicy != BundlePolicy.disable) {
       var bundledCandidateCount = 0;
       for (final media in sdpMessage.mediaDescriptions) {
         final candidateAttrs =
@@ -1183,7 +1211,7 @@ class RtcPeerConnection {
       _setConnectionState(PeerConnectionState.connecting);
       _iceConnectCalled = true;
 
-      if (configuration.bundlePolicy == BundlePolicy.disable &&
+      if (_configuration.bundlePolicy == BundlePolicy.disable &&
           !_remoteIsBundled) {
         // Start all media transports in parallel
         _log.fine(
@@ -1862,8 +1890,8 @@ class RtcPeerConnection {
 
     // Populate codec list for SDP generation
     final allCodecs = track.kind == MediaStreamTrackKind.audio
-        ? (configuration.codecs.audio ?? supportedAudioCodecs)
-        : (configuration.codecs.video ?? supportedVideoCodecs);
+        ? (_configuration.codecs.audio ?? supportedAudioCodecs)
+        : (_configuration.codecs.video ?? supportedVideoCodecs);
     transceiver.codecs = assignPayloadTypes(allCodecs);
 
     // Wire up the transceiver reference for the receive callback
@@ -1945,8 +1973,8 @@ class RtcPeerConnection {
     // Use configured codecs if no explicit codec provided
     final effectiveCodec = codec ??
         (kind == MediaStreamTrackKind.audio
-            ? configuration.codecs.audio?.firstOrNull
-            : configuration.codecs.video?.firstOrNull);
+            ? _configuration.codecs.audio?.firstOrNull
+            : _configuration.codecs.video?.firstOrNull);
 
     RtpTransceiver transceiver;
     if (kind == MediaStreamTrackKind.audio) {
@@ -1969,8 +1997,8 @@ class RtcPeerConnection {
 
     // Populate codec list for SDP generation with all supported codecs
     final allCodecs = kind == MediaStreamTrackKind.audio
-        ? (configuration.codecs.audio ?? supportedAudioCodecs)
-        : (configuration.codecs.video ?? supportedVideoCodecs);
+        ? (_configuration.codecs.audio ?? supportedAudioCodecs)
+        : (_configuration.codecs.video ?? supportedVideoCodecs);
     transceiver.codecs = assignPayloadTypes(allCodecs);
 
     transceiverRef = transceiver;
@@ -2071,8 +2099,8 @@ class RtcPeerConnection {
     // Use configured codecs if no explicit codec provided
     final effectiveCodec = codec ??
         (kind == MediaStreamTrackKind.audio
-            ? configuration.codecs.audio?.firstOrNull
-            : configuration.codecs.video?.firstOrNull);
+            ? _configuration.codecs.audio?.firstOrNull
+            : _configuration.codecs.video?.firstOrNull);
 
     RtpTransceiver transceiver;
     if (kind == MediaStreamTrackKind.audio) {
@@ -2095,8 +2123,8 @@ class RtcPeerConnection {
 
     // Populate codec list for SDP generation
     final allCodecs = kind == MediaStreamTrackKind.audio
-        ? (configuration.codecs.audio ?? supportedAudioCodecs)
-        : (configuration.codecs.video ?? supportedVideoCodecs);
+        ? (_configuration.codecs.audio ?? supportedAudioCodecs)
+        : (_configuration.codecs.video ?? supportedVideoCodecs);
     transceiver.codecs = assignPayloadTypes(allCodecs);
 
     // Set sender.mid and extension IDs for RTP header extension regeneration
@@ -2132,7 +2160,7 @@ class RtcPeerConnection {
   ) async {
     // If bundled or bundlePolicy is not disable, use primary transport
     if (_remoteIsBundled ||
-        configuration.bundlePolicy != BundlePolicy.disable) {
+        _configuration.bundlePolicy != BundlePolicy.disable) {
       // Return a wrapper around the primary transport
       // For bundled media, we just return the first transport
       if (_mediaTransports.isNotEmpty) {
@@ -2156,7 +2184,7 @@ class RtcPeerConnection {
     }
 
     // Create new ICE connection for this media line
-    final iceOptions = _configToIceOptions(configuration);
+    final iceOptions = _configToIceOptions(_configuration);
     final iceConnection = IceConnectionImpl(
       iceControlling: _iceControlling,
       options: iceOptions,

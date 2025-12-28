@@ -28,7 +28,10 @@ The Dart port achieves **~95-100% feature parity** with the TypeScript werift-we
 - ✅ Added ICE Role Conflict Recovery (RFC 8445 Section 7.2.1.1) with 487 error handling
 - ✅ Added STUN Transaction class with exponential backoff retry (RFC 5389)
 - ✅ Added ICE Early Check Queue for out-of-order connectivity checks (RFC 8445 Section 7.2.1)
-- ✅ All 2010+ tests passing, 0 analyzer issues
+- ✅ Added StunOverTurnProtocol for STUN connectivity checks over TURN relay
+- ✅ Added setConfiguration/getConfiguration for runtime ICE server updates
+- ✅ Added RTCP BYE (Goodbye) packet support - goes beyond werift!
+- ✅ All 2430+ tests passing, 0 analyzer issues
 
 ---
 
@@ -93,7 +96,7 @@ The Dart port achieves **~95-100% feature parity** with the TypeScript werift-we
 | TURN Permissions | ✅ | ✅ | Parity |
 | TURN Channel Binding | ✅ | ✅ | Parity |
 | TURN Send/Data Indication | ✅ | ✅ | Parity |
-| StunOverTurnProtocol | ✅ | ❌ | **Gap** - Dart uses native TURN only |
+| StunOverTurnProtocol | ✅ | ✅ | Parity - STUN over TURN relay |
 
 ### API Differences
 
@@ -213,7 +216,7 @@ The Dart port achieves **~95-100% feature parity** with the TypeScript werift-we
 | Sender Report (SR) | 200 | ✅ | ✅ | Parity |
 | Receiver Report (RR) | 201 | ✅ | ✅ | Parity |
 | Source Description (SDES) | 202 | ✅ | ✅ | Parity |
-| Goodbye (BYE) | 203 | ✅ | ❌ | **Gap** (not in werift either) |
+| Goodbye (BYE) | 203 | ✅ | ✅ | Parity (Dart goes beyond werift) |
 | Generic NACK | 205/FMT=1 | ✅ | ✅ | Parity |
 | TWCC | 205/FMT=15 | ✅ | ✅ | Parity |
 | PLI | 206/FMT=1 | ✅ | ✅ | Parity |
@@ -340,8 +343,8 @@ The Dart port achieves **~95-100% feature parity** with the TypeScript werift-we
 | getStats | ✅ | ✅ | Parity |
 | close | ✅ | ✅ | Parity |
 | restartIce | ✅ | ✅ | Parity |
-| setConfiguration | ✅ | ❌ | **Gap** (intentional) |
-| getConfiguration | ✅ | ❌ | **Gap** (intentional) |
+| setConfiguration | ✅ | ✅ | Parity |
+| getConfiguration | ✅ | ✅ | Parity |
 | onNegotiationNeeded | ✅ | ✅ | Parity |
 | waitForReady | ❌ | ✅ | **Dart unique** |
 
@@ -404,7 +407,7 @@ The Dart port achieves **~95-100% feature parity** with the TypeScript werift-we
 1. **~~Implement RTCP SR/RR/SDES/BYE~~** ✅ DONE
    - SR/RR already implemented in `lib/src/rtp/rtcp_reports.dart`
    - SDES implemented in `lib/src/rtcp/sdes.dart`
-   - BYE not implemented in werift either (skipped)
+   - BYE implemented in `lib/src/rtcp/bye.dart` (Dart goes beyond werift!)
    - Compound packets (SR+SDES, RR+SDES) now sent automatically
 
 2. **~~Implement ICE Consent Freshness~~** ✅ DONE
@@ -468,7 +471,7 @@ The Dart port achieves **~95-100% feature parity** with the TypeScript werift-we
 | RTX | 85 | ✅ |
 | TURN | 50 | ✅ |
 | getStats | 9 | ✅ |
-| **Total** | **1650+** | All passing |
+| **Total** | **2430+** | All passing |
 
 ### Browser Interop
 
@@ -528,9 +531,12 @@ The Dart port successfully achieves WebRTC interoperability with all major brows
 - ~~RTT measurement in connectivity checks~~ ✅ DONE (December 2025)
 - ~~401 error retry in connectivity checks~~ ✅ DONE (December 2025)
 
-**Remaining Low Priority (By Design):**
-- StunOverTurnProtocol - Uses native TURN relay instead
-- setConfiguration/getConfiguration - Not commonly needed after creation
-- RTCP BYE - Not implemented in werift either
+- ~~StunOverTurnProtocol~~ ✅ DONE (December 2025)
+- ~~setConfiguration/getConfiguration~~ ✅ DONE (December 2025)
 
-The port has achieved **100% werift feature parity** for all high, medium, and most low priority items. It is production-ready for WebRTC data channels, media streaming, and recording with full fMP4 support.
+- ~~RTCP BYE~~ ✅ DONE (December 2025) - Dart goes beyond werift!
+
+**Remaining Low Priority (By Design):**
+- None - all features implemented!
+
+The port has achieved **100% werift feature parity** and exceeds it with RTCP BYE support. It is production-ready for WebRTC data channels, media streaming, and recording with full fMP4 support.

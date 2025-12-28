@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:typed_data';
 
 import 'package:webrtc_dart/src/common/logging.dart';
+import 'package:webrtc_dart/src/rtcp/bye.dart';
 import 'package:webrtc_dart/src/rtcp/nack.dart';
 import 'package:webrtc_dart/src/rtcp/psfb/psfb.dart';
 import 'package:webrtc_dart/src/rtcp/sdes.dart';
@@ -82,6 +83,10 @@ class RtpSession {
 
   /// Callback for received RTP packets
   final void Function(RtpPacket packet)? onReceiveRtp;
+
+  /// Callback for received RTCP BYE (goodbye) packets
+  /// Called when a remote source signals it's leaving the session
+  final void Function(RtcpBye bye)? onGoodbye;
 
   /// Retransmission buffer for sent packets
   final RetransmissionBuffer _retransmissionBuffer;
@@ -169,6 +174,7 @@ class RtpSession {
     this.onSendRtcp,
     this.onSendRtp,
     this.onReceiveRtp,
+    this.onGoodbye,
     this.rtxEnabled = false,
     this.nackEnabled = false,
     this.rtxPayloadType,
@@ -691,8 +697,8 @@ class RtpSession {
         // werift also doesn't actively process these (informational only)
         break;
       case RtcpPacketType.goodbye:
-        // BYE packets indicate peer is leaving - could trigger cleanup
-        // werift handles this in RTCRtpReceiver for stream termination
+        // BYE packets indicate peer is leaving
+        _handleGoodbye(packet);
         break;
       case RtcpPacketType.applicationDefined:
         // APP packets are application-specific - not used in WebRTC
@@ -749,6 +755,44 @@ class RtpSession {
     } catch (e) {
       // Invalid RR packet, ignore
     }
+  }
+
+  /// Handle received RTCP BYE packet
+  void _handleGoodbye(RtcpPacket packet) {
+    try {
+      final bye = RtcpBye.fromPacket(packet);
+      _log.fine('[RTP] Received BYE from SSRCs: ${bye.ssrcs}'
+          '${bye.reason != null ? ", reason: ${bye.reason}" : ""}');
+
+      // Invoke callback if registered
+      onGoodbye?.call(bye);
+
+      // Clean up receiver statistics for departing sources
+      for (final ssrc in bye.ssrcs) {
+        _receiverStats.remove(ssrc);
+      }
+    } catch (e) {
+      _log.warning('[RTP] Failed to parse BYE packet: $e');
+    }
+  }
+
+  /// Send RTCP BYE packet to signal leaving the session
+  /// Optionally include a reason string
+  Future<void> sendBye({String? reason}) async {
+    final bye = RtcpBye.single(localSsrc, reason: reason);
+    final packet = bye.toPacket();
+
+    _log.fine('[RTP] Sending BYE for SSRC: $localSsrc'
+        '${reason != null ? ", reason: $reason" : ""}');
+
+    // Encrypt if SRTP is enabled
+    Uint8List data;
+    if (srtpSession != null) {
+      data = await srtpSession!.encryptRtcp(packet);
+    } else {
+      data = packet.serialize();
+    }
+    await onSendRtcp?.call(data);
   }
 
   /// Handle reception report about our stream

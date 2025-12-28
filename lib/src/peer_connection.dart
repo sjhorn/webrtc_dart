@@ -1539,112 +1539,16 @@ class RtcPeerConnection {
     RtpCodecParameters? codec,
     RtpTransceiverDirection direction = RtpTransceiverDirection.sendonly,
   }) {
-    if (_connectionState == PeerConnectionState.closed) {
-      throw StateError('PeerConnection is closed');
-    }
-
-    // Create new transceiver
-    final mid = '${_nextMid++}';
-    final ssrc = _generateSsrc();
-
-    RtpTransceiver? transceiverRef;
-    // Capture mid for use in closures (for bundlePolicy: disable routing)
-    final transceiverMid = mid;
-
-    final rtpSession = RtpSession(
-      localSsrc: ssrc,
-      srtpSession: null,
-      onSendRtp: (packet) async {
-        // SRTP packets go directly over ICE/UDP, not wrapped in DTLS
-        // Use the MID-specific transport for bundlePolicy: disable
-        final iceConnection = _getIceConnectionForMid(transceiverMid);
-        if (iceConnection != null) {
-          await iceConnection.send(packet);
-        } else {
-          // DEBUG: Print visible message when ICE is null
-          print('[PC] ICE NULL for mid=$transceiverMid');
-        }
-      },
-      onSendRtcp: (packet) async {
-        // SRTCP packets go directly over ICE/UDP, not wrapped in DTLS
-        // Use the MID-specific transport for bundlePolicy: disable
-        final iceConnection = _getIceConnectionForMid(transceiverMid);
-        if (iceConnection != null) {
-          try {
-            await iceConnection.send(packet);
-          } on StateError catch (_) {
-            // ICE not yet nominated, silently drop RTCP
-            // This can happen when RTCP timer fires before ICE completes
-          }
-        }
-      },
-      onReceiveRtp: (packet) {
-        if (transceiverRef != null) {
-          transceiverRef.receiver.handleRtpPacket(packet);
-        }
-      },
-    );
-
-    rtpSession.start();
-    _rtpSessions[mid] = rtpSession;
-
-    // If SRTP session already exists (DTLS completed before this transceiver was added),
-    // assign it now so RTP packets will be encrypted
-    if (_srtpSession != null) {
-      rtpSession.srtpSession = _srtpSession;
-    }
-
-    // Determine kind from track
+    // Derive kind from nonstandard track
     final kind = track.kind == nonstandard.MediaKind.audio
         ? MediaStreamTrackKind.audio
         : MediaStreamTrackKind.video;
 
-    // Use configured codecs if no explicit codec provided
-    final effectiveCodec = codec ??
-        (kind == MediaStreamTrackKind.audio
-            ? _configuration.codecs.audio?.firstOrNull
-            : _configuration.codecs.video?.firstOrNull);
-
-    RtpTransceiver transceiver;
-    if (kind == MediaStreamTrackKind.audio) {
-      transceiver = createAudioTransceiver(
-        mid: mid,
-        rtpSession: rtpSession,
-        sendTrack: null,
-        direction: direction,
-        codec: effectiveCodec,
-      );
-    } else {
-      transceiver = createVideoTransceiver(
-        mid: mid,
-        rtpSession: rtpSession,
-        sendTrack: null,
-        direction: direction,
-        codec: effectiveCodec,
-      );
-    }
-
-    // Populate codec list for SDP generation
-    final allCodecs = kind == MediaStreamTrackKind.audio
-        ? (_configuration.codecs.audio ?? supportedAudioCodecs)
-        : (_configuration.codecs.video ?? supportedVideoCodecs);
-    transceiver.codecs = assignPayloadTypes(allCodecs);
-
-    // Set sender.mid and extension IDs for RTP header extension regeneration
-    // MUST be set BEFORE registerNonstandardTrack, since that function captures mid
-    transceiver.sender.mid = mid;
-    transceiver.sender.midExtensionId = _midExtensionId;
-    transceiver.sender.absSendTimeExtensionId = _absSendTimeExtensionId;
-    transceiver.sender.transportWideCCExtensionId = _twccExtensionId;
+    // Create transceiver using shared implementation
+    final transceiver = addTransceiver(kind, codec: codec, direction: direction);
 
     // Register the nonstandard track with the sender (like TypeScript registerTrack)
     transceiver.sender.registerNonstandardTrack(track);
-
-    transceiverRef = transceiver;
-    _transceiverManager.addTransceiver(transceiver);
-
-    // Trigger negotiation needed per WebRTC spec
-    _triggerNegotiationNeeded();
 
     return transceiver;
   }

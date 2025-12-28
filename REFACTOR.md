@@ -460,6 +460,23 @@ The Dart port achieves **~95-100% feature parity** with the TypeScript werift-we
 8. ~~**Add WebM encryption support**~~ ✅ DONE (December 2025)
 9. ~~**Improve ICE role conflict recovery**~~ ✅ DONE (December 2025)
 
+### ✅ Phase 4: Deep Refactoring (December 2025)
+
+**Goal:** Reduce `peer_connection.dart` from 2,257 to ~1,200 lines (closer to werift's 969)
+
+| Task | Description | Est. Savings | Status |
+|------|-------------|--------------|--------|
+| 1. RTP Session consolidation | Extract _createRtpSession() helper | ~80 lines | ✅ Complete |
+| 2. Create RtpRouter Abstraction | Already exists in rtp_router.dart | N/A | ✅ Already done |
+| 3. bundlePolicy:disable | KEEP - Required for Ring camera interop | N/A | ✅ Evaluated |
+| 4. Remote Media Processing | Extract _configureTransceiverFromRemote() | ~25 lines | ✅ Complete |
+| 5. Consolidate Nonstandard APIs | addTransceiverWithTrack calls addTransceiver | ~96 lines | ✅ Complete |
+| 6. Simplify Config Parsing | Use Uri.parse() for ICE server URLs | ~43 lines | ✅ Complete |
+
+**Result:** peer_connection.dart reduced from 2,257 → 2,010 lines (-247 lines, 11% reduction)
+
+**Note:** Full reduction to ~1,200 lines would require extracting bundlePolicy:disable logic to SecureTransportManager (significant undertaking). Current architecture is functional and well-tested.
+
 ---
 
 ## 13. Test Coverage

@@ -15,9 +15,7 @@ import 'package:webrtc_dart/src/media/parameters.dart' show SimulcastDirection;
 import 'package:webrtc_dart/src/media/rtp_router.dart';
 import 'package:webrtc_dart/src/media/rtp_transceiver.dart';
 import 'package:webrtc_dart/src/nonstandard/media/track.dart' as nonstandard;
-import 'package:webrtc_dart/src/rtp/header_extension.dart';
 import 'package:webrtc_dart/src/rtp/rtp_session.dart';
-import 'package:webrtc_dart/src/sdp/rtx_sdp.dart';
 import 'package:webrtc_dart/src/sdp/sdp.dart';
 import 'package:webrtc_dart/src/sdp/sdp_manager.dart';
 import 'package:webrtc_dart/src/srtp/rtp_packet.dart';
@@ -546,276 +544,21 @@ class RtcPeerConnection {
     _iceControlling = true;
     _iceConnection.iceControlling = true;
 
-    // Generate ICE credentials
-    final iceUfrag = _iceConnection.localUsername;
-    final icePwd = _iceConnection.localPassword;
-
     // Generate DTLS fingerprint from certificate
     final dtlsFingerprint = _certificate != null
         ? computeCertificateFingerprint(_certificate!.certificate)
         : 'sha-256 00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00'; // fallback for tests
 
-    // Build media descriptions for transceivers
-    final mediaDescriptions = <SdpMedia>[];
-    final bundleMids = <String>[];
-
-    // Add media lines for transceivers (audio/video)
-    for (final transceiver in _transceivers) {
-      // Assign MID if not yet assigned (matches werift behavior)
-      // MID is assigned lazily during offer/answer creation
-      if (transceiver.mid == null) {
-        final newMid = '${_nextMid++}';
-        transceiver.mid = newMid;
-
-        // Also need to add the RTP session with the new MID if it exists
-        // (it may have been created with a temporary key)
-      }
-      final mid = transceiver.mid!;
-      bundleMids.add(mid);
-
-      // Get all codecs for SDP (fallback to single primary codec)
-      final allCodecs = transceiver.codecs.isNotEmpty
-          ? transceiver.codecs
-          : [transceiver.sender.codec];
-      final primaryCodec = transceiver.sender.codec;
-      final payloadType = primaryCodec.payloadType ?? 96;
-      final ssrc = transceiver.sender.rtpSession.localSsrc;
-      final cname = _iceConnection.localUsername;
-
-      // Build format list with ALL payload types
-      final formats = allCodecs.map((c) => '${c.payloadType ?? 96}').toList();
-
-      // Build attributes list
-      final directionStr = transceiver.direction.name;
-      final attributes = <SdpAttribute>[
-        SdpAttribute(key: 'ice-ufrag', value: iceUfrag),
-        SdpAttribute(key: 'ice-pwd', value: icePwd),
-        SdpAttribute(key: 'fingerprint', value: dtlsFingerprint),
-        SdpAttribute(key: 'setup', value: 'actpass'),
-        SdpAttribute(key: 'mid', value: mid),
-        SdpAttribute(key: directionStr),
-        SdpAttribute(key: 'rtcp-mux'),
-        // Add sdes:mid header extension for media identification
-        SdpAttribute(
-          key: 'extmap',
-          value: '$_midExtensionId ${RtpExtensionUri.sdesMid}',
-        ),
-      ];
-
-      // Add rtpmap, fmtp, and rtcp-fb for each codec
-      for (final codec in allCodecs) {
-        final pt = codec.payloadType ?? 96;
-        attributes.add(SdpAttribute(
-          key: 'rtpmap',
-          value:
-              '$pt ${codec.codecName}/${codec.clockRate}${codec.channels != null && codec.channels! > 1 ? '/${codec.channels}' : ''}',
-        ));
-        if (codec.parameters != null) {
-          attributes
-              .add(SdpAttribute(key: 'fmtp', value: '$pt ${codec.parameters}'));
-        }
-        for (final fb in codec.rtcpFeedback) {
-          attributes.add(SdpAttribute(
-            key: 'rtcp-fb',
-            value: fb.parameter != null
-                ? '$pt ${fb.type} ${fb.parameter}'
-                : '$pt ${fb.type}',
-          ));
-        }
-      }
-
-      // Add RTX for video only (if not already configured by user)
-      final hasUserRtx = allCodecs.any(
-          (c) => c.codecName.toLowerCase() == 'rtx');
-      if (transceiver.kind == MediaStreamTrackKind.video && !hasUserRtx) {
-        // Generate or retrieve RTX SSRC
-        final rtxSsrc = _rtxSsrcByMid[mid] ?? _generateSsrc();
-        _rtxSsrcByMid[mid] = rtxSsrc;
-
-        // RTX payload type must be unique - use max(all codec PTs) + 1
-        final maxPt = allCodecs
-            .map((c) => c.payloadType ?? 96)
-            .reduce((a, b) => a > b ? a : b);
-        final rtxPayloadType = maxPt + 1;
-        formats.add('$rtxPayloadType');
-
-        // Add RTX attributes using RtxSdpBuilder
-        attributes.addAll([
-          RtxSdpBuilder.createRtxRtpMap(
-            rtxPayloadType,
-            clockRate: primaryCodec.clockRate,
-          ),
-          RtxSdpBuilder.createRtxFmtp(rtxPayloadType, payloadType),
-          RtxSdpBuilder.createSsrcGroupFid(ssrc, rtxSsrc),
-        ]);
-
-        // Add SSRC attributes for original
-        attributes.add(SdpAttribute(key: 'ssrc', value: '$ssrc cname:$cname'));
-
-        // Add SSRC attributes for RTX
-        attributes.add(RtxSdpBuilder.createSsrcCname(rtxSsrc, cname));
-      } else if (transceiver.kind == MediaStreamTrackKind.video && hasUserRtx) {
-        // User provided RTX, just add SSRC cname (RTX is already in codec list)
-        final rtxSsrc = _rtxSsrcByMid[mid] ?? _generateSsrc();
-        _rtxSsrcByMid[mid] = rtxSsrc;
-        attributes.add(SdpAttribute(key: 'ssrc', value: '$ssrc cname:$cname'));
-        attributes.add(RtxSdpBuilder.createSsrcGroupFid(ssrc, rtxSsrc));
-        attributes.add(RtxSdpBuilder.createSsrcCname(rtxSsrc, cname));
-      } else {
-        // Audio: just add SSRC cname
-        attributes.add(SdpAttribute(key: 'ssrc', value: '$ssrc cname:$cname'));
-      }
-
-      // Add simulcast attributes if layers are configured
-      final simulcastLayers = transceiver.simulcast;
-      if (simulcastLayers.isNotEmpty) {
-        // Add RID header extension (required for simulcast)
-        // Use extension ID 10 for RID (after mid=1, abs-send-time, twcc etc.)
-        const ridExtensionId = 10;
-        attributes.add(SdpAttribute(
-          key: 'extmap',
-          value: '$ridExtensionId ${RtpExtensionUri.sdesRtpStreamId}',
-        ));
-
-        // Add a=rid:<rid> <direction> for each layer
-        for (final layer in simulcastLayers) {
-          final dirStr =
-              layer.direction == SimulcastDirection.send ? 'send' : 'recv';
-          attributes.add(SdpAttribute(key: 'rid', value: '${layer.rid} $dirStr'));
-        }
-
-        // Build a=simulcast: line
-        final recvRids = simulcastLayers
-            .where((l) => l.direction == SimulcastDirection.recv)
-            .map((l) => l.rid)
-            .toList();
-        final sendRids = simulcastLayers
-            .where((l) => l.direction == SimulcastDirection.send)
-            .map((l) => l.rid)
-            .toList();
-
-        final simulcastParts = <String>[];
-        if (recvRids.isNotEmpty) {
-          simulcastParts.add('recv ${recvRids.join(";")}');
-        }
-        if (sendRids.isNotEmpty) {
-          simulcastParts.add('send ${sendRids.join(";")}');
-        }
-        if (simulcastParts.isNotEmpty) {
-          attributes.add(
-              SdpAttribute(key: 'simulcast', value: simulcastParts.join(' ')));
-        }
-      }
-
-      mediaDescriptions.add(
-        SdpMedia(
-          type: transceiver.kind == MediaStreamTrackKind.audio
-              ? 'audio'
-              : 'video',
-          port: 9,
-          protocol: 'UDP/TLS/RTP/SAVPF',
-          formats: formats,
-          // c= line is required at media level by Firefox (RFC 4566)
-          connection: const SdpConnection(connectionAddress: '0.0.0.0'),
-          attributes: attributes,
-        ),
-      );
-    }
-
-    // Add application media for data channel (always included for compatibility)
-    // DataChannel always uses MID 0
-    const dataChannelMid = '0';
-    if (!bundleMids.contains(dataChannelMid)) {
-      bundleMids.add(dataChannelMid);
-    }
-    mediaDescriptions.add(
-      SdpMedia(
-        type: 'application',
-        port: 9,
-        protocol: 'UDP/DTLS/SCTP',
-        formats: ['webrtc-datachannel'],
-        // c= line is required at media level by Firefox (RFC 4566)
-        connection: const SdpConnection(connectionAddress: '0.0.0.0'),
-        attributes: [
-          SdpAttribute(key: 'ice-ufrag', value: iceUfrag),
-          SdpAttribute(key: 'ice-pwd', value: icePwd),
-          SdpAttribute(key: 'fingerprint', value: dtlsFingerprint),
-          SdpAttribute(key: 'setup', value: 'actpass'),
-          SdpAttribute(key: 'mid', value: dataChannelMid),
-          SdpAttribute(key: 'sctp-port', value: '5000'),
-        ],
-      ),
+    // Build offer SDP using SdpManager
+    return _sdpManager.buildOfferSdp(
+      transceivers: _transceivers,
+      iceUfrag: _iceConnection.localUsername,
+      icePwd: _iceConnection.localPassword,
+      dtlsFingerprint: dtlsFingerprint,
+      rtxSsrcByMid: _rtxSsrcByMid,
+      generateSsrc: _generateSsrc,
+      midExtensionId: _midExtensionId,
     );
-
-    // Preserve m-line order from first negotiation (RFC 3264 requirement)
-    // Existing m-lines must stay in their original positions, new ones appended
-    if (_establishedMlineOrder != null && _establishedMlineOrder!.isNotEmpty) {
-      final orderedDescriptions = <SdpMedia>[];
-      final usedMids = <String>{};
-
-      // First, add m-lines in their established order
-      for (final mid in _establishedMlineOrder!) {
-        final desc = mediaDescriptions.firstWhere(
-          (m) => m.getAttributeValue('mid') == mid,
-          orElse: () => SdpMedia(
-            type: 'video',
-            port: 0,
-            protocol: 'UDP/TLS/RTP/SAVPF',
-            formats: ['0'],
-            attributes: [SdpAttribute(key: 'mid', value: mid)],
-          ),
-        );
-        orderedDescriptions.add(desc);
-        usedMids.add(mid);
-      }
-
-      // Then, append any new m-lines not in the established order
-      for (final desc in mediaDescriptions) {
-        final mid = desc.getAttributeValue('mid') ?? '';
-        if (!usedMids.contains(mid)) {
-          orderedDescriptions.add(desc);
-        }
-      }
-
-      // Replace with reordered list
-      mediaDescriptions
-        ..clear()
-        ..addAll(orderedDescriptions);
-    }
-
-    // Build session-level attributes
-    final sessionAttributes = <SdpAttribute>[
-      SdpAttribute(key: 'ice-options', value: 'trickle'),
-    ];
-
-    // Add BUNDLE group unless bundlePolicy is disable
-    if (_configuration.bundlePolicy != BundlePolicy.disable &&
-        bundleMids.isNotEmpty) {
-      sessionAttributes.insert(
-        0,
-        SdpAttribute(key: 'group', value: 'BUNDLE ${bundleMids.join(' ')}'),
-      );
-    }
-
-    // Build SDP
-    final sdpMessage = SdpMessage(
-      version: 0,
-      origin: SdpOrigin(
-        username: '-',
-        sessionId: DateTime.now().millisecondsSinceEpoch.toString(),
-        sessionVersion: '2',
-        unicastAddress: '0.0.0.0',
-      ),
-      sessionName: '-',
-      // c= line at session level for browsers that check there
-      connection: const SdpConnection(connectionAddress: '0.0.0.0'),
-      timing: [SdpTiming(startTime: 0, stopTime: 0)],
-      attributes: sessionAttributes,
-      mediaDescriptions: mediaDescriptions,
-    );
-
-    final sdp = sdpMessage.serialize();
-    return SessionDescription(type: 'offer', sdp: sdp);
   }
 
   /// Create an answer
@@ -835,146 +578,21 @@ class RtcPeerConnection {
     // Parse remote SDP
     final remoteSdp = _remoteDescription!.parse();
 
-    // Generate ICE credentials
-    final iceUfrag = _iceConnection.localUsername;
-    final icePwd = _iceConnection.localPassword;
-
     // Generate DTLS fingerprint from certificate
     final dtlsFingerprint = _certificate != null
         ? computeCertificateFingerprint(_certificate!.certificate)
         : 'sha-256 00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00'; // fallback for tests
 
-    // Build answer SDP matching remote offer
-    final mediaDescriptions = <SdpMedia>[];
-    final bundleMids = <String>[];
-    for (final remoteMedia in remoteSdp.mediaDescriptions) {
-      final mid = remoteMedia.getAttributeValue('mid') ?? '0';
-      bundleMids.add(mid);
-
-      // Build attributes based on media type
-      final attributes = <SdpAttribute>[
-        SdpAttribute(key: 'ice-ufrag', value: iceUfrag),
-        SdpAttribute(key: 'ice-pwd', value: icePwd),
-        SdpAttribute(key: 'fingerprint', value: dtlsFingerprint),
-        SdpAttribute(key: 'setup', value: 'active'),
-        SdpAttribute(key: 'mid', value: mid),
-      ];
-
-      if (remoteMedia.type == 'application') {
-        // DataChannel media line
-        attributes.add(SdpAttribute(key: 'sctp-port', value: '5000'));
-      } else if (remoteMedia.type == 'audio' || remoteMedia.type == 'video') {
-        // Audio/video media line
-        attributes.addAll([
-          SdpAttribute(key: 'sendrecv'),
-          SdpAttribute(key: 'rtcp-mux'),
-        ]);
-
-        // Copy rtpmap and fmtp from remote offer
-        for (final attr in remoteMedia.getAttributes('rtpmap')) {
-          attributes.add(attr);
-        }
-        for (final attr in remoteMedia.getAttributes('fmtp')) {
-          attributes.add(attr);
-        }
-
-        // Copy extmap (header extensions) from remote offer
-        // This is critical for the browser to properly parse incoming RTP packets
-        for (final attr in remoteMedia.getAttributes('extmap')) {
-          attributes.add(attr);
-        }
-
-        // Copy rtcp-fb (RTCP feedback) from remote offer
-        // This is needed for NACK, PLI, and other feedback mechanisms
-        for (final attr in remoteMedia.getAttributes('rtcp-fb')) {
-          attributes.add(attr);
-        }
-
-        // Add local SSRC if we have a transceiver for this media
-        final transceiver =
-            _transceivers.where((t) => t.mid == mid).firstOrNull;
-        if (transceiver != null) {
-          final ssrc = transceiver.sender.rtpSession.localSsrc;
-          final cname = _iceConnection.localUsername;
-
-          // Check if remote offer includes RTX for video
-          if (remoteMedia.type == 'video') {
-            final rtxCodecs = remoteMedia.getRtxCodecs();
-            if (rtxCodecs.isNotEmpty) {
-              // Remote supports RTX, generate our RTX SSRC
-              final rtxSsrc = _rtxSsrcByMid[mid] ?? _generateSsrc();
-              _rtxSsrcByMid[mid] = rtxSsrc;
-
-              // Add ssrc-group FID (original, rtx)
-              attributes.add(RtxSdpBuilder.createSsrcGroupFid(ssrc, rtxSsrc));
-
-              // Add SSRC cname for original
-              attributes.add(
-                SdpAttribute(key: 'ssrc', value: '$ssrc cname:$cname'),
-              );
-
-              // Add SSRC cname for RTX
-              attributes.add(RtxSdpBuilder.createSsrcCname(rtxSsrc, cname));
-            } else {
-              // No RTX, just add SSRC cname
-              attributes.add(
-                SdpAttribute(key: 'ssrc', value: '$ssrc cname:$cname'),
-              );
-            }
-          } else {
-            // Audio: just add SSRC cname
-            attributes.add(
-              SdpAttribute(key: 'ssrc', value: '$ssrc cname:$cname'),
-            );
-          }
-        }
-      }
-
-      mediaDescriptions.add(
-        SdpMedia(
-          type: remoteMedia.type,
-          port: 9,
-          protocol: remoteMedia.protocol,
-          formats: remoteMedia.formats,
-          // c= line is required at media level by Firefox (RFC 4566)
-          connection: const SdpConnection(connectionAddress: '0.0.0.0'),
-          attributes: attributes,
-        ),
-      );
-    }
-
-    // Build session-level attributes
-    final sessionAttributes = <SdpAttribute>[
-      SdpAttribute(key: 'ice-options', value: 'trickle'),
-    ];
-
-    // Add BUNDLE group unless bundlePolicy is disable
-    if (_configuration.bundlePolicy != BundlePolicy.disable &&
-        bundleMids.isNotEmpty) {
-      sessionAttributes.insert(
-        0,
-        SdpAttribute(key: 'group', value: 'BUNDLE ${bundleMids.join(' ')}'),
-      );
-    }
-
-    final sdpMessage = SdpMessage(
-      version: 0,
-      origin: SdpOrigin(
-        username: '-',
-        sessionId: DateTime.now().millisecondsSinceEpoch.toString(),
-        sessionVersion: '2',
-        unicastAddress: '0.0.0.0',
-      ),
-      sessionName: '-',
-      // c= line at session level for browsers that check there
-      connection: const SdpConnection(connectionAddress: '0.0.0.0'),
-      timing: [SdpTiming(startTime: 0, stopTime: 0)],
-      attributes: sessionAttributes,
-      mediaDescriptions: mediaDescriptions,
+    // Build answer SDP using SdpManager
+    return _sdpManager.buildAnswerSdp(
+      remoteSdp: remoteSdp,
+      transceivers: _transceivers,
+      iceUfrag: _iceConnection.localUsername,
+      icePwd: _iceConnection.localPassword,
+      dtlsFingerprint: dtlsFingerprint,
+      rtxSsrcByMid: _rtxSsrcByMid,
+      generateSsrc: _generateSsrc,
     );
-
-    final sdp = sdpMessage.serialize();
-    return SessionDescription(type: 'answer', sdp: sdp);
   }
 
   /// Set local description

@@ -1,6 +1,9 @@
 import 'dart:async';
 
+import 'package:webrtc_dart/src/media/rtp_router.dart';
 import 'package:webrtc_dart/src/media/rtp_transceiver.dart';
+import 'package:webrtc_dart/src/sdp/sdp.dart' show SdpMedia;
+import 'package:webrtc_dart/src/media/parameters.dart' show SimulcastDirection;
 
 /// TransceiverManager handles RTP transceiver lifecycle management.
 ///
@@ -95,6 +98,52 @@ class TransceiverManager {
 
   /// Check if there are transceivers
   bool get isNotEmpty => _transceivers.isNotEmpty;
+
+  /// Configure transceiver from remote SDP media description.
+  /// Matches werift's TransceiverManager.setRemoteRTP()
+  ///
+  /// [transceiver] - The transceiver to configure
+  /// [media] - Remote SDP media description
+  /// [router] - RTP router for header extension and simulcast registration
+  void setRemoteRTP(
+    RtpTransceiver transceiver,
+    SdpMedia media,
+    RtpRouter router,
+  ) {
+    // Extract header extension IDs from remote SDP and set on sender
+    final headerExtensions = media.getHeaderExtensions();
+    for (final ext in headerExtensions) {
+      if (ext.uri == 'urn:ietf:params:rtp-hdrext:sdes:mid') {
+        transceiver.sender.midExtensionId = ext.id;
+      } else if (ext.uri ==
+          'http://www.webrtc.org/experiments/rtp-hdrext/abs-send-time') {
+        transceiver.sender.absSendTimeExtensionId = ext.id;
+      } else if (ext.uri ==
+          'http://www.ietf.org/id/draft-holmer-rmcat-transport-wide-cc-extensions-01') {
+        transceiver.sender.transportWideCCExtensionId = ext.id;
+      }
+    }
+
+    // Register header extensions with RTP router for RID parsing
+    router.registerHeaderExtensions(headerExtensions);
+
+    // Register simulcast RID handlers if present
+    final simulcastParams = media.getSimulcastParameters();
+    final receiverForClosure = transceiver.receiver;
+    for (final param in simulcastParams) {
+      if (param.direction == SimulcastDirection.send) {
+        // Remote is sending - we need to receive these RIDs
+        router.registerByRid(param.rid, (packet, rid, extensions) {
+          if (rid != null) {
+            receiverForClosure.handleRtpByRid(packet, rid, extensions);
+          } else {
+            // Fallback: RID negotiated but not in packet, use SSRC routing
+            receiverForClosure.handleRtpBySsrc(packet, extensions);
+          }
+        });
+      }
+    }
+  }
 
   /// Close the manager and release resources
   void close() {

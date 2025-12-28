@@ -201,6 +201,11 @@ class KeyDerivation {
       case CipherSuite.tlsEcdheEcdsaWithAes128GcmSha256:
       case CipherSuite.tlsEcdheRsaWithAes128GcmSha256:
         return 16; // AES-128 = 16 bytes
+      case CipherSuite.tlsEcdheEcdsaWithAes256GcmSha384:
+      case CipherSuite.tlsEcdheRsaWithAes256GcmSha384:
+      case CipherSuite.tlsEcdheEcdsaWithChacha20Poly1305Sha256:
+      case CipherSuite.tlsEcdheRsaWithChacha20Poly1305Sha256:
+        return 32; // AES-256 and ChaCha20 = 32 bytes
     }
   }
 
@@ -209,7 +214,11 @@ class KeyDerivation {
     switch (suite) {
       case CipherSuite.tlsEcdheEcdsaWithAes128GcmSha256:
       case CipherSuite.tlsEcdheRsaWithAes128GcmSha256:
-        return 4; // Implicit nonce for GCM = 4 bytes
+      case CipherSuite.tlsEcdheEcdsaWithAes256GcmSha384:
+      case CipherSuite.tlsEcdheRsaWithAes256GcmSha384:
+      case CipherSuite.tlsEcdheEcdsaWithChacha20Poly1305Sha256:
+      case CipherSuite.tlsEcdheRsaWithChacha20Poly1305Sha256:
+        return 4; // Implicit nonce for all AEAD = 4 bytes
     }
   }
 

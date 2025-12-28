@@ -10,9 +10,25 @@ enum CipherSuite {
   /// RFC 5289
   tlsEcdheEcdsaWithAes128GcmSha256(0xC02B),
 
+  /// TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384
+  /// RFC 5289
+  tlsEcdheEcdsaWithAes256GcmSha384(0xC02C),
+
   /// TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256
   /// RFC 5289
-  tlsEcdheRsaWithAes128GcmSha256(0xC02F);
+  tlsEcdheRsaWithAes128GcmSha256(0xC02F),
+
+  /// TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384
+  /// RFC 5289
+  tlsEcdheRsaWithAes256GcmSha384(0xC030),
+
+  /// TLS_ECDHE_ECDSA_WITH_CHACHA20_POLY1305_SHA256
+  /// RFC 7905
+  tlsEcdheEcdsaWithChacha20Poly1305Sha256(0xCCA9),
+
+  /// TLS_ECDHE_RSA_WITH_CHACHA20_POLY1305_SHA256
+  /// RFC 7905
+  tlsEcdheRsaWithChacha20Poly1305Sha256(0xCCA8);
 
   final int value;
   const CipherSuite(this.value);
@@ -134,6 +150,7 @@ enum KeyExchangeAlgorithm {
 enum BulkCipherAlgorithm {
   aes128Gcm,
   aes256Gcm,
+  chacha20Poly1305,
 }
 
 /// MAC algorithm
@@ -146,7 +163,11 @@ enum MacAlgorithm {
 KeyExchangeAlgorithm getKeyExchangeAlgorithm(CipherSuite suite) {
   switch (suite) {
     case CipherSuite.tlsEcdheEcdsaWithAes128GcmSha256:
+    case CipherSuite.tlsEcdheEcdsaWithAes256GcmSha384:
     case CipherSuite.tlsEcdheRsaWithAes128GcmSha256:
+    case CipherSuite.tlsEcdheRsaWithAes256GcmSha384:
+    case CipherSuite.tlsEcdheEcdsaWithChacha20Poly1305Sha256:
+    case CipherSuite.tlsEcdheRsaWithChacha20Poly1305Sha256:
       return KeyExchangeAlgorithm.ecdhe;
   }
 }
@@ -157,6 +178,12 @@ BulkCipherAlgorithm getBulkCipherAlgorithm(CipherSuite suite) {
     case CipherSuite.tlsEcdheEcdsaWithAes128GcmSha256:
     case CipherSuite.tlsEcdheRsaWithAes128GcmSha256:
       return BulkCipherAlgorithm.aes128Gcm;
+    case CipherSuite.tlsEcdheEcdsaWithAes256GcmSha384:
+    case CipherSuite.tlsEcdheRsaWithAes256GcmSha384:
+      return BulkCipherAlgorithm.aes256Gcm;
+    case CipherSuite.tlsEcdheEcdsaWithChacha20Poly1305Sha256:
+    case CipherSuite.tlsEcdheRsaWithChacha20Poly1305Sha256:
+      return BulkCipherAlgorithm.chacha20Poly1305;
   }
 }
 
@@ -165,7 +192,12 @@ MacAlgorithm getMacAlgorithm(CipherSuite suite) {
   switch (suite) {
     case CipherSuite.tlsEcdheEcdsaWithAes128GcmSha256:
     case CipherSuite.tlsEcdheRsaWithAes128GcmSha256:
+    case CipherSuite.tlsEcdheEcdsaWithChacha20Poly1305Sha256:
+    case CipherSuite.tlsEcdheRsaWithChacha20Poly1305Sha256:
       return MacAlgorithm.sha256;
+    case CipherSuite.tlsEcdheEcdsaWithAes256GcmSha384:
+    case CipherSuite.tlsEcdheRsaWithAes256GcmSha384:
+      return MacAlgorithm.sha384;
   }
 }
 

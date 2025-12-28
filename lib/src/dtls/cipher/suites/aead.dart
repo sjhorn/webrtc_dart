@@ -40,7 +40,7 @@ class AEADCipherSuite {
     );
   }
 
-  /// Encrypt a DTLS record using AES-GCM
+  /// Encrypt a DTLS record using AEAD (AES-GCM or ChaCha20-Poly1305)
   /// Returns encrypted data with authentication tag appended
   Future<Uint8List> encrypt(
     Uint8List plaintext,
@@ -62,13 +62,23 @@ class AEADCipherSuite {
     _log.fine(
         'aad: ${aad.map((b) => b.toRadixString(16).padLeft(2, '0')).join(' ')}');
 
-    // Encrypt with AES-GCM
-    final ciphertext = await aesGcmEncrypt(
-      key: writeKey,
-      nonce: nonce,
-      plaintext: plaintext,
-      additionalData: aad,
-    );
+    // Encrypt with appropriate algorithm
+    final Uint8List ciphertext;
+    if (_isChaCha20Poly1305) {
+      ciphertext = await chacha20Poly1305Encrypt(
+        key: writeKey,
+        nonce: nonce,
+        plaintext: plaintext,
+        additionalData: aad,
+      );
+    } else {
+      ciphertext = await aesGcmEncrypt(
+        key: writeKey,
+        nonce: nonce,
+        plaintext: plaintext,
+        additionalData: aad,
+      );
+    }
 
     // Prepend explicit nonce (epoch + sequence number) to ciphertext
     // Format: explicit_nonce (8 bytes) + ciphertext + tag (16 bytes)
@@ -84,7 +94,12 @@ class AEADCipherSuite {
     return result;
   }
 
-  /// Decrypt a DTLS record using AES-GCM
+  /// Check if this cipher suite uses ChaCha20-Poly1305
+  bool get _isChaCha20Poly1305 =>
+      suite == CipherSuite.tlsEcdheEcdsaWithChacha20Poly1305Sha256 ||
+      suite == CipherSuite.tlsEcdheRsaWithChacha20Poly1305Sha256;
+
+  /// Decrypt a DTLS record using AEAD (AES-GCM or ChaCha20-Poly1305)
   /// Expects format: explicit_nonce (8 bytes) + ciphertext + tag (16 bytes)
   Future<Uint8List> decrypt(
     Uint8List encrypted,
@@ -111,13 +126,23 @@ class AEADCipherSuite {
     final plaintextLength = ciphertext.length - tagLength;
     final aad = _constructAAD(header, plaintextLength);
 
-    // Decrypt with AES-GCM
-    final plaintext = await aesGcmDecrypt(
-      key: writeKey,
-      nonce: nonce,
-      ciphertext: ciphertext,
-      additionalData: aad,
-    );
+    // Decrypt with appropriate algorithm
+    final Uint8List plaintext;
+    if (_isChaCha20Poly1305) {
+      plaintext = await chacha20Poly1305Decrypt(
+        key: writeKey,
+        nonce: nonce,
+        ciphertext: ciphertext,
+        additionalData: aad,
+      );
+    } else {
+      plaintext = await aesGcmDecrypt(
+        key: writeKey,
+        nonce: nonce,
+        ciphertext: ciphertext,
+        additionalData: aad,
+      );
+    }
 
     return plaintext;
   }
@@ -232,6 +257,20 @@ class CipherSuiteLengths {
           keyLen: 16, // AES-128
           ivLen: 4, // GCM implicit nonce
           nonceLen: 12, // GCM full nonce
+        );
+      case CipherSuite.tlsEcdheEcdsaWithAes256GcmSha384:
+      case CipherSuite.tlsEcdheRsaWithAes256GcmSha384:
+        return const CipherSuiteLengths(
+          keyLen: 32, // AES-256
+          ivLen: 4, // GCM implicit nonce
+          nonceLen: 12, // GCM full nonce
+        );
+      case CipherSuite.tlsEcdheEcdsaWithChacha20Poly1305Sha256:
+      case CipherSuite.tlsEcdheRsaWithChacha20Poly1305Sha256:
+        return const CipherSuiteLengths(
+          keyLen: 32, // ChaCha20 key
+          ivLen: 4, // Implicit nonce (same as GCM for DTLS)
+          nonceLen: 12, // Full nonce
         );
     }
   }

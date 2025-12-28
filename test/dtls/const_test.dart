@@ -339,7 +339,8 @@ void main() {
     });
 
     test('supportedCipherSuites contains all cipher suites', () {
-      expect(cipher.supportedCipherSuites.length, 2);
+      expect(cipher.supportedCipherSuites.length, 6);
+      // AES-128-GCM
       expect(
         cipher.supportedCipherSuites,
         contains(cipher.CipherSuite.tlsEcdheEcdsaWithAes128GcmSha256),
@@ -347,6 +348,24 @@ void main() {
       expect(
         cipher.supportedCipherSuites,
         contains(cipher.CipherSuite.tlsEcdheRsaWithAes128GcmSha256),
+      );
+      // AES-256-GCM
+      expect(
+        cipher.supportedCipherSuites,
+        contains(cipher.CipherSuite.tlsEcdheEcdsaWithAes256GcmSha384),
+      );
+      expect(
+        cipher.supportedCipherSuites,
+        contains(cipher.CipherSuite.tlsEcdheRsaWithAes256GcmSha384),
+      );
+      // ChaCha20-Poly1305
+      expect(
+        cipher.supportedCipherSuites,
+        contains(cipher.CipherSuite.tlsEcdheEcdsaWithChacha20Poly1305Sha256),
+      );
+      expect(
+        cipher.supportedCipherSuites,
+        contains(cipher.CipherSuite.tlsEcdheRsaWithChacha20Poly1305Sha256),
       );
     });
 

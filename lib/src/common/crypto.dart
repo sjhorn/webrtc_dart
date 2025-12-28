@@ -214,3 +214,64 @@ Uint8List hash(String algorithm, Uint8List data) {
 Uint8List md5Hash(Uint8List data) {
   return hash('md5', data);
 }
+
+/// ChaCha20-Poly1305 encryption (RFC 7905)
+/// Key: 32 bytes, Nonce: 12 bytes, Tag: 16 bytes
+Future<Uint8List> chacha20Poly1305Encrypt({
+  required Uint8List key,
+  required Uint8List nonce,
+  required Uint8List plaintext,
+  required Uint8List additionalData,
+}) async {
+  final algorithm = Chacha20.poly1305Aead();
+
+  final secretKey = SecretKey(key);
+  final secretBox = await algorithm.encrypt(
+    plaintext,
+    secretKey: secretKey,
+    nonce: nonce,
+    aad: additionalData,
+  );
+
+  // Concatenate ciphertext and MAC (same format as AES-GCM)
+  final result =
+      Uint8List(secretBox.cipherText.length + secretBox.mac.bytes.length);
+  result.setAll(0, secretBox.cipherText);
+  result.setAll(secretBox.cipherText.length, secretBox.mac.bytes);
+
+  return result;
+}
+
+/// ChaCha20-Poly1305 decryption (RFC 7905)
+Future<Uint8List> chacha20Poly1305Decrypt({
+  required Uint8List key,
+  required Uint8List nonce,
+  required Uint8List ciphertext,
+  required Uint8List additionalData,
+  int macLength = 16,
+}) async {
+  if (ciphertext.length < macLength) {
+    throw ArgumentError('Ciphertext too short');
+  }
+
+  final algorithm = Chacha20.poly1305Aead();
+
+  // Split ciphertext and MAC
+  final actualCiphertext = ciphertext.sublist(0, ciphertext.length - macLength);
+  final mac = ciphertext.sublist(ciphertext.length - macLength);
+
+  final secretKey = SecretKey(key);
+  final secretBox = SecretBox(
+    actualCiphertext,
+    nonce: nonce,
+    mac: Mac(mac),
+  );
+
+  final plaintext = await algorithm.decrypt(
+    secretBox,
+    secretKey: secretKey,
+    aad: additionalData,
+  );
+
+  return Uint8List.fromList(plaintext);
+}

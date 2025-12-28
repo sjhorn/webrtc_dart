@@ -510,21 +510,21 @@ The Dart port achieves **~95-100% feature parity** with the TypeScript werift-we
 | Option | Description | Est. Savings | Status |
 |--------|-------------|--------------|--------|
 | 1. SecureTransportManager | Extract SRTP session lifecycle | ~113 lines | ✅ Complete |
-| 2. TransceiverManager.setRemoteRTP | Move remote media processing | ~60 lines | ⏸️ Deferred |
-| 3. RtpRouter enhancement | Move routeRtp/routeRtcp | ~40 lines | ⏸️ Deferred |
-| 4. Reduce logging | Remove verbose debug statements | ~80 lines | ⏸️ Deferred |
+| 2. TransceiverManager.setRemoteRTP | Move transceiver config | ~43 lines | ✅ Complete |
+| 3. RtpRouter enhancement | Move routeRtp/routeRtcp | ~40 lines | ⏸️ Skipped |
+| 4. Reduce logging | Consolidate mDNS, reduce verbosity | ~44 lines | ✅ Complete |
 
-**Final:** peer_connection.dart 1,897 lines (30.4% reduction from 2,726)
+**Final:** peer_connection.dart 1,810 lines (33.6% reduction from 2,726)
 **Original Target:** ~1,630 lines
 
 #### Phase 5 Summary
 
-Options 2-4 were evaluated but deferred due to:
-- High complexity (many callback injections required)
-- Deep state dependencies on PeerConnection
-- Diminishing returns vs. risk of regressions
+- **Option 1 (SecureTransportManager):** Extracted SRTP session lifecycle to manager
+- **Option 2 (setRemoteRTP):** Moved transceiver configuration to TransceiverManager
+- **Option 3 (RtpRouter):** Skipped - packet routing already uses RtpRouter, SRTP decryption is PeerConnection-specific
+- **Option 4 (Logging):** Consolidated duplicate mDNS code, removed verbose per-candidate logs
 
-The 30.4% reduction (829 lines) from the original peer_connection.dart achieves the primary
+The 33.6% reduction (916 lines) from the original peer_connection.dart achieves the primary
 goal of matching werift's manager pattern while maintaining stability.
 
 #### Option 1: SecureTransportManager ✅ COMPLETE
@@ -542,26 +542,28 @@ Extracted from peer_connection.dart:
 
 **Savings:** 2,010 → 1,897 lines (-113 lines, 5.6% reduction)
 
-#### Option 2: TransceiverManager.setRemoteRTP ⏸️ DEFERRED
+#### Option 2: TransceiverManager.setRemoteRTP ✅ COMPLETE
 
-Evaluated but deferred - `_processRemoteMediaDescriptions()` has deep dependencies on:
-- RTP session creation (`_createRtpSession`)
-- Transceiver factories (`createAudioTransceiver`, `createVideoTransceiver`)
-- Track event stream (`_trackController`)
-- RTP session storage (`_rtpSessions`)
+Added `setRemoteRTP()` to TransceiverManager matching werift's pattern:
+- Header extension ID extraction and assignment to sender
+- RTP router header extension registration
+- Simulcast RID handler registration
 
-Would require 5+ callback injections. Risk outweighs ~60 line savings.
+**Savings:** 1897 → 1854 lines (-43 lines)
 
-#### Option 3: RtpRouter Enhancement ⏸️ DEFERRED
+#### Option 3: RtpRouter Enhancement ⏸️ SKIPPED
 
-Evaluated but deferred - Packet routing already uses RtpRouter for SSRC/RID routing.
+Evaluated but skipped - Packet routing already uses RtpRouter for SSRC/RID routing.
 The remaining methods (`_handleIncomingRtpData`, `_routeRtpPacket`, `_routeRtcpPacket`)
 need SecureTransportManager for SRTP decryption, which is PeerConnection-specific.
 
-#### Option 4: Reduce Logging ⏸️ DEFERRED
+#### Option 4: Reduce Logging ✅ COMPLETE
 
-Evaluated - Only 30 log statements in 1897 lines (1.6%). These are useful for debugging
-WebRTC issues. Not a significant contributor to line count.
+- Consolidated duplicate mDNS resolution code (addIceCandidate now uses _resolveCandidate)
+- Removed verbose per-candidate logging in setRemoteDescription
+- Kept summary logs while removing redundant per-item logs
+
+**Savings:** 1854 → 1810 lines (-44 lines)
 
 ---
 

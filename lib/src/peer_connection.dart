@@ -19,6 +19,7 @@ import 'package:webrtc_dart/src/rtp/header_extension.dart';
 import 'package:webrtc_dart/src/rtp/rtp_session.dart';
 import 'package:webrtc_dart/src/sdp/rtx_sdp.dart';
 import 'package:webrtc_dart/src/sdp/sdp.dart';
+import 'package:webrtc_dart/src/sdp/sdp_manager.dart';
 import 'package:webrtc_dart/src/srtp/rtp_packet.dart';
 import 'package:webrtc_dart/src/srtp/srtp_session.dart';
 import 'package:webrtc_dart/src/stats/rtc_stats.dart';
@@ -170,6 +171,9 @@ class RtcPeerConnection {
   /// ICE connection (primary, for bundled media)
   late final IceConnection _iceConnection;
 
+  /// SDP manager for description state and SDP building
+  late final SdpManager _sdpManager;
+
   /// ICE controlling role (true if this peer created the offer)
   bool _iceControlling = false;
 
@@ -286,6 +290,12 @@ class RtcPeerConnection {
     _iceConnection = IceConnectionImpl(
       iceControlling: _iceControlling,
       options: iceOptions,
+    );
+
+    // Initialize SDP manager with ICE ufrag as cname
+    _sdpManager = SdpManager(
+      cname: _iceConnection.localUsername,
+      bundlePolicy: _configuration.bundlePolicy,
     );
 
     // Setup ICE candidate listener
@@ -970,7 +980,7 @@ class RtcPeerConnection {
   /// Set local description
   Future<void> setLocalDescription(SessionDescription description) async {
     // Validate state transition
-    _validateSetLocalDescription(description.type);
+    _sdpManager.validateSetLocalDescription(description.type, _signalingState);
 
     _localDescription = description;
 
@@ -1018,7 +1028,7 @@ class RtcPeerConnection {
   /// Set remote description
   Future<void> setRemoteDescription(SessionDescription description) async {
     // Validate state transition
-    _validateSetRemoteDescription(description.type);
+    _sdpManager.validateSetRemoteDescription(description.type, _signalingState);
 
     _remoteDescription = description;
 
@@ -1648,88 +1658,6 @@ class RtcPeerConnection {
       case IceState.closed:
         _setIceConnectionState(IceConnectionState.closed);
         break;
-    }
-  }
-
-  /// Validate setLocalDescription
-  void _validateSetLocalDescription(String type) {
-    // Rollback is always allowed
-    if (type == 'rollback') {
-      return;
-    }
-
-    switch (_signalingState) {
-      case SignalingState.stable:
-        if (type != 'offer') {
-          throw StateError('Can only set offer in stable state');
-        }
-        break;
-      case SignalingState.haveLocalOffer:
-        if (type != 'offer') {
-          throw StateError('Can only set offer in have-local-offer state');
-        }
-        break;
-      case SignalingState.haveRemoteOffer:
-        if (type != 'answer' && type != 'pranswer') {
-          throw StateError(
-            'Can only set answer/pranswer in have-remote-offer state',
-          );
-        }
-        break;
-      case SignalingState.haveLocalPranswer:
-        if (type != 'answer' && type != 'pranswer') {
-          throw StateError(
-            'Can only set answer/pranswer in have-local-pranswer state',
-          );
-        }
-        break;
-      case SignalingState.haveRemotePranswer:
-        throw StateError(
-          'Cannot set local description in have-remote-pranswer state',
-        );
-      case SignalingState.closed:
-        throw StateError('PeerConnection is closed');
-    }
-  }
-
-  /// Validate setRemoteDescription
-  void _validateSetRemoteDescription(String type) {
-    // Rollback is always allowed
-    if (type == 'rollback') {
-      return;
-    }
-
-    switch (_signalingState) {
-      case SignalingState.stable:
-        if (type != 'offer') {
-          throw StateError('Can only set offer in stable state');
-        }
-        break;
-      case SignalingState.haveLocalOffer:
-        if (type != 'answer' && type != 'pranswer') {
-          throw StateError(
-            'Can only set answer/pranswer in have-local-offer state',
-          );
-        }
-        break;
-      case SignalingState.haveRemoteOffer:
-        if (type != 'offer') {
-          throw StateError('Can only set offer in have-remote-offer state');
-        }
-        break;
-      case SignalingState.haveLocalPranswer:
-        throw StateError(
-          'Cannot set remote description in have-local-pranswer state',
-        );
-      case SignalingState.haveRemotePranswer:
-        if (type != 'answer' && type != 'pranswer') {
-          throw StateError(
-            'Can only set answer/pranswer in have-remote-pranswer state',
-          );
-        }
-        break;
-      case SignalingState.closed:
-        throw StateError('PeerConnection is closed');
     }
   }
 

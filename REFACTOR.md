@@ -33,6 +33,8 @@ The Dart port achieves **~95-100% feature parity** with the TypeScript werift-we
 - ✅ Added RTCP BYE (Goodbye) packet support - goes beyond werift!
 - ✅ Extracted SdpManager, TransceiverManager, SctpTransportManager - matches werift architecture
 - ✅ Moved SRTP decryption to transport layer - matches werift DtlsTransport.onRtp pattern
+- ✅ Polymorphic addTransceiver(trackOrKind) - matches werift API for Ring camera compatibility
+- ✅ Fixed bundlePolicy logic to match werift's findOrCreateTransport()
 - ✅ All 2430+ tests passing, 0 analyzer issues
 
 ---
@@ -651,6 +653,82 @@ RtcPeerConnection (1,781 lines)
 
 ---
 
+### 🔵 Phase 7: werift API Parity (December 2025)
+
+**Goal:** Match werift's polymorphic `addTransceiver` API and `bundlePolicy` handling for Ring camera compatibility.
+
+#### Changes Made
+
+##### 1. Polymorphic addTransceiver
+
+werift uses a polymorphic signature:
+```typescript
+addTransceiver(trackOrKind: Kind | MediaStreamTrack, options: Partial<TransceiverOptions>)
+```
+
+Dart now matches this pattern:
+```dart
+RtpTransceiver addTransceiver(
+  Object trackOrKind, {  // MediaStreamTrackKind or nonstandard.MediaStreamTrack
+  RtpCodecParameters? codec,
+  RtpTransceiverDirection? direction,
+})
+```
+
+**Default direction logic:**
+- `MediaStreamTrackKind` → default `recvonly` (receiving media)
+- `nonstandard.MediaStreamTrack` → default `sendonly` (forwarding pre-encoded RTP)
+
+##### 2. Deprecated addTransceiverWithTrack
+
+Since werift doesn't have a separate method, `addTransceiverWithTrack` is now deprecated:
+```dart
+@Deprecated('Use addTransceiver(track) instead - werift uses polymorphic API')
+RtpTransceiver addTransceiverWithTrack(...)
+```
+
+##### 3. Fixed bundlePolicy Logic
+
+Updated `_findOrCreateMediaTransport` to match werift's `findOrCreateTransport()`:
+
+**werift logic:**
+```typescript
+if (bundlePolicy === "max-bundle" ||
+    (bundlePolicy !== "disable" && remoteIsBundled)) {
+  return existing;  // Reuse transport
+}
+// Create new transport
+```
+
+**Dart before (incorrect):**
+```dart
+if (_remoteIsBundled || bundlePolicy != BundlePolicy.disable) { ... }
+```
+
+**Dart after (correct):**
+```dart
+if (bundlePolicy == BundlePolicy.maxBundle ||
+    (bundlePolicy != BundlePolicy.disable && _remoteIsBundled)) { ... }
+```
+
+**Key difference:** With `max-compat`, reuse transport ONLY if remote is bundled.
+
+##### 4. bundlePolicy:disable Always Creates Per-Media Transports
+
+When `bundlePolicy == disable`, always create per-media transports regardless of `remoteIsBundled`:
+```dart
+// Before: if (bundlePolicy == disable && !_remoteIsBundled)
+// After:  if (bundlePolicy == disable)
+```
+
+#### Test Results
+
+- ✅ 2430+ unit tests passing
+- ✅ Chrome browser DataChannel test passing
+- ✅ Chrome browser media_sendonly test passing
+
+---
+
 ## 13. Test Coverage
 
 ### Current State
@@ -691,7 +769,9 @@ RtcPeerConnection (1,781 lines)
 | TypeScript | Dart |
 |------------|------|
 | `packages/webrtc/src/peerConnection.ts` | `lib/src/peer_connection.dart` |
-| `packages/webrtc/src/sdpManager.ts` | (embedded in peer_connection.dart) |
+| `packages/webrtc/src/sdpManager.ts` | `lib/src/sdp/sdp_manager.dart` |
+| `packages/webrtc/src/transceiverManager.ts` | `lib/src/media/transceiver_manager.dart` |
+| `packages/webrtc/src/sctpManager.ts` | `lib/src/sctp/sctp_transport_manager.dart` |
 | `packages/webrtc/src/media/rtpTransceiver.ts` | `lib/src/media/rtp_transceiver.dart` |
 | `packages/ice/src/ice.ts` | `lib/src/ice/ice_connection.dart` |
 | `packages/dtls/src/client.ts` | `lib/src/dtls/client.dart` |

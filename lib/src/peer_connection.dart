@@ -657,8 +657,9 @@ class RtcPeerConnection {
           '[$_debugLabel] Media[$i] mid=$mid type=${media.type} ufrag=${iceUfrag != null && iceUfrag.length > 8 ? '${iceUfrag.substring(0, 8)}...' : iceUfrag}');
 
       // Determine which transport to use
-      if (_configuration.bundlePolicy == BundlePolicy.disable &&
-          !_remoteIsBundled) {
+      // When bundlePolicy is disable, ALWAYS use per-media transports
+      // (regardless of whether remote is bundled) - matches werift behavior
+      if (_configuration.bundlePolicy == BundlePolicy.disable) {
         // Each media line gets its own transport
         if (media.type == 'audio' || media.type == 'video') {
           final transport = await _findOrCreateMediaTransport(mid, i);
@@ -779,9 +780,8 @@ class RtcPeerConnection {
       _setConnectionState(PeerConnectionState.connecting);
       _iceConnectCalled = true;
 
-      if (_configuration.bundlePolicy == BundlePolicy.disable &&
-          !_remoteIsBundled) {
-        // Start all media transports in parallel
+      if (_configuration.bundlePolicy == BundlePolicy.disable) {
+        // bundlePolicy: disable - start all media transports in parallel
         _log.fine(
             '[$_debugLabel] Starting ${_mediaTransports.length} media transports');
         await Future.wait(_mediaTransports.values.map((transport) async {
@@ -1204,17 +1204,52 @@ class RtcPeerConnection {
 
   /// Add a transceiver with specific codec
   ///
-  /// This allows specifying the codec to use for the track, which is useful
-  /// when the remote peer requires a specific codec (e.g., H264 for Ring cameras).
+  /// This matches werift's polymorphic addTransceiver(trackOrKind, options) API.
+  /// The first argument can be either:
+  /// - [MediaStreamTrackKind] - Creates a transceiver for the specified media kind
+  /// - [nonstandard.MediaStreamTrack] - Creates a transceiver with a nonstandard track
+  ///   for pre-encoded RTP (Ring cameras, FFmpeg forwarding)
   ///
-  /// [kind] - The type of media (audio or video)
+  /// [trackOrKind] - Either MediaStreamTrackKind or nonstandard.MediaStreamTrack
   /// [codec] - The codec parameters to use (e.g., createH264Codec())
-  /// [direction] - The transceiver direction (default: recvonly)
+  /// [direction] - The transceiver direction (default: recvonly for kind, sendonly for track)
+  ///
+  /// Example with kind:
+  /// ```dart
+  /// final transceiver = pc.addTransceiver(MediaStreamTrackKind.video);
+  /// ```
+  ///
+  /// Example with nonstandard track (for Ring cameras):
+  /// ```dart
+  /// final track = nonstandard.MediaStreamTrack(kind: nonstandard.MediaKind.video);
+  /// final transceiver = pc.addTransceiver(track, direction: sendonly);
+  /// ringCamera.onVideoRtp.listen((rtp) => track.writeRtp(rtp));
+  /// ```
   RtpTransceiver addTransceiver(
-    MediaStreamTrackKind kind, {
+    Object trackOrKind, {
     RtpCodecParameters? codec,
-    RtpTransceiverDirection direction = RtpTransceiverDirection.recvonly,
+    RtpTransceiverDirection? direction,
   }) {
+    // Handle polymorphic argument like werift
+    MediaStreamTrackKind kind;
+    nonstandard.MediaStreamTrack? nonstandardTrack;
+    RtpTransceiverDirection effectiveDirection;
+
+    if (trackOrKind is MediaStreamTrackKind) {
+      kind = trackOrKind;
+      effectiveDirection = direction ?? RtpTransceiverDirection.recvonly;
+    } else if (trackOrKind is nonstandard.MediaStreamTrack) {
+      nonstandardTrack = trackOrKind;
+      kind = trackOrKind.kind == nonstandard.MediaKind.audio
+          ? MediaStreamTrackKind.audio
+          : MediaStreamTrackKind.video;
+      effectiveDirection = direction ?? RtpTransceiverDirection.sendonly;
+    } else {
+      throw ArgumentError(
+        'trackOrKind must be MediaStreamTrackKind or nonstandard.MediaStreamTrack, '
+        'got ${trackOrKind.runtimeType}',
+      );
+    }
     if (_connectionState == PeerConnectionState.closed) {
       throw StateError('PeerConnection is closed');
     }
@@ -1242,7 +1277,7 @@ class RtcPeerConnection {
         mid: mid,
         rtpSession: rtpSession,
         sendTrack: null,
-        direction: direction,
+        direction: effectiveDirection,
         codec: effectiveCodec,
       );
     } else {
@@ -1250,7 +1285,7 @@ class RtcPeerConnection {
         mid: mid,
         rtpSession: rtpSession,
         sendTrack: null,
-        direction: direction,
+        direction: effectiveDirection,
         codec: effectiveCodec,
       );
     }
@@ -1269,6 +1304,11 @@ class RtcPeerConnection {
     transceiver.sender.absSendTimeExtensionId = _absSendTimeExtensionId;
     transceiver.sender.transportWideCCExtensionId = _twccExtensionId;
 
+    // Register nonstandard track with sender if provided (like TypeScript registerTrack)
+    if (nonstandardTrack != null) {
+      transceiver.sender.registerNonstandardTrack(nonstandardTrack);
+    }
+
     // Trigger negotiation needed per WebRTC spec
     _triggerNegotiationNeeded();
 
@@ -1277,36 +1317,22 @@ class RtcPeerConnection {
 
   /// Add a transceiver with a nonstandard track for pre-encoded RTP
   ///
-  /// This matches the TypeScript werift addTransceiver(track, options) API.
-  /// The track's onReceiveRtp stream is wired to the sender's sendRtp,
-  /// so calling track.writeRtp() will forward packets to the remote peer.
+  /// @deprecated Use addTransceiver(track) instead. This method is kept for
+  /// backwards compatibility but will be removed in a future version.
   ///
-  /// Used for forwarding pre-encoded RTP (e.g., from Ring cameras, FFmpeg).
-  ///
-  /// Example:
+  /// werift uses a polymorphic addTransceiver(trackOrKind) - use that instead:
   /// ```dart
   /// final track = nonstandard.MediaStreamTrack(kind: nonstandard.MediaKind.video);
-  /// final transceiver = pc.addTransceiverWithTrack(track, direction: sendonly);
-  /// // Later, from Ring camera:
-  /// ringCamera.onVideoRtp.listen((rtp) => track.writeRtp(rtp));
+  /// final transceiver = pc.addTransceiver(track, direction: sendonly);
   /// ```
+  @Deprecated('Use addTransceiver(track) instead - werift uses polymorphic API')
   RtpTransceiver addTransceiverWithTrack(
     nonstandard.MediaStreamTrack track, {
     RtpCodecParameters? codec,
     RtpTransceiverDirection direction = RtpTransceiverDirection.sendonly,
   }) {
-    // Derive kind from nonstandard track
-    final kind = track.kind == nonstandard.MediaKind.audio
-        ? MediaStreamTrackKind.audio
-        : MediaStreamTrackKind.video;
-
-    // Create transceiver using shared implementation
-    final transceiver = addTransceiver(kind, codec: codec, direction: direction);
-
-    // Register the nonstandard track with the sender (like TypeScript registerTrack)
-    transceiver.sender.registerNonstandardTrack(track);
-
-    return transceiver;
+    // Delegate to polymorphic addTransceiver
+    return addTransceiver(track, codec: codec, direction: direction);
   }
 
   /// Generate random SSRC
@@ -1365,15 +1391,24 @@ class RtcPeerConnection {
   }
 
   /// Find or create a transport for a media line
-  /// When bundlePolicy is disable, creates a new transport per media line.
-  /// When bundled, reuses the primary transport.
+  ///
+  /// Matches werift's findOrCreateTransport() logic:
+  /// - max-bundle: always reuse single transport
+  /// - max-compat: reuse only if remote is bundled
+  /// - disable: always create new transport per media line
+  ///
+  /// Reference: werift-webrtc/packages/webrtc/src/peerConnection.ts:347
   Future<MediaTransport> _findOrCreateMediaTransport(
     String mid,
     int mLineIndex,
   ) async {
-    // If bundled or bundlePolicy is not disable, use primary transport
-    if (_remoteIsBundled ||
-        _configuration.bundlePolicy != BundlePolicy.disable) {
+    // Match werift's findOrCreateTransport logic exactly:
+    // - max-bundle: always reuse (even if remote is not bundled)
+    // - max-compat: reuse only if remote IS bundled
+    // - disable: always create new
+    if (_configuration.bundlePolicy == BundlePolicy.maxBundle ||
+        (_configuration.bundlePolicy != BundlePolicy.disable &&
+            _remoteIsBundled)) {
       // Return a wrapper around the primary transport
       // For bundled media, we just return the first transport
       if (_mediaTransports.isNotEmpty) {

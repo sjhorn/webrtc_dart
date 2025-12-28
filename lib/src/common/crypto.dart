@@ -275,3 +275,42 @@ Future<Uint8List> chacha20Poly1305Decrypt({
 
   return Uint8List.fromList(plaintext);
 }
+
+/// AES-128-CTR encryption for WebM encryption
+/// Key: 16 bytes, IV: 16 bytes
+/// This is a simple stream cipher without authentication
+Future<Uint8List> aesCtrEncrypt({
+  required Uint8List key,
+  required Uint8List iv,
+  required Uint8List plaintext,
+}) async {
+  final algorithm = AesCtr.with128bits(macAlgorithm: MacAlgorithm.empty);
+
+  final secretKey = SecretKey(key);
+  final secretBox = await algorithm.encrypt(
+    plaintext,
+    secretKey: secretKey,
+    nonce: iv,
+  );
+
+  return Uint8List.fromList(secretBox.cipherText);
+}
+
+/// AES-128-CTR decryption for WebM encryption
+Future<Uint8List> aesCtrDecrypt({
+  required Uint8List key,
+  required Uint8List iv,
+  required Uint8List ciphertext,
+}) async {
+  final algorithm = AesCtr.with128bits(macAlgorithm: MacAlgorithm.empty);
+
+  final secretKey = SecretKey(key);
+  final secretBox = SecretBox(ciphertext, nonce: iv, mac: Mac.empty);
+
+  final plaintext = await algorithm.decrypt(
+    secretBox,
+    secretKey: secretKey,
+  );
+
+  return Uint8List.fromList(plaintext);
+}

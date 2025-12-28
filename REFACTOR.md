@@ -445,9 +445,9 @@ The Dart port achieves **~95-100% feature parity** with the TypeScript werift-we
 
 ### 🟢 Low Priority (Nice to Have)
 
-6. **Add more cipher suites (AES-256, ChaCha20)**
+6. ~~**Add more cipher suites (AES-256, ChaCha20)**~~ ✅ DONE (December 2025)
 7. ~~**Port STUN Transaction class for retry logic**~~ ✅ DONE (December 2025)
-8. **Add WebM encryption support**
+8. ~~**Add WebM encryption support**~~ ✅ DONE (December 2025)
 9. ~~**Improve ICE role conflict recovery**~~ ✅ DONE (December 2025)
 
 ---

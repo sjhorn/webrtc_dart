@@ -1,4 +1,7 @@
+import 'dart:math';
 import 'dart:typed_data';
+
+import 'package:webrtc_dart/src/common/crypto.dart';
 
 import 'ebml/ebml.dart';
 import 'ebml/id.dart';
@@ -43,10 +46,24 @@ class WebmTrack {
   });
 }
 
+/// AES encryption algorithm value for WebM/Matroska
+class ContentEncAlgorithm {
+  /// AES encryption (value 5)
+  static const int aes = 5;
+}
+
+/// AES cipher mode values for WebM/Matroska
+class AesCipherMode {
+  /// CTR (Counter) mode (value 1)
+  static const int ctr = 1;
+}
+
 /// WebM container builder
 ///
 /// Implements WebM container format for recording audio/video.
 /// WebM is a subset of Matroska, using EBML encoding.
+///
+/// Supports optional AES-128-CTR encryption per WebM/Matroska specification.
 ///
 /// Usage:
 /// ```dart
@@ -65,14 +82,52 @@ class WebmTrack {
 /// final cluster = container.createCluster(0); // timecode in ms
 /// final block = container.createSimpleBlock(frame, true, 1, 0);
 /// ```
+///
+/// For encrypted WebM:
+/// ```dart
+/// final encryptionKey = randomBytes(16); // 128-bit key
+/// final container = WebmContainer(tracks, encryptionKey: encryptionKey);
+/// ```
 class WebmContainer {
   /// Tracks configured for this container
   final List<WebmTrack> tracks;
 
+  /// Optional 128-bit AES encryption key
+  final Uint8List? encryptionKey;
+
+  /// Random 128-bit key ID (generated per container)
+  late final Uint8List? _encryptionKeyId;
+
+  /// Per-track IV counters (64-bit counter stored as two 32-bit values)
+  final Map<int, List<int>> _trackIvCounters = {};
+
   /// TimecodeScale: 1,000,000 ns = 1 ms
   static const int timecodeScaleNs = 1000000;
 
-  WebmContainer(this.tracks);
+  WebmContainer(this.tracks, {this.encryptionKey}) {
+    if (encryptionKey != null) {
+      if (encryptionKey!.length != 16) {
+        throw ArgumentError('Encryption key must be exactly 16 bytes');
+      }
+      // Generate random key ID
+      _encryptionKeyId = randomBytes(16);
+
+      // Initialize IV counters for each track with random values
+      final random = Random.secure();
+      for (final track in tracks) {
+        // 64-bit counter stored as [high32, low32]
+        _trackIvCounters[track.trackNumber] = [
+          random.nextInt(0xFFFFFFFF),
+          random.nextInt(0xFFFFFFFF),
+        ];
+      }
+    } else {
+      _encryptionKeyId = null;
+    }
+  }
+
+  /// Check if encryption is enabled
+  bool get isEncrypted => encryptionKey != null;
 
   /// EBML header - write this at the start of the file
   Uint8List get ebmlHeader => ebmlBuild(
@@ -131,6 +186,11 @@ class WebmContainer {
         ? 'V_${track.codec.name}'
         : 'A_${track.codec.name}';
 
+    // Add encryption metadata if encryption is enabled
+    if (isEncrypted) {
+      trackElements.add(_createContentEncodings());
+    }
+
     return ebmlElement(EbmlId.trackEntry, [
       ebmlElement(EbmlId.trackNumber, ebmlNumber(track.trackNumber)),
       ebmlElement(EbmlId.trackUid, ebmlNumber(track.trackNumber)),
@@ -138,6 +198,24 @@ class WebmContainer {
       ebmlElement(EbmlId.trackType, ebmlNumber(track.kind.value)),
       ebmlElement(EbmlId.codecId, ebmlString(codecId)),
       ...trackElements,
+    ]);
+  }
+
+  /// Create ContentEncodings element for encrypted tracks
+  EbmlData _createContentEncodings() {
+    return ebmlElement(EbmlId.contentEncodings, [
+      ebmlElement(EbmlId.contentEncoding, [
+        ebmlElement(EbmlId.contentEncodingOrder, ebmlNumber(0)),
+        ebmlElement(EbmlId.contentEncodingScope, ebmlNumber(1)), // 1 = All frame contents
+        ebmlElement(EbmlId.contentEncodingType, ebmlNumber(1)), // 1 = Encryption
+        ebmlElement(EbmlId.contentEncryption, [
+          ebmlElement(EbmlId.contentEncAlgo, ebmlNumber(ContentEncAlgorithm.aes)),
+          ebmlElement(EbmlId.contentEncKeyId, ebmlBytes(_encryptionKeyId!)),
+          ebmlElement(EbmlId.contentEncAesSettings, [
+            ebmlElement(EbmlId.aesSettingsCipherMode, ebmlNumber(AesCipherMode.ctr)),
+          ]),
+        ]),
+      ]),
     ]);
   }
 
@@ -212,7 +290,83 @@ class WebmContainer {
   /// [isKeyframe] indicates if this is a keyframe
   /// [trackNumber] is the track number (1-based)
   /// [relativeTimestamp] is the timestamp relative to the cluster in milliseconds
+  ///
+  /// For unencrypted containers, this is synchronous.
+  /// For encrypted containers, use [createSimpleBlockAsync] instead.
   Uint8List createSimpleBlock(
+    Uint8List frame,
+    bool isKeyframe,
+    int trackNumber,
+    int relativeTimestamp,
+  ) {
+    if (isEncrypted) {
+      throw StateError(
+          'Use createSimpleBlockAsync for encrypted containers');
+    }
+    return _buildSimpleBlock(frame, isKeyframe, trackNumber, relativeTimestamp);
+  }
+
+  /// Create a SimpleBlock element for a media frame (async version for encryption)
+  ///
+  /// [frame] is the raw frame data
+  /// [isKeyframe] indicates if this is a keyframe
+  /// [trackNumber] is the track number (1-based)
+  /// [relativeTimestamp] is the timestamp relative to the cluster in milliseconds
+  Future<Uint8List> createSimpleBlockAsync(
+    Uint8List frame,
+    bool isKeyframe,
+    int trackNumber,
+    int relativeTimestamp,
+  ) async {
+    if (!isEncrypted) {
+      return _buildSimpleBlock(frame, isKeyframe, trackNumber, relativeTimestamp);
+    }
+
+    // Encrypt the frame using AES-128-CTR
+    final encryptedFrame = await _encryptFrame(frame, trackNumber);
+    return _buildSimpleBlock(encryptedFrame, isKeyframe, trackNumber, relativeTimestamp);
+  }
+
+  /// Encrypt a frame using AES-128-CTR
+  Future<Uint8List> _encryptFrame(Uint8List frame, int trackNumber) async {
+    // Get the IV counter for this track
+    final counter = _trackIvCounters[trackNumber]!;
+
+    // Build 16-byte IV from counter (8 bytes counter + 8 bytes padding)
+    final iv = Uint8List(16);
+    final ivBuffer = ByteData.sublistView(iv);
+    ivBuffer.setUint32(0, counter[0]); // High 32 bits
+    ivBuffer.setUint32(4, counter[1]); // Low 32 bits
+    // Remaining 8 bytes are zero-padded
+
+    // Encrypt the frame
+    final encrypted = await aesCtrEncrypt(
+      key: encryptionKey!,
+      iv: iv,
+      plaintext: frame,
+    );
+
+    // Increment the counter
+    counter[1]++;
+    if (counter[1] == 0) {
+      counter[0]++; // Overflow to high bits
+    }
+
+    // WebM encryption format:
+    // Signal byte (1 byte): bits 0-2 = reserved, bit 3 = partitioning, bit 7 = encrypted
+    // IV (8 bytes): first 8 bytes of the 16-byte IV
+    // Encrypted data
+    final signalByte = 0x01; // Bit 0 set = encrypted
+    final result = Uint8List(1 + 8 + encrypted.length);
+    result[0] = signalByte;
+    result.setRange(1, 9, iv.sublist(0, 8)); // First 8 bytes of IV
+    result.setRange(9, result.length, encrypted);
+
+    return result;
+  }
+
+  /// Build a SimpleBlock element (internal, without encryption)
+  Uint8List _buildSimpleBlock(
     Uint8List frame,
     bool isKeyframe,
     int trackNumber,

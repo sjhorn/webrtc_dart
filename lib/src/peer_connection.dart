@@ -687,21 +687,16 @@ class RtcPeerConnection {
           final candidateAttrs = media.attributes
               .where((attr) => attr.key == 'candidate')
               .toList();
-          _log.fine(
-              '[$_debugLabel] Found ${candidateAttrs.length} candidates for $mid');
           for (final attr in candidateAttrs) {
             if (attr.value != null) {
               try {
                 var candidate =
                     await _resolveCandidate(Candidate.fromSdp(attr.value!));
                 if (candidate != null) {
-                  _log.fine(
-                      '[$_debugLabel] Adding candidate to transport $mid: ${candidate.host}:${candidate.port}');
                   await transport.iceConnection.addRemoteCandidate(candidate);
                 }
               } catch (e) {
-                _log.fine(
-                    '[$_debugLabel] Failed to parse candidate for $mid: $e');
+                // Silently ignore malformed candidates
               }
             }
           }
@@ -753,31 +748,22 @@ class RtcPeerConnection {
     // Extract bundled ICE candidates from all media lines (for bundled case)
     if (_remoteIsBundled ||
         _configuration.bundlePolicy != BundlePolicy.disable) {
-      var bundledCandidateCount = 0;
       for (final media in sdpMessage.mediaDescriptions) {
-        final candidateAttrs =
-            media.attributes.where((attr) => attr.key == 'candidate').toList();
-        _log.fine(
-            '[$_debugLabel] Found ${candidateAttrs.length} bundled candidates in ${media.type} media');
-        for (final attr in candidateAttrs) {
+        for (final attr
+            in media.attributes.where((attr) => attr.key == 'candidate')) {
           if (attr.value != null) {
             try {
               var candidate =
                   await _resolveCandidate(Candidate.fromSdp(attr.value!));
               if (candidate != null) {
-                _log.fine(
-                    '[$_debugLabel] Adding remote candidate: ${candidate.type} ${candidate.transport} ${candidate.host}:${candidate.port}');
                 await _iceConnection.addRemoteCandidate(candidate);
-                bundledCandidateCount++;
               }
             } catch (e) {
-              _log.fine('[$_debugLabel] Failed to parse bundled candidate: $e');
+              // Silently ignore malformed candidates
             }
           }
         }
       }
-      _log.fine(
-          '[$_debugLabel] Added $bundledCandidateCount bundled remote candidates');
     }
 
     // Process remote media descriptions to create transceivers for incoming tracks
@@ -1015,39 +1001,9 @@ class RtcPeerConnection {
 
   /// Add ICE candidate
   Future<void> addIceCandidate(Candidate candidate) async {
-    var resolvedCandidate = candidate;
-    // Resolve mDNS candidates (.local addresses) to real IPs
-    if (candidate.host.endsWith('.local')) {
-      _log.fine(
-        '[$_debugLabel] Resolving mDNS candidate: ${candidate.host}',
-      );
-      // Start mDNS service if not running
-      if (!mdnsService.isRunning) {
-        await mdnsService.start();
-      }
-      final resolvedIp = await mdnsService.resolve(candidate.host);
-      if (resolvedIp == null) {
-        _log.fine(
-          '[$_debugLabel] Failed to resolve mDNS candidate: ${candidate.host}',
-        );
-        return;
-      }
-      _log.fine('[$_debugLabel] Resolved ${candidate.host} to $resolvedIp');
-      // Create new candidate with resolved IP
-      resolvedCandidate = Candidate(
-        foundation: candidate.foundation,
-        component: candidate.component,
-        transport: candidate.transport,
-        priority: candidate.priority,
-        host: resolvedIp,
-        port: candidate.port,
-        type: candidate.type,
-        relatedAddress: candidate.relatedAddress,
-        relatedPort: candidate.relatedPort,
-        generation: candidate.generation,
-        tcpType: candidate.tcpType,
-      );
-    }
+    // Resolve mDNS candidates (.local addresses) to real IPs using shared helper
+    final resolvedCandidate = await _resolveCandidate(candidate);
+    if (resolvedCandidate == null) return;
     await _iceConnection.addRemoteCandidate(resolvedCandidate);
   }
 

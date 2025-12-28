@@ -348,9 +348,12 @@ class RtcPeerConnection {
       _sctpManager.registerRemoteChannel(channel);
     });
 
-    // Handle incoming RTP/RTCP packets
-    _transport!.onRtpData.listen((data) {
-      _handleIncomingRtpData(data);
+    // Handle incoming RTP/RTCP packets (already decrypted by transport)
+    _transport!.onRtp.listen((packet) {
+      _routeDecryptedRtp(packet);
+    });
+    _transport!.onRtcp.listen((data) {
+      _routeDecryptedRtcp(data);
     });
   }
 
@@ -1431,9 +1434,12 @@ class RtcPeerConnection {
       _updateAggregateConnectionState();
     });
 
-    // Handle incoming RTP/RTCP packets for this media transport
-    transport.onRtpData.listen((data) {
-      _handleIncomingRtpData(data, mid: mid);
+    // Handle incoming RTP/RTCP packets for this media transport (already decrypted)
+    transport.onRtp.listen((packet) {
+      _routeDecryptedRtp(packet, mid: mid);
+    });
+    transport.onRtcp.listen((data) {
+      _routeDecryptedRtcp(data, mid: mid);
     });
 
     _mediaTransports[mid] = transport;
@@ -1556,60 +1562,12 @@ class RtcPeerConnection {
     _secureManager.setupSrtpSessions(_transport, _rtpSessions);
   }
 
-  /// Handle incoming RTP/RTCP data from transport
-  /// [mid] is optional - when provided (bundlePolicy:disable), uses per-transport SRTP session
-  void _handleIncomingRtpData(Uint8List data, {String? mid}) {
-    if (data.length < 12) {
-      // Too short to be valid RTP/RTCP
-      return;
-    }
-
+  /// Route already-decrypted RTP packet to appropriate session.
+  /// This is called by IntegratedTransport which handles SRTP decryption.
+  /// [mid] is optional - used for bundlePolicy:disable routing fallback
+  /// (matching werift: DtlsTransport.onRtp emits decrypted packets)
+  void _routeDecryptedRtp(RtpPacket packet, {String? mid}) {
     try {
-      final secondByte = data[1];
-      final isRtcp = secondByte >= 192 && secondByte <= 208;
-
-      if (isRtcp) {
-        // RTCP packet - parse to get SSRC
-        // RTCP header: VV PT(8) length(16) SSRC(32)
-        // SSRC is at bytes 4-7
-        if (data.length >= 8) {
-          final ssrc =
-              (data[4] << 24) | (data[5] << 16) | (data[6] << 8) | data[7];
-          _routeRtcpPacket(ssrc, data, mid: mid);
-        }
-      } else {
-        // RTP packet - parse to get SSRC
-        // RTP header has SSRC at bytes 8-11
-        if (data.length >= 12) {
-          final ssrc =
-              (data[8] << 24) | (data[9] << 16) | (data[10] << 8) | data[11];
-          _routeRtpPacket(ssrc, data, mid: mid);
-        }
-      }
-    } catch (e) {
-      // Ignore malformed packets
-    }
-  }
-
-  /// Route RTP packet to appropriate session using RtpRouter
-  /// (matching werift: packages/webrtc/src/peerConnection.ts - router.routeRtp)
-  /// [mid] is optional - when provided (bundlePolicy:disable), uses per-transport SRTP session
-  void _routeRtpPacket(int ssrc, Uint8List data, {String? mid}) async {
-    try {
-      // Get SRTP session from manager (prefers per-MID for bundlePolicy:disable)
-      final srtpSession = mid != null
-          ? _secureManager.getSrtpSessionForMid(mid)
-          : _secureManager.srtpSession;
-
-      // Decrypt SRTP to RTP first
-      RtpPacket packet;
-      if (srtpSession != null) {
-        packet = await srtpSession.decryptSrtp(data);
-      } else {
-        // No SRTP session yet (before DTLS handshake), parse as plain RTP
-        packet = RtpPacket.parse(data);
-      }
-
       // Use RtpRouter if we have registered handlers
       if (_rtpRouter.registeredSsrcs.isNotEmpty ||
           _rtpRouter.registeredRids.isNotEmpty) {
@@ -1617,7 +1575,7 @@ class RtcPeerConnection {
         return;
       }
 
-      // Route by MID if available (bundlePolicy:disable or separate transports)
+      // Route by MID if available (bundlePolicy:disable)
       if (mid != null && _rtpSessions.containsKey(mid)) {
         final session = _rtpSessions[mid]!;
         if (session.onReceiveRtp != null) {
@@ -1634,29 +1592,42 @@ class RtcPeerConnection {
         }
       }
     } catch (e) {
-      // Decryption or parse error - could be replay attack, corrupted packet, etc.
-      // Silently ignore to avoid log spam
+      // Parse error - silently ignore to avoid log spam
     }
   }
 
-  /// Route RTCP packet to appropriate session
-  /// [mid] is optional - when provided (bundlePolicy:disable), uses per-transport SRTP session
-  void _routeRtcpPacket(int ssrc, Uint8List data, {String? mid}) async {
-    // Get SRTP session from manager (prefers per-MID for bundlePolicy:disable)
-    final srtpSession = mid != null
-        ? _secureManager.getSrtpSessionForMid(mid)
-        : _secureManager.srtpSession;
+  /// Route already-decrypted RTCP packet to appropriate session.
+  /// This is called by IntegratedTransport which handles SRTCP decryption.
+  /// [mid] is optional - used for bundlePolicy:disable routing fallback
+  void _routeDecryptedRtcp(Uint8List data, {String? mid}) async {
+    if (data.length < 8) return;
 
-    // Route RTCP by SSRC to the appropriate session
-    final session = _findSessionBySsrc(ssrc);
-    if (session != null) {
-      await session.receiveRtcp(data, srtpSession: srtpSession);
-      return;
-    }
+    try {
+      // RTCP header: VV PT(8) length(16) SSRC(32)
+      // SSRC is at bytes 4-7
+      final ssrc =
+          (data[4] << 24) | (data[5] << 16) | (data[6] << 8) | data[7];
 
-    // Fallback: deliver to all sessions
-    for (final session in _rtpSessions.values) {
-      await session.receiveRtcp(data, srtpSession: srtpSession);
+      // Route by SSRC to the appropriate session
+      final session = _findSessionBySsrc(ssrc);
+      if (session != null) {
+        // Deliver already-decrypted RTCP
+        await session.receiveRtcp(data);
+        return;
+      }
+
+      // Route by MID if available (bundlePolicy:disable)
+      if (mid != null && _rtpSessions.containsKey(mid)) {
+        await _rtpSessions[mid]!.receiveRtcp(data);
+        return;
+      }
+
+      // Fallback: deliver to all sessions
+      for (final session in _rtpSessions.values) {
+        await session.receiveRtcp(data);
+      }
+    } catch (e) {
+      // Parse error - silently ignore
     }
   }
 

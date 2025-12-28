@@ -32,7 +32,8 @@ The Dart port achieves **~95-100% feature parity** with the TypeScript werift-we
 - ✅ Added setConfiguration/getConfiguration for runtime ICE server updates
 - ✅ Added RTCP BYE (Goodbye) packet support - goes beyond werift!
 - ✅ Extracted SdpManager, TransceiverManager, SctpTransportManager - matches werift architecture
-- ✅ All 1969+ tests passing, 0 analyzer issues
+- ✅ Moved SRTP decryption to transport layer - matches werift DtlsTransport.onRtp pattern
+- ✅ All 2430+ tests passing, 0 analyzer issues
 
 ---
 
@@ -514,7 +515,8 @@ The Dart port achieves **~95-100% feature parity** with the TypeScript werift-we
 | 3. RtpRouter enhancement | Move routeRtp/routeRtcp | ~40 lines | ⏸️ Skipped |
 | 4. Reduce logging | Consolidate mDNS, reduce verbosity | ~44 lines | ✅ Complete |
 
-**Final:** peer_connection.dart 1,810 lines (33.6% reduction from 2,726)
+**Final Phase 5:** peer_connection.dart 1,810 lines (33.6% reduction from 2,726)
+**After Phase 6:** peer_connection.dart 1,781 lines (34.7% reduction from 2,726)
 **Original Target:** ~1,630 lines
 
 #### Phase 5 Summary
@@ -557,6 +559,8 @@ Evaluated but skipped - Packet routing already uses RtpRouter for SSRC/RID routi
 The remaining methods (`_handleIncomingRtpData`, `_routeRtpPacket`, `_routeRtcpPacket`)
 need SecureTransportManager for SRTP decryption, which is PeerConnection-specific.
 
+**Note:** This was later addressed in Phase 6 by moving SRTP decryption to the transport layer.
+
 #### Option 4: Reduce Logging ✅ COMPLETE
 
 - Consolidated duplicate mDNS resolution code (addIceCandidate now uses _resolveCandidate)
@@ -564,6 +568,86 @@ need SecureTransportManager for SRTP decryption, which is PeerConnection-specifi
 - Kept summary logs while removing redundant per-item logs
 
 **Savings:** 1854 → 1810 lines (-44 lines)
+
+---
+
+### 🔵 Phase 6: Transport Layer SRTP Decryption (December 2025)
+
+**Goal:** Match werift's architecture where DtlsTransport emits already-decrypted packets.
+
+#### Problem Statement
+
+**werift architecture:**
+```
+DtlsTransport (handles SRTP decryption internally)
+    ↓ emits decrypted RtpPacket via onRtp
+PeerConnection:
+    router.routeRtp(rtp)  // Just routes, no decryption
+```
+
+**Dart previous architecture:**
+```
+Transport (emits encrypted SRTP bytes via onRtpData)
+    ↓
+PeerConnection._routeRtpPacket():
+    srtpSession.decryptSrtp(data)  // Decryption here
+    router.routeRtp(packet)
+```
+
+#### Implementation Summary
+
+| Step | Description | Status |
+|------|-------------|--------|
+| 1 | Add SrtpSession to IntegratedTransport | ✅ Complete |
+| 2 | Add onRtp/onRtcp decrypted streams | ✅ Complete |
+| 3 | Implement startSrtp() in transport | ✅ Complete |
+| 4 | Call startSrtp() after DTLS connected | ✅ Complete |
+| 5 | Update PeerConnection to use new streams | ✅ Complete |
+| 6 | Apply same pattern to MediaTransport | ✅ Complete |
+| 7 | Remove unused methods | ✅ Complete |
+
+#### Files Modified
+
+| File | Before | After | Change |
+|------|--------|-------|--------|
+| `transport.dart` | 729 | 905 | +176 (SRTP logic) |
+| `peer_connection.dart` | 1,810 | 1,781 | -29 (removed decryption) |
+
+#### Methods Removed from PeerConnection
+
+- `_handleIncomingRtpData()` - 34 lines
+- `_routeRtpPacket()` - 44 lines
+- `_routeRtcpPacket()` - 18 lines
+
+**Total removed:** ~96 lines
+
+#### New Methods Added to Transport
+
+- `startSrtp()` - Creates SRTP session, subscribes to encrypted packets, decrypts and emits
+- `onRtp` getter - Stream of decrypted RtpPacket
+- `onRtcp` getter - Stream of decrypted RTCP bytes
+- `srtpSession` getter - Access to SRTP session for encryption
+
+#### Architecture After Phase 6
+
+```
+IntegratedTransport / MediaTransport
+├── startSrtp() - Creates SRTP session from DTLS keys
+├── onRtp - Stream<RtpPacket> (decrypted)
+├── onRtcp - Stream<Uint8List> (decrypted)
+└── srtpSession - For outgoing packet encryption
+
+RtcPeerConnection (1,781 lines)
+├── _routeDecryptedRtp(packet, {mid}) - Routes already-decrypted packets
+├── _routeDecryptedRtcp(data, {mid}) - Routes already-decrypted RTCP
+└── Uses RtpRouter for SSRC/RID-based routing
+```
+
+#### Test Results
+
+- ✅ 2430+ unit tests passing
+- ✅ Chrome browser DataChannel test passing
+- ✅ Chrome browser media_sendonly test passing
 
 ---
 

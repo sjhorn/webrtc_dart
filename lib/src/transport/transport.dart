@@ -14,6 +14,8 @@ import 'package:webrtc_dart/src/dtls/server.dart';
 import 'package:webrtc_dart/src/dtls/socket.dart';
 import 'package:webrtc_dart/src/ice/ice_connection.dart';
 import 'package:webrtc_dart/src/sctp/association.dart';
+import 'package:webrtc_dart/src/srtp/rtp_packet.dart';
+import 'package:webrtc_dart/src/srtp/srtp_session.dart';
 
 final _log = WebRtcLogging.transport;
 final _logMedia = WebRtcLogging.transportMedia;
@@ -62,8 +64,20 @@ class MediaTransport {
   /// State change stream
   final _stateController = StreamController<TransportState>.broadcast();
 
-  /// RTP/RTCP data stream (SRTP encrypted packets from ICE)
+  /// RTP/RTCP data stream (encrypted SRTP - for backwards compat)
   final _rtpDataController = StreamController<Uint8List>.broadcast();
+
+  /// Decrypted RTP packet stream (matching werift DtlsTransport.onRtp)
+  final _decryptedRtpController = StreamController<RtpPacket>.broadcast();
+
+  /// Decrypted RTCP packet stream (matching werift DtlsTransport.onRtcp)
+  final _decryptedRtcpController = StreamController<Uint8List>.broadcast();
+
+  /// SRTP session for decrypting incoming media packets
+  SrtpSession? _srtpSession;
+
+  /// Whether SRTP has been started
+  bool _srtpStarted = false;
 
   /// ICE state subscription
   StreamSubscription<IceState>? _iceStateSubscription;
@@ -97,8 +111,17 @@ class MediaTransport {
   /// Stream of state changes
   Stream<TransportState> get onStateChange => _stateController.stream;
 
-  /// Stream of RTP/RTCP packets (SRTP encrypted)
+  /// Stream of RTP/RTCP packets (encrypted SRTP - for backwards compat)
   Stream<Uint8List> get onRtpData => _rtpDataController.stream;
+
+  /// Stream of decrypted RTP packets (matching werift DtlsTransport.onRtp)
+  Stream<RtpPacket> get onRtp => _decryptedRtpController.stream;
+
+  /// Stream of decrypted RTCP packets (matching werift DtlsTransport.onRtcp)
+  Stream<Uint8List> get onRtcp => _decryptedRtcpController.stream;
+
+  /// Get the SRTP session (for encryption of outgoing packets)
+  SrtpSession? get srtpSession => _srtpSession;
 
   /// Handle ICE state changes
   void _handleIceStateChange(IceState iceState) async {
@@ -185,6 +208,9 @@ class MediaTransport {
         if (dtlsState == DtlsSocketState.connected) {
           _logMedia.fine('[$debugLabel] DTLS connected');
           _setState(TransportState.connected);
+
+          // Start SRTP decryption (emits decrypted packets via onRtp/onRtcp)
+          startSrtp();
         } else if (dtlsState == DtlsSocketState.failed) {
           _setState(TransportState.failed);
         }
@@ -197,6 +223,67 @@ class MediaTransport {
       _setState(TransportState.failed);
       rethrow;
     }
+  }
+
+  /// Start SRTP decryption after DTLS handshake completes.
+  /// This matches werift's DtlsTransport pattern where onRtp emits decrypted packets.
+  void startSrtp() {
+    if (_srtpStarted) return;
+    _srtpStarted = true;
+
+    if (dtlsSocket == null) {
+      _logMedia.warning('[$debugLabel] startSrtp called but dtlsSocket is null');
+      return;
+    }
+
+    final srtpContext = dtlsSocket!.srtpContext;
+    if (srtpContext.localMasterKey == null ||
+        srtpContext.localMasterSalt == null ||
+        srtpContext.remoteMasterKey == null ||
+        srtpContext.remoteMasterSalt == null ||
+        srtpContext.profile == null) {
+      _logMedia.warning(
+          '[$debugLabel] SRTP keys not available - skipping SRTP setup');
+      return;
+    }
+
+    // Create SRTP session from DTLS-exported keys
+    _srtpSession = SrtpSession(
+      profile: srtpContext.profile!,
+      localMasterKey: srtpContext.localMasterKey!,
+      localMasterSalt: srtpContext.localMasterSalt!,
+      remoteMasterKey: srtpContext.remoteMasterKey!,
+      remoteMasterSalt: srtpContext.remoteMasterSalt!,
+    );
+
+    _logMedia.fine('[$debugLabel] SRTP session initialized');
+
+    // Subscribe to encrypted SRTP packets and decrypt them
+    _dtlsAdapter.onSrtpData.listen((data) async {
+      if (_srtpSession == null) return;
+
+      try {
+        // Determine if this is RTP or RTCP based on payload type byte
+        final payloadType = data[1] & 0x7F;
+        final isRtcp = payloadType >= 72 && payloadType <= 76;
+
+        if (isRtcp) {
+          // Decrypt SRTCP and emit as raw bytes
+          final rtcpPacket = await _srtpSession!.decryptSrtcp(data);
+          if (!_decryptedRtcpController.isClosed) {
+            _decryptedRtcpController.add(rtcpPacket.serialize());
+          }
+        } else {
+          // Decrypt SRTP and emit as RtpPacket
+          final packet = await _srtpSession!.decryptSrtp(data);
+          if (!_decryptedRtpController.isClosed) {
+            _decryptedRtpController.add(packet);
+          }
+        }
+      } catch (e) {
+        _logMedia.warning('[$debugLabel] SRTP decryption error: $e');
+      }
+    });
   }
 
   /// Set transport state
@@ -221,6 +308,8 @@ class MediaTransport {
 
     await _stateController.close();
     await _rtpDataController.close();
+    await _decryptedRtpController.close();
+    await _decryptedRtcpController.close();
   }
 
   @override
@@ -344,8 +433,20 @@ class IntegratedTransport {
   /// DataChannel stream
   final _dataChannelController = StreamController<DataChannel>.broadcast();
 
-  /// RTP/RTCP data stream (for media packets)
+  /// RTP/RTCP data stream (encrypted SRTP - kept for backwards compat)
   final _rtpDataController = StreamController<Uint8List>.broadcast();
+
+  /// Decrypted RTP packet stream (matching werift DtlsTransport.onRtp)
+  final _decryptedRtpController = StreamController<RtpPacket>.broadcast();
+
+  /// Decrypted RTCP packet stream (matching werift DtlsTransport.onRtcp)
+  final _decryptedRtcpController = StreamController<Uint8List>.broadcast();
+
+  /// SRTP session for decrypting incoming media packets
+  SrtpSession? _srtpSession;
+
+  /// Whether SRTP has been started
+  bool _srtpStarted = false;
 
   /// ICE to DTLS adapter
   IceToDtlsAdapter? _dtlsAdapter;
@@ -385,8 +486,17 @@ class IntegratedTransport {
   /// Stream of new incoming DataChannels
   Stream<DataChannel> get onDataChannel => _dataChannelController.stream;
 
-  /// Stream of RTP/RTCP packets (for media)
+  /// Stream of RTP/RTCP packets (encrypted SRTP - for backwards compat)
   Stream<Uint8List> get onRtpData => _rtpDataController.stream;
+
+  /// Stream of decrypted RTP packets (matching werift DtlsTransport.onRtp)
+  Stream<RtpPacket> get onRtp => _decryptedRtpController.stream;
+
+  /// Stream of decrypted RTCP packets (matching werift DtlsTransport.onRtcp)
+  Stream<Uint8List> get onRtcp => _decryptedRtcpController.stream;
+
+  /// Get the SRTP session (for encryption of outgoing packets)
+  SrtpSession? get srtpSession => _srtpSession;
 
   /// Handle ICE state changes
   void _handleIceStateChange(IceState iceState) async {
@@ -479,6 +589,9 @@ class IntegratedTransport {
           // SCTP may establish later for data channels, but media shouldn't wait
           _log.fine('[$debugLabel] DTLS handshake complete');
           _setState(TransportState.connected);
+
+          // Start SRTP decryption (emits decrypted packets via onRtp/onRtcp)
+          startSrtp();
 
           // Start SCTP for data channels (asynchronously)
           await _startSctp();
@@ -695,6 +808,70 @@ class IntegratedTransport {
     }
   }
 
+  /// Start SRTP decryption after DTLS handshake completes.
+  /// This matches werift's DtlsTransport pattern where onRtp emits decrypted packets.
+  void startSrtp() {
+    if (_srtpStarted) return;
+    _srtpStarted = true;
+
+    if (dtlsSocket == null) {
+      _log.warning('[$debugLabel] startSrtp called but dtlsSocket is null');
+      return;
+    }
+
+    final srtpContext = dtlsSocket!.srtpContext;
+    if (srtpContext.localMasterKey == null ||
+        srtpContext.localMasterSalt == null ||
+        srtpContext.remoteMasterKey == null ||
+        srtpContext.remoteMasterSalt == null ||
+        srtpContext.profile == null) {
+      _log.warning(
+          '[$debugLabel] SRTP keys not available - skipping SRTP setup');
+      return;
+    }
+
+    // Create SRTP session from DTLS-exported keys
+    _srtpSession = SrtpSession(
+      profile: srtpContext.profile!,
+      localMasterKey: srtpContext.localMasterKey!,
+      localMasterSalt: srtpContext.localMasterSalt!,
+      remoteMasterKey: srtpContext.remoteMasterKey!,
+      remoteMasterSalt: srtpContext.remoteMasterSalt!,
+    );
+
+    _log.fine('[$debugLabel] SRTP session initialized');
+
+    // Subscribe to encrypted SRTP packets and decrypt them
+    _dtlsAdapter!.onSrtpData.listen((data) async {
+      if (_srtpSession == null) return;
+
+      try {
+        // Determine if this is RTP or RTCP based on payload type byte
+        // RTP: payload type is in second byte bits 0-6 (0-127)
+        // RTCP: payload type is in second byte (200-204 for SR, RR, SDES, BYE, APP)
+        final payloadType = data[1] & 0x7F;
+        final isRtcp = payloadType >= 72 && payloadType <= 76;
+        // Note: RTCP types are 200-204, but after masking with 0x7F they become 72-76
+
+        if (isRtcp) {
+          // Decrypt SRTCP and emit as raw bytes
+          final rtcpPacket = await _srtpSession!.decryptSrtcp(data);
+          if (!_decryptedRtcpController.isClosed) {
+            _decryptedRtcpController.add(rtcpPacket.serialize());
+          }
+        } else {
+          // Decrypt SRTP and emit as RtpPacket
+          final packet = await _srtpSession!.decryptSrtp(data);
+          if (!_decryptedRtpController.isClosed) {
+            _decryptedRtpController.add(packet);
+          }
+        }
+      } catch (e) {
+        _log.warning('[$debugLabel] SRTP decryption error: $e');
+      }
+    });
+  }
+
   /// Set transport state
   void _setState(TransportState newState) {
     if (_state != newState) {
@@ -717,6 +894,8 @@ class IntegratedTransport {
     await _dataController.close();
     await _dataChannelController.close();
     await _rtpDataController.close();
+    await _decryptedRtpController.close();
+    await _decryptedRtcpController.close();
   }
 
   @override

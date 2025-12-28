@@ -522,5 +522,15 @@ The Dart port successfully achieves WebRTC interoperability with all major brows
 - ~~STUN Transaction Retry~~ ✅ DONE (December 2025)
 - ~~ICE Early Check Queue~~ ✅ DONE (December 2025)
 - ~~onNegotiationNeeded~~ ✅ DONE (December 2025)
+- ~~AES-256-GCM cipher suites~~ ✅ DONE (December 2025)
+- ~~ChaCha20-Poly1305 cipher suites~~ ✅ DONE (December 2025)
+- ~~WebM encryption (AES-128-CTR)~~ ✅ DONE (December 2025)
+- ~~RTT measurement in connectivity checks~~ ✅ DONE (December 2025)
+- ~~401 error retry in connectivity checks~~ ✅ DONE (December 2025)
+
+**Remaining Low Priority (By Design):**
+- StunOverTurnProtocol - Uses native TURN relay instead
+- setConfiguration/getConfiguration - Not commonly needed after creation
+- RTCP BYE - Not implemented in werift either
 
 The port has achieved **100% werift feature parity** for all high, medium, and most low priority items. It is production-ready for WebRTC data channels, media streaming, and recording with full fMP4 support.

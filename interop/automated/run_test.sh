@@ -107,6 +107,13 @@ cleanup() {
         echo "$orphan_pids" | xargs kill -9 2>/dev/null || true
     fi
 
+    # Kill any orphaned ffmpeg processes (from sendonly tests)
+    local ffmpeg_pids=$(pgrep -f "ffmpeg.*testsrc" 2>/dev/null || true)
+    if [ -n "$ffmpeg_pids" ]; then
+        echo "[Cleanup] Killing orphaned ffmpeg processes..."
+        echo "$ffmpeg_pids" | xargs kill 2>/dev/null || true
+    fi
+
     # Return appropriate exit code
     if [ $exit_code -ne 0 ]; then
         exit $exit_code

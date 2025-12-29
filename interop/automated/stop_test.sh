@@ -72,6 +72,16 @@ kill_dart_servers() {
     return 1
 }
 
+kill_ffmpeg() {
+    local pids=$(pgrep -f "ffmpeg.*testsrc" 2>/dev/null)
+    if [ -n "$pids" ]; then
+        echo "Killing ffmpeg processes: $pids"
+        echo "$pids" | xargs kill 2>/dev/null || true
+        return 0
+    fi
+    return 1
+}
+
 TEST_NAME="${1:-}"
 
 if [ -n "$TEST_NAME" ]; then
@@ -109,6 +119,11 @@ else
 
     # Kill any remaining dart servers
     if kill_dart_servers; then
+        killed=$((killed + 1))
+    fi
+
+    # Kill any orphaned ffmpeg processes
+    if kill_ffmpeg; then
         killed=$((killed + 1))
     fi
 

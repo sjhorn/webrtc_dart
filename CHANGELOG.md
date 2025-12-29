@@ -2,6 +2,25 @@
 
 All notable changes to this project will be documented in this file.
 
+## 0.22.9
+
+### Fixed
+
+- **Firefox browser test** - Added STUN server configuration for ICE connectivity
+- **Safari save_to_disk tests** - Added synthetic audio (Web Audio API) and video (canvas) for headless testing
+- **Safari sendrecv_answer test** - Added frame counting fallback for WebKit headless
+
+### Changed
+
+- **Browser test infrastructure** - Added 1s delay between tests for reliable port cleanup
+- **H264 test** - Skip Firefox (H264 encoding not supported in headless mode)
+- **VP9 test** - Skip Safari (VP9 codec not supported by browser)
+
+### Tests
+
+- 22/22 browser interop tests passing on Chrome, Firefox, and Safari
+- Full browser parity achieved across all three major browsers
+
 ## 0.22.8
 
 ### Added

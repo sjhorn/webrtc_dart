@@ -729,6 +729,60 @@ When `bundlePolicy == disable`, always create per-media transports regardless of
 
 ---
 
+### 🔵 Phase 8: Match werift Media Architecture (December 2025)
+
+**Goal:** Restructure `lib/src/media/` to match werift's sender/receiver/transceiver file organization.
+
+#### Structural Comparison
+
+**Line Counts:**
+
+| Component | werift | Dart | Notes |
+|-----------|--------|------|-------|
+| **Total (all packages)** | 27,284 | 45,668 | Dart 67% larger (extra features) |
+| PeerConnection | 969 | 1,816 | Dart 1.9x larger |
+| ICE | 1,478 | 2,196 | Dart 1.5x larger |
+| SCTP | 1,397 | 1,449 | Similar |
+| SDP | 1,220 | 1,767 | Dart 1.4x larger |
+| RtpTransceiver | 159 | 1,075 | Dart has merged sender/receiver |
+| RtpSender | 577 | (embedded) | To be extracted |
+| RtpReceiver | 413 | (embedded) | To be extracted |
+| TransceiverManager | 424 | 155 | werift larger |
+| Transport | 1,340 | 905 | werift larger |
+
+**File Structure Target:**
+
+| werift | Dart Current | Dart Target |
+|--------|--------------|-------------|
+| `rtpTransceiver.ts` (159) | `rtp_transceiver.dart` (1075) | `rtp_transceiver.dart` (~160) |
+| `rtpSender.ts` (577) | (embedded) | `rtp_sender.dart` (~550) |
+| `rtpReceiver.ts` (413) | (embedded) | `rtp_receiver.dart` (~400) |
+| `sender/senderBWE.ts` | `sender/sender_bwe.dart` ✅ | (keep as-is) |
+| `receiver/receiverTwcc.ts` | `receiver/receiver_twcc.dart` ✅ | Added |
+
+**Feature Status:**
+
+| Feature | werift | Dart | Status |
+|---------|--------|------|--------|
+| RTCP SR loop | rtpSender.runRtcp() | RtpSession | Different location |
+| RTCP RR loop | rtpReceiver.runRtcp() | RtpSession | Different location |
+| NACK Handler | receiver/nack.ts | rtp/nack_handler.dart | ✅ Exists |
+| RTX wrap/unwrap | sender/receiver | RtpSession | ✅ Exists |
+| RED encode/decode | sender/receiver | rtp/red/ | ✅ Exists |
+| SenderBWE | sender/senderBWE.ts | sender/sender_bwe.dart | ✅ Exists |
+| ReceiverTWCC | receiver/receiverTwcc.ts | receiver/receiver_twcc.dart | ✅ Added |
+
+#### Implementation Status ✅ COMPLETE
+
+1. ✅ **Split rtp_transceiver.dart** into 3 files:
+   - `rtp_sender.dart` (556 lines) - matches werift's 577
+   - `rtp_receiver.dart` (302 lines) - matches werift's 413
+   - `rtp_transceiver.dart` (234 lines) - matches werift's 159 + helpers
+2. ✅ **Added ReceiverTWCC** class in `receiver/receiver_twcc.dart` (226 lines)
+3. ✅ All tests passing
+
+---
+
 ## 13. Test Coverage
 
 ### Current State

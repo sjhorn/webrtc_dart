@@ -476,8 +476,10 @@ void main() {
           reason: 'RTX should reference VP8 payload type 96');
 
       final rtxInfo = rtxCodecs[96]!;
-      expect(rtxInfo.rtxPayloadType, 97,
-          reason: 'RTX payload type should be 97');
+      // RTX payload type is max(all codec PTs) + 1
+      // With VP8=96, VP9=97, H264=98, RTX gets 99
+      expect(rtxInfo.rtxPayloadType, 99,
+          reason: 'RTX payload type should be 99 (after VP8=96, VP9=97, H264=98)');
       expect(rtxInfo.associatedPayloadType, 96);
 
       await pc.close();

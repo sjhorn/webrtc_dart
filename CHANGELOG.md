@@ -2,6 +2,36 @@
 
 All notable changes to this project will be documented in this file.
 
+## 0.22.8
+
+### Added
+
+- **30 example files matching werift patterns** - Complete parity with werift TypeScript examples:
+  - `save_to_disk/`: vp8, vp9, h264, opus, av1x, rtp, pipeline (all use WebSocket + MediaRecorder)
+  - `mediachannel/simulcast/`: offer, answer, multiple, multiple_answer, twcc
+  - `mediachannel/sendonly/offer.dart` - GStreamer + WebSocket pattern
+  - `mediachannel/sendrecv/offer.dart` - Header extensions + echo pattern
+
+### Fixed
+
+- **All analyzer warnings resolved** - `dart analyze` reports "No issues found!"
+  - Migrated deprecated `addTransceiverWithTrack` to polymorphic `addTransceiver` API
+  - Fixed conditional assignment style (??= operator)
+  - Fixed dead code and unused variables in tests
+  - Fixed catchError return types in transaction tests
+
+### Changed
+
+- **Deprecated `addTransceiverWithTrack`** - Use `addTransceiver(track, direction: ...)` instead
+  - Matches werift's polymorphic API pattern
+  - Updated all examples, interop servers, and tests
+
+### Tests
+
+- 2431 tests passing (up from 2262)
+- 22/22 Chrome browser interop tests passing
+- All examples verified against werift equivalents
+
 ## 0.22.7
 
 ### Fixed

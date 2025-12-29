@@ -603,7 +603,7 @@ void main() {
   });
 
   group('Nonstandard Track API (werift parity)', () {
-    test('addTransceiverWithTrack creates transceiver with track wired',
+    test('addTransceiver creates transceiver with track wired',
         () async {
       final pc = RtcPeerConnection();
 
@@ -614,7 +614,7 @@ void main() {
       );
 
       // Add transceiver with track (like TypeScript: addTransceiver(track, {direction: 'sendonly'}))
-      final transceiver = pc.addTransceiverWithTrack(
+      final transceiver = pc.addTransceiver(
         track,
         direction: RtpTransceiverDirection.sendonly,
       );
@@ -626,7 +626,7 @@ void main() {
       await pc.close();
     });
 
-    test('addTransceiverWithTrack with H264 codec', () async {
+    test('addTransceiver with H264 codec', () async {
       final pc = RtcPeerConnection();
 
       final track = nonstandard.MediaStreamTrack(
@@ -634,7 +634,7 @@ void main() {
         id: 'test-video',
       );
 
-      final transceiver = pc.addTransceiverWithTrack(
+      final transceiver = pc.addTransceiver(
         track,
         direction: RtpTransceiverDirection.sendonly,
         codec: createH264Codec(payloadType: 96),
@@ -649,7 +649,7 @@ void main() {
       await pc.close();
     });
 
-    test('addTransceiverWithTrack creates offer with video media', () async {
+    test('addTransceiver creates offer with video media', () async {
       final pc = RtcPeerConnection();
 
       final track = nonstandard.MediaStreamTrack(
@@ -657,7 +657,7 @@ void main() {
         id: 'test-video',
       );
 
-      pc.addTransceiverWithTrack(
+      pc.addTransceiver(
         track,
         direction: RtpTransceiverDirection.sendonly,
       );
@@ -709,7 +709,7 @@ void main() {
         id: 'test-audio',
       );
 
-      final transceiver = pc.addTransceiverWithTrack(
+      final transceiver = pc.addTransceiver(
         track,
         direction: RtpTransceiverDirection.sendrecv,
       );
@@ -743,7 +743,7 @@ void main() {
         id: 'test-video',
       );
 
-      pc.addTransceiverWithTrack(
+      pc.addTransceiver(
         track,
         direction: RtpTransceiverDirection.sendonly,
       );
@@ -780,7 +780,7 @@ void main() {
         id: 'test-video',
       );
 
-      final transceiver = pc.addTransceiverWithTrack(
+      final transceiver = pc.addTransceiver(
         track,
         direction: RtpTransceiverDirection.sendonly,
       );
@@ -835,7 +835,7 @@ void main() {
         id: 'test-audio',
       );
 
-      final transceiver = pc.addTransceiverWithTrack(
+      final transceiver = pc.addTransceiver(
         audioTrack,
         direction: RtpTransceiverDirection.sendonly,
       );
@@ -863,7 +863,7 @@ void main() {
         id: 'test-audio',
       );
 
-      pc.addTransceiverWithTrack(
+      pc.addTransceiver(
         audioTrack,
         direction: RtpTransceiverDirection.sendonly,
       );
@@ -916,11 +916,11 @@ void main() {
       );
 
       // Add video first, then audio
-      final videoTransceiver = pc.addTransceiverWithTrack(
+      final videoTransceiver = pc.addTransceiver(
         videoTrack,
         direction: RtpTransceiverDirection.sendonly,
       );
-      final audioTransceiver = pc.addTransceiverWithTrack(
+      final audioTransceiver = pc.addTransceiver(
         audioTrack,
         direction: RtpTransceiverDirection.sendonly,
       );

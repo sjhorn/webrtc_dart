@@ -130,7 +130,7 @@ class RedSendrecvServer {
     _sendTrack = nonstandard.MediaStreamTrack(kind: nonstandard.MediaKind.audio);
 
     // Add sendrecv audio transceiver with our send track
-    final transceiver = _pc!.addTransceiverWithTrack(
+    final transceiver = _pc!.addTransceiver(
       _sendTrack!,
       direction: RtpTransceiverDirection.sendrecv,
     );

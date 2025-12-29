@@ -247,7 +247,7 @@ class MultiClientSendonlyServer {
     });
 
     // Add sendonly video transceiver
-    pc.addTransceiverWithTrack(
+    pc.addTransceiver(
       videoTrack,
       direction: RtpTransceiverDirection.sendonly,
     );

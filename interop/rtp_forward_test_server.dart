@@ -10,7 +10,7 @@ import 'package:webrtc_dart/src/nonstandard/media/track.dart' as nonstandard;
 ///
 /// This server tests the nonstandard track writeRtp -> browser flow:
 /// 1. Browser connects via WebSocket
-/// 2. Server creates offer with sendonly video track using addTransceiverWithTrack
+/// 2. Server creates offer with sendonly video track using addTransceiver
 /// 3. Browser accepts and sends answer
 /// 4. Server writes synthetic RTP packets to the track
 /// 5. Test verifies browser receives the video track (connection + track event)
@@ -102,7 +102,7 @@ class RtpForwardTestServer {
     print('[Server] Created nonstandard video track');
 
     // Add video track with sendonly direction
-    _transceiver = _pc!.addTransceiverWithTrack(
+    _transceiver = _pc!.addTransceiver(
       _videoTrack!,
       direction: RtpTransceiverDirection.sendonly,
     );

@@ -180,7 +180,7 @@ class MediaSendrecvServer {
         nonstandard.MediaStreamTrack(kind: nonstandard.MediaKind.video);
 
     // Add sendrecv video transceiver with our send track
-    _pc!.addTransceiverWithTrack(
+    _pc!.addTransceiver(
       _sendTrack!,
       direction: RtpTransceiverDirection.sendrecv,
     );

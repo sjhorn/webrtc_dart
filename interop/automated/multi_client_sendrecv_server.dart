@@ -191,7 +191,7 @@ class MultiClientSendrecvServer {
     });
 
     // Add sendrecv video transceiver with send track
-    pc.addTransceiverWithTrack(
+    pc.addTransceiver(
       sendTrack,
       direction: RtpTransceiverDirection.sendrecv,
     );

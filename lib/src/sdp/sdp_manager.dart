@@ -313,9 +313,7 @@ class SdpManager {
     // Add media lines for transceivers (audio/video)
     for (final transceiver in transceivers) {
       // Assign MID if not yet assigned (matches werift behavior)
-      if (transceiver.mid == null) {
-        transceiver.mid = allocateMid();
-      }
+      transceiver.mid ??= allocateMid();
       final mid = transceiver.mid!;
       bundleMids.add(mid);
 

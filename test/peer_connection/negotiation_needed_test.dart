@@ -33,7 +33,7 @@ void main() {
       expect(eventCount, equals(1));
     });
 
-    test('fires when addTransceiverWithTrack is called', () async {
+    test('fires when addTransceiver is called', () async {
       var eventCount = 0;
       pc.onNegotiationNeeded.listen((_) => eventCount++);
 
@@ -42,7 +42,7 @@ void main() {
         kind: nonstandard.MediaKind.video,
       );
 
-      pc.addTransceiverWithTrack(
+      pc.addTransceiver(
         track,
         direction: RtpTransceiverDirection.sendonly,
       );

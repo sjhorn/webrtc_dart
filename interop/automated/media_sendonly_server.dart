@@ -180,7 +180,7 @@ class MediaSendonlyServer {
     _videoTrack = nonstandard.MediaStreamTrack(kind: nonstandard.MediaKind.video);
 
     // Add transceiver with sendonly direction
-    _pc!.addTransceiverWithTrack(
+    _pc!.addTransceiver(
       _videoTrack!,
       direction: RtpTransceiverDirection.sendonly,
     );

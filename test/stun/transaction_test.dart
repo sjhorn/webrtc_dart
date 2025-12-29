@@ -29,7 +29,7 @@ void main() {
       );
 
       // Start transaction but don't wait for it
-      unawaited(transaction.run().catchError((_) {}));
+      transaction.run().ignore();
 
       // Give it time to send
       await Future.delayed(Duration(milliseconds: 10));
@@ -165,7 +165,7 @@ void main() {
       );
 
       // Start transaction
-      unawaited(transaction.run().catchError((_) {}));
+      transaction.run().ignore();
 
       // Create response with different transaction ID
       final wrongResponse = StunMessage(
@@ -192,7 +192,7 @@ void main() {
       );
 
       // Start transaction
-      unawaited(transaction.run().catchError((_) {}));
+      transaction.run().ignore();
 
       // Wait for first send
       await Future.delayed(Duration(milliseconds: 10));

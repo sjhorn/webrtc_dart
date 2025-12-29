@@ -138,7 +138,7 @@ class SendrecvAnswerServer {
     // Pre-create a transceiver with our send track BEFORE receiving the offer
     // With the MID matching fix, this transceiver will be matched by kind when
     // processing the browser's offer, and its MID updated to match.
-    final transceiver = _pc!.addTransceiverWithTrack(
+    final transceiver = _pc!.addTransceiver(
       _sendTrack!,
       direction: RtpTransceiverDirection.sendrecv,
     );

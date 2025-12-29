@@ -49,6 +49,9 @@ for test in $ALL_TESTS; do
     echo "Running: $test"
     echo "----------------------------------------"
 
+    # Brief delay to ensure previous test cleaned up (helps with Safari port reuse)
+    sleep 1
+
     # Run the test and capture output
     output=$(./run_test.sh "$test" "$BROWSER" 2>&1)
     exit_code=$?

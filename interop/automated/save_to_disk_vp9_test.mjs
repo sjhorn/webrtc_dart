@@ -115,12 +115,9 @@ async function main() {
     results.push({ browser: 'firefox', success: false, error: 'Skipped - ICE issue', skipped: true });
   }
 
-  // Safari - VP9 NOT supported
-  if (browserArg === 'webkit' || browserArg === 'safari') {
-    console.log('\n[safari] Warning: VP9 is NOT supported by Safari');
-    results.push(await runBrowserTest('safari'));
-  } else if (browserArg === 'all') {
-    console.log('\n[safari] Skipping Safari (VP9 not supported)');
+  // Safari - VP9 NOT supported (browser limitation)
+  if (browserArg === 'webkit' || browserArg === 'safari' || browserArg === 'all') {
+    console.log('\n[safari] Skipping Safari (VP9 codec not supported)');
     results.push({ browser: 'safari', success: false, error: 'Skipped - VP9 not supported', skipped: true });
   }
 

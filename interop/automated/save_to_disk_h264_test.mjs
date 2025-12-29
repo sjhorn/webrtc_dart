@@ -94,13 +94,10 @@ async function main() {
     results.push(await runBrowserTest('chrome'));
   }
 
-  // Skip Firefox by default
-  if (browserArg === 'firefox') {
-    console.log('\n[firefox] Note: Firefox has known ICE issues when Dart is offerer');
-    results.push(await runBrowserTest('firefox'));
-  } else if (browserArg === 'all') {
-    console.log('\n[firefox] Skipping Firefox (known ICE issue when Dart is offerer)');
-    results.push({ browser: 'firefox', success: false, error: 'Skipped - ICE issue', skipped: true });
+  // Skip Firefox - H264 encoding not supported in headless Firefox
+  if (browserArg === 'firefox' || browserArg === 'all') {
+    console.log('\n[firefox] Skipping Firefox (H264 encoding not supported in headless mode)');
+    results.push({ browser: 'firefox', success: false, error: 'Skipped - H264 not supported in headless', skipped: true });
   }
 
   if (browserArg === 'all' || browserArg === 'webkit' || browserArg === 'safari') {

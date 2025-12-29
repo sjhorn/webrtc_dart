@@ -146,8 +146,10 @@ class DartSignalingServer {
     _connectionCompleter = Completer();
     _testCompleter = Completer();
 
-    // Create peer connection
-    _pc = RtcPeerConnection();
+    // Create peer connection with STUN server for Firefox compatibility
+    _pc = RtcPeerConnection(RtcConfiguration(
+      iceServers: [IceServer(urls: ['stun:stun.l.google.com:19302'])],
+    ));
     print('[Server] PeerConnection created');
 
     // Wait for initialization
@@ -412,7 +414,10 @@ class DartSignalingServer {
                 log('Server peer started');
 
                 // Create browser peer connection (Browser is the OFFERER)
-                pc = new RTCPeerConnection({ iceServers: [] });
+                // Use STUN server for Firefox compatibility
+                pc = new RTCPeerConnection({
+                    iceServers: [{ urls: 'stun:stun.l.google.com:19302' }]
+                });
 
                 pc.oniceconnectionstatechange = () => {
                     log('ICE state: ' + pc.iceConnectionState,

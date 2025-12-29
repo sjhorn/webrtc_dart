@@ -439,26 +439,37 @@ class SaveToDiskOpusServer {
                 log('Browser detected: ' + browser);
                 setStatus('Starting Opus save_to_disk test for ' + browser);
 
-                // Get microphone audio
-                setStatus('Getting microphone access...');
-                try {
-                    localStream = await navigator.mediaDevices.getUserMedia({
-                        audio: true,
-                        video: false
-                    });
-                    log('Got microphone stream');
-                    document.getElementById('audioInfo').textContent =
-                        'Microphone: ' + localStream.getAudioTracks()[0].label;
+                // Get microphone audio (or use synthetic audio for Safari/headless)
+                setStatus('Getting audio access...');
+                if (browser === 'safari') {
+                    // Safari headless doesn't support getUserMedia for audio
+                    log('Safari detected, using synthetic audio stream');
+                    localStream = createSyntheticAudioStream();
+                    document.getElementById('audioInfo').textContent = 'Audio: Synthetic 440Hz tone';
+                    log('Synthetic audio stream created', 'success');
+                } else {
+                    try {
+                        localStream = await navigator.mediaDevices.getUserMedia({
+                            audio: true,
+                            video: false
+                        });
+                        log('Got microphone stream');
+                        document.getElementById('audioInfo').textContent =
+                            'Microphone: ' + localStream.getAudioTracks()[0].label;
 
-                    // Set up audio meter
-                    audioContext = new AudioContext();
-                    const source = audioContext.createMediaStreamSource(localStream);
-                    analyser = audioContext.createAnalyser();
-                    analyser.fftSize = 256;
-                    source.connect(analyser);
-                    updateMeter();
-                } catch (e) {
-                    throw new Error('Failed to get microphone: ' + e.message);
+                        // Set up audio meter
+                        audioContext = new AudioContext();
+                        const source = audioContext.createMediaStreamSource(localStream);
+                        analyser = audioContext.createAnalyser();
+                        analyser.fftSize = 256;
+                        source.connect(analyser);
+                        updateMeter();
+                    } catch (e) {
+                        log('Microphone unavailable: ' + e.message + ', using synthetic audio', 'info');
+                        localStream = createSyntheticAudioStream();
+                        document.getElementById('audioInfo').textContent = 'Audio: Synthetic 440Hz tone (fallback)';
+                        log('Synthetic audio stream created', 'success');
+                    }
                 }
 
                 await fetch(serverBase + '/start?browser=' + browser);
@@ -599,6 +610,28 @@ class SaveToDiskOpusServer {
                 };
                 check();
             });
+        }
+
+        // Create synthetic audio stream using Web Audio API (for headless browsers)
+        function createSyntheticAudioStream() {
+            const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+            const oscillator = audioCtx.createOscillator();
+            const gainNode = audioCtx.createGain();
+            const destination = audioCtx.createMediaStreamDestination();
+
+            // Create a simple 440Hz sine wave tone
+            oscillator.type = 'sine';
+            oscillator.frequency.setValueAtTime(440, audioCtx.currentTime);
+
+            // Set volume low so it's not annoying
+            gainNode.gain.setValueAtTime(0.1, audioCtx.currentTime);
+
+            // Connect: oscillator -> gain -> destination
+            oscillator.connect(gainNode);
+            gainNode.connect(destination);
+            oscillator.start();
+
+            return destination.stream;
         }
 
         // Create animated canvas stream as fallback for Safari headless

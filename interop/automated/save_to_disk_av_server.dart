@@ -495,27 +495,49 @@ class SaveToDiskAVServer {
                 log('Browser detected: ' + browser);
                 setStatus('Starting A/V save_to_disk test for ' + browser);
 
-                // Get camera and microphone
-                setStatus('Getting camera and microphone access...');
-                try {
-                    localStream = await navigator.mediaDevices.getUserMedia({
-                        video: { width: 640, height: 480 },
-                        audio: true
-                    });
-                    log('Got camera + microphone stream');
-
-                    // Show preview
+                // Get camera and microphone (or use synthetic for Safari/headless)
+                setStatus('Getting media access...');
+                if (browser === 'safari') {
+                    // Safari headless doesn't support getUserMedia
+                    log('Safari detected, using synthetic video + audio streams');
+                    const canvasStream = createCanvasStream(640, 480, 30);
+                    const audioStream = createSyntheticAudioStream();
+                    // Combine video and audio into one MediaStream
+                    localStream = new MediaStream([
+                        canvasStream.getVideoTracks()[0],
+                        audioStream.getAudioTracks()[0]
+                    ]);
                     document.getElementById('preview').srcObject = localStream;
+                    log('Synthetic A/V stream created', 'success');
+                } else {
+                    try {
+                        localStream = await navigator.mediaDevices.getUserMedia({
+                            video: { width: 640, height: 480 },
+                            audio: true
+                        });
+                        log('Got camera + microphone stream');
 
-                    // Set up audio meter
-                    audioContext = new AudioContext();
-                    const source = audioContext.createMediaStreamSource(localStream);
-                    analyser = audioContext.createAnalyser();
-                    analyser.fftSize = 256;
-                    source.connect(analyser);
-                    updateMeter();
-                } catch (e) {
-                    throw new Error('Failed to get media: ' + e.message);
+                        // Show preview
+                        document.getElementById('preview').srcObject = localStream;
+
+                        // Set up audio meter
+                        audioContext = new AudioContext();
+                        const source = audioContext.createMediaStreamSource(localStream);
+                        analyser = audioContext.createAnalyser();
+                        analyser.fftSize = 256;
+                        source.connect(analyser);
+                        updateMeter();
+                    } catch (e) {
+                        log('Media unavailable: ' + e.message + ', using synthetic', 'info');
+                        const canvasStream = createCanvasStream(640, 480, 30);
+                        const audioStream = createSyntheticAudioStream();
+                        localStream = new MediaStream([
+                            canvasStream.getVideoTracks()[0],
+                            audioStream.getAudioTracks()[0]
+                        ]);
+                        document.getElementById('preview').srcObject = localStream;
+                        log('Synthetic A/V stream created', 'success');
+                    }
                 }
 
                 await fetch(serverBase + '/start?browser=' + browser);
@@ -650,6 +672,27 @@ class SaveToDiskAVServer {
                 };
                 check();
             });
+        }
+
+        // Create synthetic audio stream using Web Audio API (for headless browsers)
+        function createSyntheticAudioStream() {
+            const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+            const oscillator = audioCtx.createOscillator();
+            const gainNode = audioCtx.createGain();
+            const destination = audioCtx.createMediaStreamDestination();
+
+            // Create a simple 440Hz sine wave tone
+            oscillator.type = 'sine';
+            oscillator.frequency.setValueAtTime(440, audioCtx.currentTime);
+
+            // Set volume low
+            gainNode.gain.setValueAtTime(0.1, audioCtx.currentTime);
+
+            oscillator.connect(gainNode);
+            gainNode.connect(destination);
+            oscillator.start();
+
+            return destination.stream;
         }
 
         // Create animated canvas stream as fallback for Safari headless

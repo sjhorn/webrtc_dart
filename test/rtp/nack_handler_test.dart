@@ -207,10 +207,14 @@ void main() {
 
     test('should handle errors in NACK sending gracefully', () async {
       var callCount = 0;
+      final completer = Completer<void>();
       final errorHandler = NackHandler(
         senderSsrc: 0x12345678,
         onSendNack: (nack) async {
           callCount++;
+          if (callCount >= 2 && !completer.isCompleted) {
+            completer.complete();
+          }
           throw Exception('Send failed');
         },
         nackIntervalMs: 10,
@@ -219,7 +223,11 @@ void main() {
       errorHandler.addPacket(createPacket(100, 0xAABBCCDD));
       errorHandler.addPacket(createPacket(102, 0xAABBCCDD));
 
-      await Future.delayed(Duration(milliseconds: 50));
+      // Wait for at least 2 NACK attempts, with timeout
+      await completer.future.timeout(
+        Duration(milliseconds: 200),
+        onTimeout: () {},
+      );
 
       // Should have attempted multiple times despite errors
       expect(callCount, greaterThan(1));

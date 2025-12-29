@@ -1,9 +1,12 @@
 import 'dart:async';
+import 'dart:typed_data';
 
 import 'package:webrtc_dart/src/codec/codec_parameters.dart';
 import 'package:webrtc_dart/src/codec/vp9.dart';
 import 'package:webrtc_dart/src/media/media_stream_track.dart';
+import 'package:webrtc_dart/src/media/receiver/receiver_twcc.dart';
 import 'package:webrtc_dart/src/media/svc_manager.dart';
+import 'package:webrtc_dart/src/rtp/header_extension.dart';
 import 'package:webrtc_dart/src/rtp/rtp_session.dart';
 import 'package:webrtc_dart/src/srtp/rtp_packet.dart';
 
@@ -50,16 +53,64 @@ class RtpReceiver {
   /// Callback when a new track is created for a simulcast layer
   void Function(MediaStreamTrack track)? onTrack;
 
+  /// RTCP SSRC for this receiver (used for TWCC feedback)
+  int? rtcpSsrc;
+
+  /// Receiver-side TWCC for congestion control feedback
+  ReceiverTWCC? _receiverTWCC;
+
+  /// Callback to send RTCP packets (set by PeerConnection)
+  Future<void> Function(Uint8List rtcpPacket)? onSendRtcp;
+
   RtpReceiver({
     required this.track,
     required this.rtpSession,
     required this.codec,
+    this.rtcpSsrc,
   }) {
     // Set up callback for incoming RTP packets
     // Note: We can't use onReceiveRtp stream since it's a callback, not a stream
     // The RtpSession will need to be created with our handler, or we need
     // to expose a stream from RtpSession
     // For now, this is a placeholder - the actual wiring happens in PeerConnection
+  }
+
+  // ==========================================================================
+  // TWCC (Transport-Wide Congestion Control) Support
+  // ==========================================================================
+
+  /// Check if TWCC is enabled for this receiver
+  ///
+  /// TWCC is enabled if the codec has 'transport-cc' RTCP feedback.
+  bool get twccEnabled {
+    return codec.rtcpFeedback.any((fb) => fb.type == 'transport-cc');
+  }
+
+  /// Get the ReceiverTWCC instance (if active)
+  ReceiverTWCC? get receiverTWCC => _receiverTWCC;
+
+  /// Setup TWCC if supported
+  ///
+  /// Call this when receiving the first RTP packet to initialize TWCC
+  /// feedback generation. The mediaSourceSsrc is the SSRC of the sender.
+  void setupTWCC(int mediaSourceSsrc) {
+    if (!twccEnabled || _receiverTWCC != null) return;
+    if (rtcpSsrc == null || onSendRtcp == null) return;
+
+    _receiverTWCC = ReceiverTWCC(
+      rtcpSsrc: rtcpSsrc!,
+      mediaSourceSsrc: mediaSourceSsrc,
+      onSendRtcp: onSendRtcp!,
+    );
+    _receiverTWCC!.start();
+  }
+
+  /// Handle TWCC for an incoming RTP packet
+  ///
+  /// Call this with the transport-wide sequence number extracted from
+  /// the RTP header extension.
+  void handleTWCC(int transportSequenceNumber) {
+    _receiverTWCC?.handleTWCC(transportSequenceNumber);
   }
 
   /// Get track by RID (for simulcast)
@@ -101,6 +152,9 @@ class RtpReceiver {
 
     latestRid = rid;
 
+    // Handle TWCC if enabled
+    _handleTwccFromExtensions(packet.ssrc, extensions);
+
     // Get or create track for this RID
     var ridTrack = _trackByRid[rid];
     if (ridTrack == null) {
@@ -118,6 +172,9 @@ class RtpReceiver {
   void handleRtpBySsrc(RtpPacket packet, Map<String, dynamic> extensions) {
     if (_stopped) return;
 
+    // Handle TWCC if enabled
+    _handleTwccFromExtensions(packet.ssrc, extensions);
+
     final ssrc = packet.ssrc;
     var ssrcTrack = _trackBySsrc[ssrc];
 
@@ -128,6 +185,27 @@ class RtpReceiver {
     }
 
     _processPacket(packet, ssrcTrack);
+  }
+
+  /// Handle TWCC extension from RTP packet
+  ///
+  /// Extracts the transport-wide sequence number from extensions and
+  /// initializes/updates the TWCC feedback generator.
+  void _handleTwccFromExtensions(int ssrc, Map<String, dynamic> extensions) {
+    // Extract transport-wide sequence number from extensions
+    final transportSeqNum = extensions[RtpExtensionUri.transportWideCC];
+    if (transportSeqNum == null) return;
+
+    if (_receiverTWCC != null) {
+      // TWCC already running - just record this packet
+      handleTWCC(transportSeqNum as int);
+    } else if (twccEnabled) {
+      // First packet with TWCC - initialize and start
+      setupTWCC(ssrc);
+      if (_receiverTWCC != null) {
+        handleTWCC(transportSeqNum as int);
+      }
+    }
   }
 
   /// Create a track for a simulcast layer
@@ -286,6 +364,7 @@ class RtpReceiver {
     if (!_stopped) {
       _stopped = true;
       _rtpSubscription?.cancel();
+      _receiverTWCC?.stop();
       track.stop();
       for (final ridTrack in _trackByRid.values) {
         ridTrack.stop();

@@ -776,10 +776,20 @@ When `bundlePolicy == disable`, always create per-media transports regardless of
 
 1. ✅ **Split rtp_transceiver.dart** into 3 files:
    - `rtp_sender.dart` (556 lines) - matches werift's 577
-   - `rtp_receiver.dart` (302 lines) - matches werift's 413
+   - `rtp_receiver.dart` (354 lines) - matches werift's 413
    - `rtp_transceiver.dart` (234 lines) - matches werift's 159 + helpers
 2. ✅ **Added ReceiverTWCC** class in `receiver/receiver_twcc.dart` (226 lines)
-3. ✅ All tests passing
+3. ✅ **Wired ReceiverTWCC into RtpReceiver/PeerConnection**:
+   - RtpReceiver now extracts transport-wide CC extension from RTP packets
+   - RtpReceiver auto-initializes TWCC when first packet with extension arrives
+   - PeerConnection wires `rtcpSsrc` and `onSendRtcp` callback to each receiver
+4. ✅ All tests passing (2430+ unit tests, Chrome/Firefox/Safari browser interop)
+
+#### Optional Future Improvements (Evaluated, Not Required)
+
+- **Move nack_handler to media/receiver/**: Would require migrating usage from RtpSession to RtpReceiver. Current location (`rtp/nack_handler.dart`) works fine.
+- **Move rtp_statistics to media/receiver/**: Same as above - would need RtpSession refactor.
+- **Move RTCP loops to sender/receiver**: werift has separate `runRtcp()` in sender and receiver. Our centralized `RtpSession._sendRtcpReports()` approach is simpler and works well.
 
 ---
 
@@ -827,6 +837,10 @@ When `bundlePolicy == disable`, always create per-media transports regardless of
 | `packages/webrtc/src/transceiverManager.ts` | `lib/src/media/transceiver_manager.dart` |
 | `packages/webrtc/src/sctpManager.ts` | `lib/src/sctp/sctp_transport_manager.dart` |
 | `packages/webrtc/src/media/rtpTransceiver.ts` | `lib/src/media/rtp_transceiver.dart` |
+| `packages/webrtc/src/media/rtpSender.ts` | `lib/src/media/rtp_sender.dart` ✅ |
+| `packages/webrtc/src/media/rtpReceiver.ts` | `lib/src/media/rtp_receiver.dart` ✅ |
+| `packages/webrtc/src/media/sender/senderBWE.ts` | `lib/src/media/sender/sender_bwe.dart` |
+| `packages/webrtc/src/media/receiver/receiverTwcc.ts` | `lib/src/media/receiver/receiver_twcc.dart` ✅ |
 | `packages/ice/src/ice.ts` | `lib/src/ice/ice_connection.dart` |
 | `packages/dtls/src/client.ts` | `lib/src/dtls/client.dart` |
 | `packages/sctp/src/sctp.ts` | `lib/src/sctp/association.dart` |

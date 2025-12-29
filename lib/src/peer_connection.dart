@@ -997,6 +997,19 @@ class RtcPeerConnection {
       transceiver.sender.mid = mid;
       _transceiverManager.setRemoteRTP(transceiver, media, _rtpRouter);
 
+      // Set receiver's TWCC callback for congestion control feedback
+      transceiver.receiver.rtcpSsrc = ssrc;
+      transceiver.receiver.onSendRtcp = (packet) async {
+        final iceConnection = _getIceConnectionForMid(mid);
+        if (iceConnection != null) {
+          try {
+            await iceConnection.send(packet);
+          } on StateError catch (_) {
+            // ICE not yet nominated, silently drop RTCP
+          }
+        }
+      };
+
       // Emit the transceiver via onTrack stream
       _trackController.add(transceiver);
     }
@@ -1199,6 +1212,19 @@ class RtcPeerConnection {
 
     _transceiverManager.addTransceiver(transceiver);
 
+    // Set receiver's TWCC callback for congestion control feedback
+    transceiver.receiver.rtcpSsrc = ssrc;
+    transceiver.receiver.onSendRtcp = (packet) async {
+      final iceConnection = _getIceConnectionForMid(mid);
+      if (iceConnection != null) {
+        try {
+          await iceConnection.send(packet);
+        } on StateError catch (_) {
+          // ICE not yet nominated, silently drop RTCP
+        }
+      }
+    };
+
     return transceiver.sender;
   }
 
@@ -1303,6 +1329,19 @@ class RtcPeerConnection {
     transceiver.sender.midExtensionId = _midExtensionId;
     transceiver.sender.absSendTimeExtensionId = _absSendTimeExtensionId;
     transceiver.sender.transportWideCCExtensionId = _twccExtensionId;
+
+    // Set receiver's TWCC callback for congestion control feedback
+    transceiver.receiver.rtcpSsrc = ssrc;
+    transceiver.receiver.onSendRtcp = (packet) async {
+      final iceConnection = _getIceConnectionForMid(mid);
+      if (iceConnection != null) {
+        try {
+          await iceConnection.send(packet);
+        } on StateError catch (_) {
+          // ICE not yet nominated, silently drop RTCP
+        }
+      }
+    };
 
     // Register nonstandard track with sender if provided (like TypeScript registerTrack)
     if (nonstandardTrack != null) {

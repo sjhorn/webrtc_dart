@@ -1,103 +1,202 @@
-/// Opus Recording Example
+/// Save to Disk Opus Example
 ///
-/// Demonstrates recording Opus audio to disk. Receives
-/// Opus-encoded RTP packets and saves to WebM container.
+/// This example matches werift's save_to_disk/opus.ts:
+/// - WebSocket server for signaling
+/// - MediaRecorder for recording audio to WebM
+/// - Records Opus audio only (video is received but not recorded)
+/// - Records for 15 seconds then stops
 ///
-/// Usage: dart run example/save_to_disk/opus.dart
+/// Usage:
+///   dart run example/save_to_disk/opus.dart
+///   Then open a browser to the answer.html (or use automated test)
 library;
 
 import 'dart:async';
+import 'dart:convert';
+import 'dart:io';
+
 import 'package:webrtc_dart/webrtc_dart.dart';
+import 'package:webrtc_dart/src/nonstandard/recorder/media_recorder.dart';
+
+/// WebSocket server for browser signaling
+class SaveToDiskOpusServer {
+  HttpServer? _httpServer;
+
+  Future<void> start({int port = 8878}) async {
+    _httpServer = await HttpServer.bind(InternetAddress.anyIPv4, port);
+    print('Save to Disk Opus Server');
+    print('=' * 50);
+    print('WebSocket: ws://localhost:$port');
+    print('');
+
+    await for (final request in _httpServer!) {
+      if (WebSocketTransformer.isUpgradeRequest(request)) {
+        _handleWebSocket(request);
+      } else {
+        request.response.statusCode = HttpStatus.notFound;
+        await request.response.close();
+      }
+    }
+  }
+
+  Future<void> _handleWebSocket(HttpRequest request) async {
+    final socket = await WebSocketTransformer.upgrade(request);
+    print('[Server] Client connected');
+
+    // Output path with timestamp
+    final outputPath = './opus-${DateTime.now().millisecondsSinceEpoch}.webm';
+
+    // Track subscription for cleanup
+    StreamSubscription? audioRtpSub;
+    Timer? pliTimer;
+    Timer? stopTimer;
+
+    // Create PeerConnection with default codecs (like werift)
+    final pc = RtcPeerConnection();
+
+    // Create MediaRecorder for audio only
+    late MediaRecorder recorder;
+    var audioTrackAdded = false;
+    var audioPacketsReceived = 0;
+    int? videoSsrc;
+
+    // Add video transceiver (recvonly - receive from browser, PLI for keyframes)
+    pc.addTransceiver(
+      MediaStreamTrackKind.video,
+      direction: RtpTransceiverDirection.recvonly,
+    );
+    print('[Server] Added video transceiver (recvonly)');
+
+    // Add audio transceiver (recvonly - receive from browser, record this)
+    pc.addTransceiver(
+      MediaStreamTrackKind.audio,
+      direction: RtpTransceiverDirection.recvonly,
+    );
+    print('[Server] Added audio transceiver (recvonly)');
+
+    // Handle incoming tracks
+    pc.onTrack.listen((transceiver) async {
+      final track = transceiver.receiver.track;
+      final kind = transceiver.kind;
+      print('[Server] Received track: $kind');
+
+      if (kind == MediaStreamTrackKind.video) {
+        // Video: send PLI every 3 seconds (like werift)
+        track.onReceiveRtp.listen((rtp) {
+          videoSsrc ??= rtp.ssrc;
+        });
+
+        pliTimer = Timer.periodic(Duration(seconds: 3), (_) {
+          if (videoSsrc != null) {
+            transceiver.receiver.rtpSession.sendPli(videoSsrc!);
+          }
+        });
+      } else if (kind == MediaStreamTrackKind.audio && !audioTrackAdded) {
+        audioTrackAdded = true;
+
+        // Create audio recording track
+        final audioRecordingTrack = RecordingTrack(
+          kind: 'audio',
+          codecName: 'opus',
+          payloadType: 111,
+          clockRate: 48000,
+          onRtp: (handler) {
+            audioRtpSub = track.onReceiveRtp.listen((rtp) {
+              audioPacketsReceived++;
+              handler(rtp);
+              if (audioPacketsReceived % 100 == 0) {
+                print('[Server] Audio RTP packets: $audioPacketsReceived');
+              }
+            });
+          },
+        );
+
+        // Create recorder for audio only
+        recorder = MediaRecorder(
+          tracks: [audioRecordingTrack],
+          path: outputPath,
+          options: MediaRecorderOptions(
+            disableLipSync: true,
+            disableNtp: true,
+          ),
+        );
+
+        await recorder.start();
+        print('[Server] Recording started: $outputPath');
+      }
+    });
+
+    // Track connection state
+    pc.onConnectionStateChange.listen((state) {
+      print('[Server] Connection state: $state');
+    });
+
+    pc.onIceConnectionStateChange.listen((state) {
+      print('[Server] ICE state: $state');
+    });
+
+    // Create offer and send to browser
+    final offer = await pc.createOffer();
+    await pc.setLocalDescription(offer);
+    print('[Server] Created offer');
+
+    // Send offer as JSON (like werift)
+    socket.add(jsonEncode({
+      'type': offer.type,
+      'sdp': offer.sdp,
+    }));
+    print('[Server] Sent offer to browser');
+
+    // Stop recording after 15 seconds (like werift)
+    stopTimer = Timer(Duration(seconds: 15), () async {
+      print('[Server] Recording duration reached');
+      pliTimer?.cancel();
+      audioRtpSub?.cancel();
+
+      try {
+        await recorder.stop();
+        print('[Server] Recording stopped');
+
+        // Check output file
+        final file = File(outputPath);
+        if (await file.exists()) {
+          final size = await file.length();
+          print('[Server] Output: $outputPath ($size bytes)');
+        }
+      } catch (e) {
+        print('[Server] Stop error: $e');
+      }
+    });
+
+    // Handle messages from browser
+    socket.listen(
+      (data) async {
+        try {
+          final msg = jsonDecode(data as String) as Map<String, dynamic>;
+
+          if (msg['type'] == 'answer') {
+            print('[Server] Received answer');
+            await pc.setRemoteDescription(
+              SessionDescription(type: 'answer', sdp: msg['sdp'] as String),
+            );
+            print('[Server] Remote description set');
+          }
+        } catch (e) {
+          print('[Server] Message error: $e');
+        }
+      },
+      onDone: () async {
+        print('[Server] Client disconnected');
+        pliTimer?.cancel();
+        stopTimer?.cancel();
+        audioRtpSub?.cancel();
+        await pc.close();
+      },
+    );
+  }
+}
 
 void main() async {
-  print('Opus Recording Example');
-  print('=' * 50);
-
-  final pc = RtcPeerConnection(RtcConfiguration(
-    iceServers: [IceServer(urls: ['stun:stun.l.google.com:19302'])],
-  ));
-
-  pc.onConnectionStateChange.listen((state) {
-    print('[PC] Connection: $state');
-  });
-
-  // Statistics
-  var packetsReceived = 0;
-  var bytesReceived = 0;
-
-  // Add audio transceiver (Opus)
-  pc.addTransceiver(
-    MediaStreamTrackKind.audio,
-    direction: RtpTransceiverDirection.recvonly,
-  );
-
-  pc.onTrack.listen((transceiver) {
-    print('[Track] Received ${transceiver.kind}');
-
-    // In real implementation:
-    // 1. Receive RTP packets with Opus payload
-    // 2. Strip RTP header (12+ bytes)
-    // 3. Write Opus frames to container
-    // 4. Handle timestamp conversion
-  });
-
-  final offer = await pc.createOffer();
-  await pc.setLocalDescription(offer);
-
-  print('\n--- Opus Codec Info ---');
-  print('');
-  print('Sample rate: 48000 Hz');
-  print('Channels: 2 (stereo) or 1 (mono)');
-  print('Frame size: 20ms (default)');
-  print('Bitrate: 6-510 kbps (typically 32-128 kbps)');
-  print('');
-  print('RTP payload:');
-  print('  - No additional header (just Opus frame)');
-  print('  - Timestamp increment: 960 per frame (48000 * 0.020)');
-
-  print('\n--- Container Options ---');
-  print('');
-  print('WebM (Matroska):');
-  print('  - Native Opus support');
-  print('  - Good browser compatibility');
-  print('  - Codec ID: A_OPUS');
-  print('');
-  print('Ogg:');
-  print('  - Original Opus container');
-  print('  - Requires OpusHead and OpusTags');
-  print('  - Good for audio-only files');
-  print('');
-  print('MP4/M4A:');
-  print('  - Wider playback support');
-  print('  - Requires Opus sample entry');
-  print('  - Less common for Opus');
-
-  print('\n--- Recording Pipeline ---');
-  print('');
-  print('1. Receive RTP packet');
-  print('2. Extract Opus frame (skip RTP header)');
-  print('3. Track timing:');
-  print('   - RTP timestamp -> sample count');
-  print('   - Sample count / 48000 = seconds');
-  print('4. Write to container:');
-  print('   - WebM: SimpleBlock with timestamp');
-  print('   - Ogg: Ogg page with granule position');
-  print('5. Flush periodically for streaming');
-
-  // Simulate recording
-  Timer.periodic(Duration(seconds: 1), (_) {
-    packetsReceived += 50; // 50 pps for 20ms frames
-    bytesReceived += 50 * 80; // ~80 bytes average per frame
-
-    final duration = packetsReceived * 20 / 1000;
-    final bitrate = (bytesReceived * 8 / 1000 / duration).round();
-
-    print('[Recording] ${duration.toStringAsFixed(1)}s, '
-        '$packetsReceived pkts, '
-        '~$bitrate kbps');
-  });
-
-  await Future.delayed(Duration(seconds: 10));
-  await pc.close();
-  print('\nDone.');
+  final server = SaveToDiskOpusServer();
+  await server.start(port: 8878);
 }

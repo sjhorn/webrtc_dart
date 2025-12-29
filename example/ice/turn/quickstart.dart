@@ -25,7 +25,10 @@ void main() async {
 
   print('Peer connection created with STUN/TURN configuration');
   print('ICE servers configured:');
-  for (final server in pc.configuration.iceServers) {
+  for (final server in pc.getConfiguration().iceServers) {
     print('  - ${server.urls}');
   }
+
+  // Clean up
+  await pc.close();
 }

@@ -1,144 +1,229 @@
-/// Save H.264 to Disk Example
+/// Save to Disk H.264 Example
 ///
-/// Receives H.264 video from browser and saves raw NAL units.
-/// For MP4 container output, see save_to_disk/mp4/h264.dart.
+/// This example matches werift's save_to_disk/h264.ts:
+/// - WebSocket server for signaling
+/// - MediaRecorder for recording to WebM
+/// - H.264 video + Opus audio with RTCP feedback (NACK, PLI, REMB)
+/// - Records for 20 seconds then stops
 ///
-/// Usage: dart run example/save_to_disk/h264.dart
+/// Usage:
+///   dart run example/save_to_disk/h264.dart
+///   Then open a browser to the answer.html (or use automated test)
 library;
 
+import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
 import 'package:webrtc_dart/webrtc_dart.dart';
+import 'package:webrtc_dart/src/nonstandard/recorder/media_recorder.dart';
 
-void main() async {
-  print('Save H.264 to Disk Example');
-  print('=' * 50);
+/// WebSocket server for browser signaling
+class SaveToDiskH264Server {
+  HttpServer? _httpServer;
 
-  final outputFile = File('output.h264');
-  IOSink? sink;
+  Future<void> start({int port = 8878}) async {
+    _httpServer = await HttpServer.bind(InternetAddress.anyIPv4, port);
+    print('Save to Disk H264 Server');
+    print('=' * 50);
+    print('WebSocket: ws://localhost:$port');
+    print('');
 
-  // WebSocket signaling
-  final wsServer = await HttpServer.bind(InternetAddress.anyIPv4, 8888);
-  print('WebSocket server listening on ws://localhost:8888');
-
-  wsServer.transform(WebSocketTransformer()).listen((WebSocket socket) async {
-    print('[WS] Client connected');
-
-    final pc = RtcPeerConnection(RtcConfiguration(
-      iceServers: [IceServer(urls: ['stun:stun.l.google.com:19302'])],
-      codecs: RtcCodecs(
-        video: [
-          createH264Codec(
-            payloadType: 96,
-            parameters: 'profile-level-id=42e01f;packetization-mode=1',
-          ),
-        ],
-      ),
-    ));
-
-    pc.onConnectionStateChange.listen((state) {
-      print('[PC] Connection: $state');
-      if (state == PeerConnectionState.connected) {
-        sink = outputFile.openWrite();
-        print('[File] Opened ${outputFile.path} for writing');
-      } else if (state == PeerConnectionState.closed) {
-        sink?.close();
-        print('[File] Closed ${outputFile.path}');
+    await for (final request in _httpServer!) {
+      if (WebSocketTransformer.isUpgradeRequest(request)) {
+        _handleWebSocket(request);
+      } else {
+        request.response.statusCode = HttpStatus.notFound;
+        await request.response.close();
       }
-    });
+    }
+  }
 
-    var frameCount = 0;
-    var nalCount = 0;
+  Future<void> _handleWebSocket(HttpRequest request) async {
+    final socket = await WebSocketTransformer.upgrade(request);
+    print('[Server] Client connected');
 
-    // Add receive-only video transceiver
-    final transceiver = pc.addTransceiver(
+    // Output path with timestamp
+    final outputPath = './h264-${DateTime.now().millisecondsSinceEpoch}.webm';
+
+    // Track subscription for cleanup
+    StreamSubscription? videoRtpSub;
+    Timer? pliTimer;
+    Timer? stopTimer;
+
+    // Create PeerConnection with H.264 + Opus codecs (matches werift)
+    final pc = RtcPeerConnection(
+      RtcConfiguration(
+        codecs: RtcCodecs(
+          video: [
+            createH264Codec(
+              payloadType: 96,
+              parameters: 'profile-level-id=42e01f;packetization-mode=1',
+              rtcpFeedback: [
+                RtcpFeedback(type: 'nack'),
+                RtcpFeedback(type: 'nack', parameter: 'pli'),
+                RtcpFeedback(type: 'goog-remb'),
+              ],
+            ),
+          ],
+          audio: [
+            RtpCodecParameters(
+              mimeType: 'audio/opus',
+              clockRate: 48000,
+              channels: 2,
+            ),
+          ],
+        ),
+      ),
+    );
+
+    // Create MediaRecorder for video+audio
+    late MediaRecorder recorder;
+    var videoTrackAdded = false;
+    var audioTrackAdded = false;
+    var videoPacketsReceived = 0;
+    int? videoSsrc;
+
+    // Add video transceiver (recvonly - receive from browser)
+    pc.addTransceiver(
       MediaStreamTrackKind.video,
       direction: RtpTransceiverDirection.recvonly,
     );
+    print('[Server] Added video transceiver (recvonly)');
 
-    pc.onTrack.listen((t) {
-      print('[Track] Receiving H.264 video');
+    // Add audio transceiver (recvonly - receive from browser)
+    pc.addTransceiver(
+      MediaStreamTrackKind.audio,
+      direction: RtpTransceiverDirection.recvonly,
+    );
+    print('[Server] Added audio transceiver (recvonly)');
+
+    // Handle incoming tracks
+    pc.onTrack.listen((transceiver) async {
+      final track = transceiver.receiver.track;
+      final kind = transceiver.kind;
+      print('[Server] Received track: $kind');
+
+      if (kind == MediaStreamTrackKind.video && !videoTrackAdded) {
+        videoTrackAdded = true;
+
+        // Create video recording track
+        final videoRecordingTrack = RecordingTrack(
+          kind: 'video',
+          codecName: 'H264',
+          payloadType: 96,
+          clockRate: 90000,
+          onRtp: (handler) {
+            videoRtpSub = track.onReceiveRtp.listen((rtp) {
+              videoPacketsReceived++;
+              handler(rtp);
+              videoSsrc ??= rtp.ssrc;
+              if (videoPacketsReceived % 100 == 0) {
+                print('[Server] Video RTP packets: $videoPacketsReceived');
+              }
+            });
+          },
+        );
+
+        // Create recorder when video track arrives
+        recorder = MediaRecorder(
+          tracks: [videoRecordingTrack],
+          path: outputPath,
+          options: MediaRecorderOptions(
+            width: 640,
+            height: 360,
+            disableLipSync: true,
+            disableNtp: true,
+          ),
+        );
+
+        await recorder.start();
+        print('[Server] Recording started: $outputPath');
+
+        // Send PLI every 2 seconds (like werift)
+        pliTimer = Timer.periodic(Duration(seconds: 2), (_) {
+          if (videoSsrc != null) {
+            transceiver.receiver.rtpSession.sendPli(videoSsrc!);
+            print('[Server] Sent PLI for keyframe');
+          }
+        });
+      } else if (kind == MediaStreamTrackKind.audio && !audioTrackAdded) {
+        audioTrackAdded = true;
+        print('[Server] Audio track received (not recording in this example)');
+      }
     });
 
-    // Listen for RTP on the receiver track
-    transceiver.receiver.track.onReceiveRtp.listen((rtp) {
-      // H.264 RTP depacketization
-      final payload = rtp.payload;
-      if (payload.isEmpty) return;
+    // Track connection state
+    pc.onConnectionStateChange.listen((state) {
+      print('[Server] Connection state: $state');
+    });
 
-      final nalType = payload[0] & 0x1F;
-
-      if (nalType >= 1 && nalType <= 23) {
-        // Single NAL unit
-        if (sink != null) {
-          _writeNalUnit(sink!, payload);
-        }
-        nalCount++;
-      } else if (nalType == 28) {
-        // FU-A fragmentation
-        // In full implementation, reassemble fragments
-        // For now, just count
-        final fuHeader = payload[1];
-        final isStart = (fuHeader & 0x80) != 0;
-        if (isStart) {
-          frameCount++;
-        }
-      } else if (nalType == 24) {
-        // STAP-A (multiple NALs)
-        var offset = 1;
-        while (offset < payload.length - 2) {
-          final size = (payload[offset] << 8) | payload[offset + 1];
-          offset += 2;
-          if (offset + size <= payload.length && sink != null) {
-            _writeNalUnit(sink!, payload.sublist(offset, offset + size));
-            nalCount++;
-          }
-          offset += size;
-        }
-      }
-
-      if (nalCount > 0 && nalCount % 100 == 0) {
-        print('[H264] Frames: $frameCount, NAL units: $nalCount');
-      }
+    pc.onIceConnectionStateChange.listen((state) {
+      print('[Server] ICE state: $state');
     });
 
     // Create offer and send to browser
     final offer = await pc.createOffer();
     await pc.setLocalDescription(offer);
+    print('[Server] Created offer');
+
+    // Send offer as JSON (like werift)
     socket.add(jsonEncode({
-      'type': 'offer',
+      'type': offer.type,
       'sdp': offer.sdp,
     }));
+    print('[Server] Sent offer to browser');
 
-    // Handle answer
-    socket.listen((data) async {
-      final msg = jsonDecode(data as String);
-      final answer = SessionDescription(type: 'answer', sdp: msg['sdp']);
-      await pc.setRemoteDescription(answer);
-      print('[SDP] Remote description set');
-    }, onDone: () {
-      print('[WS] Client disconnected');
-      pc.close();
+    // Stop recording after 20 seconds (like werift)
+    stopTimer = Timer(Duration(seconds: 20), () async {
+      print('[Server] Recording duration reached');
+      pliTimer?.cancel();
+      videoRtpSub?.cancel();
+
+      try {
+        await recorder.stop();
+        print('[Server] Recording stopped');
+
+        // Check output file
+        final file = File(outputPath);
+        if (await file.exists()) {
+          final size = await file.length();
+          print('[Server] Output: $outputPath ($size bytes)');
+        }
+      } catch (e) {
+        print('[Server] Stop error: $e');
+      }
     });
-  });
 
-  print('\n--- H.264 Recording ---');
-  print('');
-  print('Output: ${outputFile.path}');
-  print('');
-  print('NAL unit types:');
-  print('  1-23: Single NAL (SPS, PPS, IDR, non-IDR)');
-  print('  24:   STAP-A (aggregated)');
-  print('  28:   FU-A (fragmented)');
-  print('');
-  print('Play with: ffplay output.h264');
+    // Handle messages from browser
+    socket.listen(
+      (data) async {
+        try {
+          final msg = jsonDecode(data as String) as Map<String, dynamic>;
 
-  print('\nWaiting for browser connection...');
+          if (msg['type'] == 'answer') {
+            print('[Server] Received answer');
+            await pc.setRemoteDescription(
+              SessionDescription(type: 'answer', sdp: msg['sdp'] as String),
+            );
+            print('[Server] Remote description set');
+          }
+        } catch (e) {
+          print('[Server] Message error: $e');
+        }
+      },
+      onDone: () async {
+        print('[Server] Client disconnected');
+        pliTimer?.cancel();
+        stopTimer?.cancel();
+        videoRtpSub?.cancel();
+        await pc.close();
+      },
+    );
+  }
 }
 
-void _writeNalUnit(IOSink sink, List<int> nal) {
-  // Write Annex B start code
-  sink.add([0x00, 0x00, 0x00, 0x01]);
-  sink.add(nal);
+void main() async {
+  final server = SaveToDiskH264Server();
+  await server.start(port: 8878);
 }

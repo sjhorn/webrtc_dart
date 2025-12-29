@@ -1,13 +1,13 @@
-/// Save to Disk VP9 Example
+/// Save to Disk AV1X Example
 ///
-/// This example matches werift's save_to_disk/vp9.ts:
+/// This example matches werift's save_to_disk/av1x.ts:
 /// - WebSocket server for signaling
 /// - MediaRecorder for recording to WebM
-/// - VP9 video + Opus audio with RTCP feedback (NACK, PLI, REMB)
+/// - AV1X video + Opus audio with RTCP feedback (NACK, PLI, REMB)
 /// - Records for 10 seconds then stops
 ///
 /// Usage:
-///   dart run example/save_to_disk/vp9.dart
+///   dart run example/save_to_disk/av1x.dart
 ///   Then open a browser to the answer.html (or use automated test)
 library;
 
@@ -19,12 +19,12 @@ import 'package:webrtc_dart/webrtc_dart.dart';
 import 'package:webrtc_dart/src/nonstandard/recorder/media_recorder.dart';
 
 /// WebSocket server for browser signaling
-class SaveToDiskVP9Server {
+class SaveToDiskAV1XServer {
   HttpServer? _httpServer;
 
   Future<void> start({int port = 8878}) async {
     _httpServer = await HttpServer.bind(InternetAddress.anyIPv4, port);
-    print('Save to Disk VP9 Server');
+    print('Save to Disk AV1X Server');
     print('=' * 50);
     print('WebSocket: ws://localhost:$port');
     print('');
@@ -44,22 +44,22 @@ class SaveToDiskVP9Server {
     print('[Server] Client connected');
 
     // Output path with timestamp
-    final outputPath = './vp9-${DateTime.now().millisecondsSinceEpoch}.webm';
+    final outputPath = './av1x-${DateTime.now().millisecondsSinceEpoch}.webm';
 
     // Track subscription for cleanup
     StreamSubscription? videoRtpSub;
+    StreamSubscription? audioRtpSub;
     Timer? pliTimer;
     Timer? stopTimer;
 
-    // Create PeerConnection with VP9 + Opus codecs (matches werift)
+    // Create PeerConnection with AV1X + Opus codecs (matches werift)
     final pc = RtcPeerConnection(
       RtcConfiguration(
         codecs: RtcCodecs(
           video: [
             RtpCodecParameters(
-              mimeType: 'video/VP9',
+              mimeType: 'video/AV1X',
               clockRate: 90000,
-              payloadType: 98,
               rtcpFeedback: [
                 RtcpFeedback(type: 'nack'),
                 RtcpFeedback(type: 'nack', parameter: 'pli'),
@@ -83,21 +83,22 @@ class SaveToDiskVP9Server {
     var videoTrackAdded = false;
     var audioTrackAdded = false;
     var videoPacketsReceived = 0;
+    var audioPacketsReceived = 0;
     int? videoSsrc;
 
-    // Add video transceiver (recvonly - receive from browser)
-    pc.addTransceiver(
+    // Add video transceiver (sendrecv - like werift)
+    final videoTransceiver = pc.addTransceiver(
       MediaStreamTrackKind.video,
-      direction: RtpTransceiverDirection.recvonly,
+      direction: RtpTransceiverDirection.sendrecv,
     );
-    print('[Server] Added video transceiver (recvonly)');
+    print('[Server] Added video transceiver (sendrecv)');
 
-    // Add audio transceiver (recvonly - receive from browser)
+    // Add audio transceiver (sendrecv - like werift)
     pc.addTransceiver(
       MediaStreamTrackKind.audio,
-      direction: RtpTransceiverDirection.recvonly,
+      direction: RtpTransceiverDirection.sendrecv,
     );
-    print('[Server] Added audio transceiver (recvonly)');
+    print('[Server] Added audio transceiver (sendrecv)');
 
     // Handle incoming tracks
     pc.onTrack.listen((transceiver) async {
@@ -105,14 +106,18 @@ class SaveToDiskVP9Server {
       final kind = transceiver.kind;
       print('[Server] Received track: $kind');
 
+      // Echo track back (like werift)
+      transceiver.sender.replaceTrack(track);
+      print('[Server] $kind track echoed back');
+
       if (kind == MediaStreamTrackKind.video && !videoTrackAdded) {
         videoTrackAdded = true;
 
         // Create video recording track
         final videoRecordingTrack = RecordingTrack(
           kind: 'video',
-          codecName: 'VP9',
-          payloadType: 98,
+          codecName: 'AV1',
+          payloadType: 35, // AV1 typically uses PT 35
           clockRate: 90000,
           onRtp: (handler) {
             videoRtpSub = track.onReceiveRtp.listen((rtp) {
@@ -126,7 +131,7 @@ class SaveToDiskVP9Server {
           },
         );
 
-        // Create recorder when video track arrives
+        // Create recorder when video track arrives (may be before audio)
         recorder = MediaRecorder(
           tracks: [videoRecordingTrack],
           path: outputPath,
@@ -144,12 +149,20 @@ class SaveToDiskVP9Server {
         // Send PLI every 2 seconds (like werift)
         pliTimer = Timer.periodic(Duration(seconds: 2), (_) {
           if (videoSsrc != null) {
-            transceiver.receiver.rtpSession.sendPli(videoSsrc!);
+            videoTransceiver.receiver.rtpSession.sendPli(videoSsrc!);
             print('[Server] Sent PLI for keyframe');
           }
         });
       } else if (kind == MediaStreamTrackKind.audio && !audioTrackAdded) {
         audioTrackAdded = true;
+
+        // Track audio packets
+        audioRtpSub = track.onReceiveRtp.listen((rtp) {
+          audioPacketsReceived++;
+          if (audioPacketsReceived % 100 == 0) {
+            print('[Server] Audio RTP packets: $audioPacketsReceived');
+          }
+        });
         print('[Server] Audio track received (not recording in this example)');
       }
     });
@@ -180,6 +193,7 @@ class SaveToDiskVP9Server {
       print('[Server] Recording duration reached');
       pliTimer?.cancel();
       videoRtpSub?.cancel();
+      audioRtpSub?.cancel();
 
       try {
         await recorder.stop();
@@ -218,6 +232,7 @@ class SaveToDiskVP9Server {
         pliTimer?.cancel();
         stopTimer?.cancel();
         videoRtpSub?.cancel();
+        audioRtpSub?.cancel();
         await pc.close();
       },
     );
@@ -225,6 +240,6 @@ class SaveToDiskVP9Server {
 }
 
 void main() async {
-  final server = SaveToDiskVP9Server();
+  final server = SaveToDiskAV1XServer();
   await server.start(port: 8878);
 }

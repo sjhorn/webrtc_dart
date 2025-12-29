@@ -1,157 +1,228 @@
-/// Save to Disk Example
+/// Save to Disk VP8 Example
 ///
-/// This example demonstrates how to use the WebmContainer to create
-/// a WebM file from video and audio frames.
+/// This example matches werift's save_to_disk/vp8.ts:
+/// - WebSocket server for signaling
+/// - MediaRecorder for recording to WebM
+/// - VP8 video + Opus audio with RTCP feedback (NACK, PLI, REMB)
+/// - Records for 5 seconds then stops
 ///
-/// Note: This is a structural example showing the WebM container API.
-/// In a real application, frames would come from decoded RTP packets.
-///
-/// Usage: dart run examples/save_to_disk.dart
+/// Usage:
+///   dart run example/save_to_disk/vp8.dart
+///   Then open a browser to the answer.html (or use automated test)
 library;
 
+import 'dart:async';
+import 'dart:convert';
 import 'dart:io';
-import 'dart:math';
-import 'dart:typed_data';
-import 'package:webrtc_dart/src/container/webm/container.dart';
-import 'package:webrtc_dart/src/container/webm/processor.dart';
+
+import 'package:webrtc_dart/webrtc_dart.dart';
+import 'package:webrtc_dart/src/nonstandard/recorder/media_recorder.dart';
+
+/// WebSocket server for browser signaling
+class SaveToDiskServer {
+  HttpServer? _httpServer;
+
+  Future<void> start({int port = 8878}) async {
+    _httpServer = await HttpServer.bind(InternetAddress.anyIPv4, port);
+    print('Save to Disk VP8 Server');
+    print('=' * 50);
+    print('WebSocket: ws://localhost:$port');
+    print('');
+
+    await for (final request in _httpServer!) {
+      if (WebSocketTransformer.isUpgradeRequest(request)) {
+        _handleWebSocket(request);
+      } else {
+        request.response.statusCode = HttpStatus.notFound;
+        await request.response.close();
+      }
+    }
+  }
+
+  Future<void> _handleWebSocket(HttpRequest request) async {
+    final socket = await WebSocketTransformer.upgrade(request);
+    print('[Server] Client connected');
+
+    // Output path with timestamp
+    final outputPath = './vp8-${DateTime.now().millisecondsSinceEpoch}.webm';
+
+    // Track subscription for cleanup
+    StreamSubscription? videoRtpSub;
+    Timer? pliTimer;
+    Timer? stopTimer;
+
+    // Create PeerConnection with VP8 + Opus codecs (matches werift)
+    final pc = RtcPeerConnection(
+      RtcConfiguration(
+        codecs: RtcCodecs(
+          video: [
+            RtpCodecParameters(
+              mimeType: 'video/VP8',
+              clockRate: 90000,
+              payloadType: 96,
+              rtcpFeedback: [
+                RtcpFeedback(type: 'nack'), // useNACK()
+                RtcpFeedback(type: 'nack', parameter: 'pli'), // usePLI()
+                RtcpFeedback(type: 'goog-remb'), // useREMB()
+              ],
+            ),
+          ],
+          audio: [
+            RtpCodecParameters(
+              mimeType: 'audio/opus',
+              clockRate: 48000,
+              channels: 2,
+            ),
+          ],
+        ),
+      ),
+    );
+
+    // Create MediaRecorder for video+audio
+    late MediaRecorder recorder;
+    var videoTrackAdded = false;
+    var rtpPacketsReceived = 0;
+    int? remoteSsrc; // Captured from first RTP packet
+
+    // Add video transceiver (recvonly - receive from browser)
+    pc.addTransceiver(
+      MediaStreamTrackKind.video,
+      direction: RtpTransceiverDirection.recvonly,
+    );
+    print('[Server] Added video transceiver (recvonly)');
+
+    // Add audio transceiver (recvonly - receive from browser)
+    pc.addTransceiver(
+      MediaStreamTrackKind.audio,
+      direction: RtpTransceiverDirection.recvonly,
+    );
+    print('[Server] Added audio transceiver (recvonly)');
+
+    // Handle incoming tracks
+    pc.onTrack.listen((transceiver) async {
+      final track = transceiver.receiver.track;
+      final kind = transceiver.kind;
+      print('[Server] Received track: $kind');
+
+      if (kind == MediaStreamTrackKind.video && !videoTrackAdded) {
+        videoTrackAdded = true;
+
+        // Create recorder when first track arrives
+        final recordingTrack = RecordingTrack(
+          kind: 'video',
+          codecName: 'VP8',
+          payloadType: 96,
+          clockRate: 90000,
+          onRtp: (handler) {
+            videoRtpSub = track.onReceiveRtp.listen((rtp) {
+              rtpPacketsReceived++;
+              handler(rtp);
+
+              // Capture SSRC from first RTP packet for PLI
+              remoteSsrc ??= rtp.ssrc;
+
+              if (rtpPacketsReceived % 100 == 0) {
+                print('[Server] RTP packets: $rtpPacketsReceived');
+              }
+            });
+          },
+        );
+
+        recorder = MediaRecorder(
+          tracks: [recordingTrack],
+          path: outputPath,
+          options: MediaRecorderOptions(
+            width: 640,
+            height: 360,
+            disableLipSync: true,
+            disableNtp: true,
+          ),
+        );
+
+        await recorder.start();
+        print('[Server] Recording started: $outputPath');
+
+        // Send PLI every 3 seconds (like werift)
+        pliTimer = Timer.periodic(Duration(seconds: 3), (_) {
+          if (remoteSsrc != null) {
+            transceiver.receiver.rtpSession.sendPli(remoteSsrc!);
+            print('[Server] Sent PLI for keyframe');
+          }
+        });
+      }
+    });
+
+    // Track connection state
+    pc.onConnectionStateChange.listen((state) {
+      print('[Server] Connection state: $state');
+    });
+
+    pc.onIceConnectionStateChange.listen((state) {
+      print('[Server] ICE state: $state');
+    });
+
+    // Create offer and send to browser
+    final offer = await pc.createOffer();
+    await pc.setLocalDescription(offer);
+    print('[Server] Created offer');
+
+    // Send offer as JSON (like werift)
+    socket.add(jsonEncode({
+      'type': offer.type,
+      'sdp': offer.sdp,
+    }));
+    print('[Server] Sent offer to browser');
+
+    // Stop recording after 5 seconds (like werift)
+    stopTimer = Timer(Duration(seconds: 5), () async {
+      print('[Server] Recording duration reached');
+      pliTimer?.cancel();
+      videoRtpSub?.cancel();
+
+      try {
+        await recorder.stop();
+        print('[Server] Recording stopped');
+
+        // Check output file
+        final file = File(outputPath);
+        if (await file.exists()) {
+          final size = await file.length();
+          print('[Server] Output: $outputPath ($size bytes)');
+        }
+      } catch (e) {
+        print('[Server] Stop error: $e');
+      }
+    });
+
+    // Handle messages from browser
+    socket.listen(
+      (data) async {
+        try {
+          final msg = jsonDecode(data as String) as Map<String, dynamic>;
+
+          if (msg['type'] == 'answer') {
+            print('[Server] Received answer');
+            await pc.setRemoteDescription(
+              SessionDescription(type: 'answer', sdp: msg['sdp'] as String),
+            );
+            print('[Server] Remote description set');
+          }
+        } catch (e) {
+          print('[Server] Message error: $e');
+        }
+      },
+      onDone: () async {
+        print('[Server] Client disconnected');
+        pliTimer?.cancel();
+        stopTimer?.cancel();
+        videoRtpSub?.cancel();
+        await pc.close();
+      },
+    );
+  }
+}
 
 void main() async {
-  print('Save to Disk Example');
-  print('=' * 50);
-  print('');
-
-  // Create output filename with timestamp
-  final timestamp = DateTime.now().millisecondsSinceEpoch;
-  final outputPath = './recording-$timestamp.webm';
-
-  print('Output file: $outputPath');
-  print('');
-
-  // Collect output data
-  final outputChunks = <Uint8List>[];
-
-  // Create tracks for WebM container
-  final tracks = [
-    WebmTrack(
-      trackNumber: 1,
-      kind: TrackKind.video,
-      codec: WebmCodec.vp8,
-      width: 640,
-      height: 480,
-    ),
-    WebmTrack(
-      trackNumber: 2,
-      kind: TrackKind.audio,
-      codec: WebmCodec.opus,
-    ),
-  ];
-
-  // Create WebM processor with tracks and output callback
-  final processor = WebmProcessor(
-    tracks: tracks,
-    onOutput: (output) {
-      if (output.data != null) {
-        outputChunks.add(output.data!);
-      }
-    },
-  );
-
-  // Start the processor (writes EBML header and segment)
-  processor.start();
-
-  // Simulate recording for 3 seconds at 30fps
-  print('Generating simulated frames...');
-  final random = Random();
-  final durationSeconds = 3;
-  final fps = 30;
-  final totalFrames = durationSeconds * fps;
-
-  var videoFrameCount = 0;
-  var audioFrameCount = 0;
-
-  for (var i = 0; i < totalFrames; i++) {
-    // Video timestamp in milliseconds
-    final videoTimestampMs = (i * 1000 / fps).round();
-
-    // Generate simulated VP8 frame
-    final isKeyframe = i % fps == 0; // Keyframe every second
-    final frameSize = isKeyframe ? 5000 : 500 + random.nextInt(1000);
-    final videoData = Uint8List(frameSize);
-    for (var j = 0; j < frameSize; j++) {
-      videoData[j] = random.nextInt(256);
-    }
-
-    // Add video frame
-    processor.processVideoFrame(WebmFrame(
-      data: videoData,
-      timeMs: videoTimestampMs,
-      isKeyframe: isKeyframe,
-      trackNumber: 1,
-    ));
-    videoFrameCount++;
-
-    if (videoFrameCount % 30 == 0) {
-      print('Video frames: $videoFrameCount');
-    }
-
-    // Add audio frames (multiple per video frame for 48kHz audio)
-    // Opus typically uses 20ms frames, so ~50 frames per second
-    if (i % 2 == 0) {
-      // Every ~33ms (alternating video frames)
-      final audioTimestampMs = videoTimestampMs;
-      final audioSize = 40 + random.nextInt(60); // Typical Opus frame size
-      final audioData = Uint8List(audioSize);
-      for (var j = 0; j < audioSize; j++) {
-        audioData[j] = random.nextInt(256);
-      }
-
-      processor.processAudioFrame(WebmFrame(
-        data: audioData,
-        timeMs: audioTimestampMs,
-        isKeyframe: true,
-        trackNumber: 2,
-      ));
-      audioFrameCount++;
-    }
-  }
-
-  // Finalize the recording
-  print('');
-  print('Finalizing WebM...');
-  processor.stop();
-
-  // Concatenate all output chunks
-  final totalLength = outputChunks.fold(0, (sum, chunk) => sum + chunk.length);
-  final webmData = Uint8List(totalLength);
-  var offset = 0;
-  for (final chunk in outputChunks) {
-    webmData.setAll(offset, chunk);
-    offset += chunk.length;
-  }
-
-  // Save to file
-  final file = File(outputPath);
-  await file.writeAsBytes(webmData);
-
-  print('');
-  print('--- Recording Summary ---');
-  print('Duration: $durationSeconds seconds');
-  print('Video frames: $videoFrameCount');
-  print('Audio frames: $audioFrameCount');
-  print(
-      'File size: ${webmData.length} bytes (${(webmData.length / 1024).toStringAsFixed(1)} KB)');
-  print('Output file: $outputPath');
-  print('');
-
-  if (webmData.isNotEmpty) {
-    print('SUCCESS: WebM file created!');
-    print('');
-    print('Note: This is simulated data. To play, use:');
-    print('  ffplay $outputPath');
-    print('');
-    print('The file may not play correctly as the video/audio data');
-    print('is random bytes, not actual encoded media.');
-  } else {
-    print('WARNING: WebM file is empty');
-  }
+  final server = SaveToDiskServer();
+  await server.start(port: 8878);
 }

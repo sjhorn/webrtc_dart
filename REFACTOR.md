@@ -35,7 +35,7 @@ The Dart port achieves **~95-100% feature parity** with the TypeScript werift-we
 - ✅ Moved SRTP decryption to transport layer - matches werift DtlsTransport.onRtp pattern
 - ✅ Polymorphic addTransceiver(trackOrKind) - matches werift API for Ring camera compatibility
 - ✅ Fixed bundlePolicy logic to match werift's findOrCreateTransport()
-- ✅ All 2430+ tests passing, 0 analyzer issues
+- ✅ All 2431 tests passing, 0 analyzer issues
 
 ---
 
@@ -408,388 +408,43 @@ The Dart port achieves **~95-100% feature parity** with the TypeScript werift-we
 
 ---
 
-## 12. Recommended Refactoring
-
-### ✅ High Priority (COMPLETED December 2025)
-
-1. **~~Implement RTCP SR/RR/SDES/BYE~~** ✅ DONE
-   - SR/RR already implemented in `lib/src/rtp/rtcp_reports.dart`
-   - SDES implemented in `lib/src/rtcp/sdes.dart`
-   - BYE implemented in `lib/src/rtcp/bye.dart` (Dart goes beyond werift!)
-   - Compound packets (SR+SDES, RR+SDES) now sent automatically
-
-2. **~~Implement ICE Consent Freshness~~** ✅ DONE
-   - RFC 7675 support in `lib/src/ice/ice_connection.dart`
-   - 5-second interval with ±20% jitter
-   - 6 consecutive failures = connection failure
-
----
-
-### 🔴 High Priority (Original - For Reference)
-
-1. **~~Implement RTCP SR/RR/SDES/BYE~~**
-   - File: `lib/src/rtcp/` (new files needed)
-   - Required for proper A/V sync and receiver feedback
-   - Estimated effort: 2-3 days
-
-2. **Add ICE Consent Freshness (RFC 7675)**
-   - File: `lib/src/ice/ice_connection.dart`
-   - Required for long-lived connections
-   - Estimated effort: 1-2 days
-
-### 🟡 Medium Priority
-
-3. **~~Complete MP4 container support~~** ✅ DONE (December 2025)
-   - Full fMP4 implementation in `lib/src/container/mp4/container.dart` (1200+ lines)
-   - H.264 SPS parser for High Profile support (parity with werift's sps-parser.ts)
-   - Supports H.264 + Opus, 36 ISO box types implemented
-   - Browser interop tests passing (Chrome, Safari)
-
-4. **~~Add SCTP Partial Reliability~~** ✅ DONE (December 2025)
-   - RFC 3758 support in `lib/src/sctp/association.dart`
-   - maxRetransmits and maxPacketLifeTime now supported
-   - DataChannel exposes reliability parameters to SCTP layer
-
-5. ~~**Extract SDP Manager**~~ ✅ DONE (December 2025)
-   - Extracted SdpManager (719 lines) from PeerConnection
-   - Extracted TransceiverManager (106 lines) for transceiver lifecycle
-   - Extracted SctpTransportManager (117 lines) for DataChannel stats
-   - PeerConnection reduced from 2,726 to 2,257 lines (-17%)
-
-### 🟢 Low Priority (Nice to Have)
-
-6. ~~**Add more cipher suites (AES-256, ChaCha20)**~~ ✅ DONE (December 2025)
-7. ~~**Port STUN Transaction class for retry logic**~~ ✅ DONE (December 2025)
-8. ~~**Add WebM encryption support**~~ ✅ DONE (December 2025)
-9. ~~**Improve ICE role conflict recovery**~~ ✅ DONE (December 2025)
-
-### ✅ Phase 4: Deep Refactoring (December 2025)
-
-**Goal:** Reduce `peer_connection.dart` from 2,257 to ~1,200 lines (closer to werift's 969)
-
-| Task | Description | Est. Savings | Status |
-|------|-------------|--------------|--------|
-| 1. RTP Session consolidation | Extract _createRtpSession() helper | ~80 lines | ✅ Complete |
-| 2. Create RtpRouter Abstraction | Already exists in rtp_router.dart | N/A | ✅ Already done |
-| 3. bundlePolicy:disable | KEEP - Required for Ring camera interop | N/A | ✅ Evaluated |
-| 4. Remote Media Processing | Extract _configureTransceiverFromRemote() | ~25 lines | ✅ Complete |
-| 5. Consolidate Nonstandard APIs | addTransceiverWithTrack calls addTransceiver | ~96 lines | ✅ Complete |
-| 6. Simplify Config Parsing | Use Uri.parse() for ICE server URLs | ~43 lines | ✅ Complete |
-
-**Result:** peer_connection.dart reduced from 2,257 → 2,010 lines (-247 lines, 11% reduction)
-
----
-
-### 🔵 Phase 5: Match werift Manager Architecture (December 2025)
-
-**Goal:** Extract remaining inline code to match werift's manager pattern exactly.
-
-#### werift Manager Structure (Reference)
-
-| Manager | werift Lines | Dart Status |
-|---------|--------------|-------------|
-| SecureTransportManager | 405 | ✅ Complete (202 lines) |
-| TransceiverManager | 424 | ✅ Partial (106 lines) |
-| RtpRouter | 196 | ✅ Exists (165 lines) |
-| SctpManager | 150 | ✅ Complete (117 lines) |
-| SdpManager | 497 | ✅ Complete (719 lines) |
-
-#### Detailed Gap Analysis
-
-| Function | Dart Location | Dart Lines | werift Location | Gap |
-|----------|---------------|------------|-----------------|-----|
-| Transport creation | `_findOrCreateMediaTransport()` inline | 75 | `SecureTransportManager.createTransport()` | +35 |
-| ICE state aggregation | `_updateAggregateConnectionState()` inline | 35 | `SecureTransportManager.updateIceConnectionState()` | -5 |
-| SRTP session setup | 3 methods inline | 130 | In DTLS transport callbacks | +130 |
-| ICE candidate handling | In setRemoteDescription | 60 | `SecureTransportManager.addIceCandidate()` | +30 |
-| Remote media processing | `_processRemoteMediaDescriptions()` | 156 | `TransceiverManager.setRemoteRTP()` | +66 |
-| RTP routing | `_routeRtpPacket()` inline | 40 | `RtpRouter.routeRtp()` | -8 |
-| RTCP routing | `_routeRtcpPacket()` inline | 30 | `RtpRouter.routeRtcp()` | -25 |
-| Packet detection | `_handleIncomingRtpData()` inline | 50 | In transport callback | +45 |
-| Logging | Scattered | 120 | Minimal | +100 |
-
-#### Extraction Plan
-
-| Option | Description | Est. Savings | Status |
-|--------|-------------|--------------|--------|
-| 1. SecureTransportManager | Extract SRTP session lifecycle | ~113 lines | ✅ Complete |
-| 2. TransceiverManager.setRemoteRTP | Move transceiver config | ~43 lines | ✅ Complete |
-| 3. RtpRouter enhancement | Move routeRtp/routeRtcp | ~40 lines | ⏸️ Skipped |
-| 4. Reduce logging | Consolidate mDNS, reduce verbosity | ~44 lines | ✅ Complete |
-
-**Final Phase 5:** peer_connection.dart 1,810 lines (33.6% reduction from 2,726)
-**After Phase 6:** peer_connection.dart 1,781 lines (34.7% reduction from 2,726)
-**Original Target:** ~1,630 lines
-
-#### Phase 5 Summary
-
-- **Option 1 (SecureTransportManager):** Extracted SRTP session lifecycle to manager
-- **Option 2 (setRemoteRTP):** Moved transceiver configuration to TransceiverManager
-- **Option 3 (RtpRouter):** Skipped - packet routing already uses RtpRouter, SRTP decryption is PeerConnection-specific
-- **Option 4 (Logging):** Consolidated duplicate mDNS code, removed verbose per-candidate logs
-
-The 33.6% reduction (916 lines) from the original peer_connection.dart achieves the primary
-goal of matching werift's manager pattern while maintaining stability.
-
-#### Option 1: SecureTransportManager ✅ COMPLETE
-
-**File:** `lib/src/transport/secure_transport_manager.dart` (202 lines)
-
-Extracted from peer_connection.dart:
-- `_setupSrtpSessions()` → `setupSrtpSessions()`
-- `_setupSrtpSessionsForAllTransports()` → `setupSrtpSessionsForAllTransports()`
-- `_setupSrtpSessionForTransport()` → `setupSrtpSessionForTransport()`
-- State: `_srtpSession`, `_srtpSessionsByMid` → managed internally
-- SRTP session lookup: `getSrtpSessionForMid()`, `hasSrtpSessionForMid()`
-- ICE connection lookup: `getIceConnectionForMid()`
-- DTLS→SRTP key extraction: `_createSrtpSessionFromDtls()`
-
-**Savings:** 2,010 → 1,897 lines (-113 lines, 5.6% reduction)
-
-#### Option 2: TransceiverManager.setRemoteRTP ✅ COMPLETE
-
-Added `setRemoteRTP()` to TransceiverManager matching werift's pattern:
-- Header extension ID extraction and assignment to sender
-- RTP router header extension registration
-- Simulcast RID handler registration
-
-**Savings:** 1897 → 1854 lines (-43 lines)
-
-#### Option 3: RtpRouter Enhancement ⏸️ SKIPPED
-
-Evaluated but skipped - Packet routing already uses RtpRouter for SSRC/RID routing.
-The remaining methods (`_handleIncomingRtpData`, `_routeRtpPacket`, `_routeRtcpPacket`)
-need SecureTransportManager for SRTP decryption, which is PeerConnection-specific.
-
-**Note:** This was later addressed in Phase 6 by moving SRTP decryption to the transport layer.
-
-#### Option 4: Reduce Logging ✅ COMPLETE
-
-- Consolidated duplicate mDNS resolution code (addIceCandidate now uses _resolveCandidate)
-- Removed verbose per-candidate logging in setRemoteDescription
-- Kept summary logs while removing redundant per-item logs
-
-**Savings:** 1854 → 1810 lines (-44 lines)
-
----
-
-### 🔵 Phase 6: Transport Layer SRTP Decryption (December 2025)
-
-**Goal:** Match werift's architecture where DtlsTransport emits already-decrypted packets.
-
-#### Problem Statement
-
-**werift architecture:**
-```
-DtlsTransport (handles SRTP decryption internally)
-    ↓ emits decrypted RtpPacket via onRtp
-PeerConnection:
-    router.routeRtp(rtp)  // Just routes, no decryption
-```
-
-**Dart previous architecture:**
-```
-Transport (emits encrypted SRTP bytes via onRtpData)
-    ↓
-PeerConnection._routeRtpPacket():
-    srtpSession.decryptSrtp(data)  // Decryption here
-    router.routeRtp(packet)
-```
-
-#### Implementation Summary
-
-| Step | Description | Status |
-|------|-------------|--------|
-| 1 | Add SrtpSession to IntegratedTransport | ✅ Complete |
-| 2 | Add onRtp/onRtcp decrypted streams | ✅ Complete |
-| 3 | Implement startSrtp() in transport | ✅ Complete |
-| 4 | Call startSrtp() after DTLS connected | ✅ Complete |
-| 5 | Update PeerConnection to use new streams | ✅ Complete |
-| 6 | Apply same pattern to MediaTransport | ✅ Complete |
-| 7 | Remove unused methods | ✅ Complete |
-
-#### Files Modified
-
-| File | Before | After | Change |
-|------|--------|-------|--------|
-| `transport.dart` | 729 | 905 | +176 (SRTP logic) |
-| `peer_connection.dart` | 1,810 | 1,781 | -29 (removed decryption) |
-
-#### Methods Removed from PeerConnection
-
-- `_handleIncomingRtpData()` - 34 lines
-- `_routeRtpPacket()` - 44 lines
-- `_routeRtcpPacket()` - 18 lines
-
-**Total removed:** ~96 lines
-
-#### New Methods Added to Transport
-
-- `startSrtp()` - Creates SRTP session, subscribes to encrypted packets, decrypts and emits
-- `onRtp` getter - Stream of decrypted RtpPacket
-- `onRtcp` getter - Stream of decrypted RTCP bytes
-- `srtpSession` getter - Access to SRTP session for encryption
-
-#### Architecture After Phase 6
-
-```
-IntegratedTransport / MediaTransport
-├── startSrtp() - Creates SRTP session from DTLS keys
-├── onRtp - Stream<RtpPacket> (decrypted)
-├── onRtcp - Stream<Uint8List> (decrypted)
-└── srtpSession - For outgoing packet encryption
-
-RtcPeerConnection (1,781 lines)
-├── _routeDecryptedRtp(packet, {mid}) - Routes already-decrypted packets
-├── _routeDecryptedRtcp(data, {mid}) - Routes already-decrypted RTCP
-└── Uses RtpRouter for SSRC/RID-based routing
-```
-
-#### Test Results
-
-- ✅ 2430+ unit tests passing
-- ✅ Chrome browser DataChannel test passing
-- ✅ Chrome browser media_sendonly test passing
-
----
-
-### 🔵 Phase 7: werift API Parity (December 2025)
-
-**Goal:** Match werift's polymorphic `addTransceiver` API and `bundlePolicy` handling for Ring camera compatibility.
-
-#### Changes Made
-
-##### 1. Polymorphic addTransceiver
-
-werift uses a polymorphic signature:
-```typescript
-addTransceiver(trackOrKind: Kind | MediaStreamTrack, options: Partial<TransceiverOptions>)
-```
-
-Dart now matches this pattern:
-```dart
-RtpTransceiver addTransceiver(
-  Object trackOrKind, {  // MediaStreamTrackKind or nonstandard.MediaStreamTrack
-  RtpCodecParameters? codec,
-  RtpTransceiverDirection? direction,
-})
-```
-
-**Default direction logic:**
-- `MediaStreamTrackKind` → default `recvonly` (receiving media)
-- `nonstandard.MediaStreamTrack` → default `sendonly` (forwarding pre-encoded RTP)
-
-##### 2. Deprecated addTransceiverWithTrack
-
-Since werift doesn't have a separate method, `addTransceiverWithTrack` is now deprecated:
-```dart
-@Deprecated('Use addTransceiver(track) instead - werift uses polymorphic API')
-RtpTransceiver addTransceiverWithTrack(...)
-```
-
-##### 3. Fixed bundlePolicy Logic
-
-Updated `_findOrCreateMediaTransport` to match werift's `findOrCreateTransport()`:
-
-**werift logic:**
-```typescript
-if (bundlePolicy === "max-bundle" ||
-    (bundlePolicy !== "disable" && remoteIsBundled)) {
-  return existing;  // Reuse transport
-}
-// Create new transport
-```
-
-**Dart before (incorrect):**
-```dart
-if (_remoteIsBundled || bundlePolicy != BundlePolicy.disable) { ... }
-```
-
-**Dart after (correct):**
-```dart
-if (bundlePolicy == BundlePolicy.maxBundle ||
-    (bundlePolicy != BundlePolicy.disable && _remoteIsBundled)) { ... }
-```
-
-**Key difference:** With `max-compat`, reuse transport ONLY if remote is bundled.
-
-##### 4. bundlePolicy:disable Always Creates Per-Media Transports
-
-When `bundlePolicy == disable`, always create per-media transports regardless of `remoteIsBundled`:
-```dart
-// Before: if (bundlePolicy == disable && !_remoteIsBundled)
-// After:  if (bundlePolicy == disable)
-```
-
-#### Test Results
-
-- ✅ 2430+ unit tests passing
-- ✅ Chrome browser DataChannel test passing
-- ✅ Chrome browser media_sendonly test passing
-
----
-
-### 🔵 Phase 8: Match werift Media Architecture (December 2025)
-
-**Goal:** Restructure `lib/src/media/` to match werift's sender/receiver/transceiver file organization.
-
-#### Structural Comparison
-
-**Line Counts:**
-
-| Component | werift | Dart | Notes |
-|-----------|--------|------|-------|
-| **Total (all packages)** | 27,284 | 45,668 | Dart 67% larger (extra features) |
-| PeerConnection | 969 | 1,816 | Dart 1.9x larger |
-| ICE | 1,478 | 2,196 | Dart 1.5x larger |
-| SCTP | 1,397 | 1,449 | Similar |
-| SDP | 1,220 | 1,767 | Dart 1.4x larger |
-| RtpTransceiver | 159 | 1,075 | Dart has merged sender/receiver |
-| RtpSender | 577 | (embedded) | To be extracted |
-| RtpReceiver | 413 | (embedded) | To be extracted |
-| TransceiverManager | 424 | 155 | werift larger |
-| Transport | 1,340 | 905 | werift larger |
-
-**File Structure Target:**
-
-| werift | Dart Current | Dart Target |
-|--------|--------------|-------------|
-| `rtpTransceiver.ts` (159) | `rtp_transceiver.dart` (1075) | `rtp_transceiver.dart` (~160) |
-| `rtpSender.ts` (577) | (embedded) | `rtp_sender.dart` (~550) |
-| `rtpReceiver.ts` (413) | (embedded) | `rtp_receiver.dart` (~400) |
-| `sender/senderBWE.ts` | `sender/sender_bwe.dart` ✅ | (keep as-is) |
-| `receiver/receiverTwcc.ts` | `receiver/receiver_twcc.dart` ✅ | Added |
-
-**Feature Status:**
-
-| Feature | werift | Dart | Status |
-|---------|--------|------|--------|
-| RTCP SR loop | rtpSender.runRtcp() | RtpSession | Different location |
-| RTCP RR loop | rtpReceiver.runRtcp() | RtpSession | Different location |
-| NACK Handler | receiver/nack.ts | rtp/nack_handler.dart | ✅ Exists |
-| RTX wrap/unwrap | sender/receiver | RtpSession | ✅ Exists |
-| RED encode/decode | sender/receiver | rtp/red/ | ✅ Exists |
-| SenderBWE | sender/senderBWE.ts | sender/sender_bwe.dart | ✅ Exists |
-| ReceiverTWCC | receiver/receiverTwcc.ts | receiver/receiver_twcc.dart | ✅ Added |
-
-#### Implementation Status ✅ COMPLETE
-
-1. ✅ **Split rtp_transceiver.dart** into 3 files:
-   - `rtp_sender.dart` (556 lines) - matches werift's 577
-   - `rtp_receiver.dart` (354 lines) - matches werift's 413
-   - `rtp_transceiver.dart` (234 lines) - matches werift's 159 + helpers
-2. ✅ **Added ReceiverTWCC** class in `receiver/receiver_twcc.dart` (226 lines)
-3. ✅ **Wired ReceiverTWCC into RtpReceiver/PeerConnection**:
-   - RtpReceiver now extracts transport-wide CC extension from RTP packets
-   - RtpReceiver auto-initializes TWCC when first packet with extension arrives
-   - PeerConnection wires `rtcpSsrc` and `onSendRtcp` callback to each receiver
-4. ✅ All tests passing (2430+ unit tests, Chrome/Firefox/Safari browser interop)
-
-#### Optional Future Improvements (Evaluated, Not Required)
-
-- **Move nack_handler to media/receiver/**: Would require migrating usage from RtpSession to RtpReceiver. Current location (`rtp/nack_handler.dart`) works fine.
-- **Move rtp_statistics to media/receiver/**: Same as above - would need RtpSession refactor.
-- **Move RTCP loops to sender/receiver**: werift has separate `runRtcp()` in sender and receiver. Our centralized `RtpSession._sendRtcpReports()` approach is simpler and works well.
+## 12. Refactoring Summary (December 2025)
+
+All planned refactoring is complete. Key achievements:
+
+| Phase | Goal | Result |
+|-------|------|--------|
+| 4 | Reduce peer_connection.dart size | 2,726 → 1,781 lines (-35%) |
+| 5 | Extract manager classes | SdpManager, TransceiverManager, SctpTransportManager, SecureTransportManager |
+| 6 | Move SRTP to transport layer | Matches werift DtlsTransport.onRtp pattern |
+| 7 | werift API parity | Polymorphic addTransceiver, bundlePolicy fix |
+| 8 | Media architecture | Split rtp_transceiver.dart into sender/receiver, added ReceiverTWCC |
+
+### Completed Items
+
+| Priority | Feature | Status |
+|----------|---------|--------|
+| High | RTCP SR/RR/SDES/BYE | ✅ Complete |
+| High | ICE Consent Freshness (RFC 7675) | ✅ Complete |
+| Medium | MP4 container (fMP4 + SPS parser) | ✅ Complete |
+| Medium | SCTP Partial Reliability (RFC 3758) | ✅ Complete |
+| Medium | Extract SDP/Transceiver/SCTP managers | ✅ Complete |
+| Low | AES-256-GCM, ChaCha20-Poly1305 | ✅ Complete |
+| Low | STUN Transaction retry | ✅ Complete |
+| Low | WebM encryption | ✅ Complete |
+| Low | ICE role conflict recovery (RFC 8445) | ✅ Complete |
+
+### Manager Architecture (matches werift)
+
+| Manager | Lines | Purpose |
+|---------|-------|---------|
+| SdpManager | 719 | SDP building, validation |
+| TransceiverManager | 155 | Transceiver lifecycle, setRemoteRTP |
+| SctpTransportManager | 117 | DataChannel stats |
+| SecureTransportManager | 202 | SRTP session lifecycle |
+| RtpRouter | 165 | SSRC/RID-based packet routing |
+
+For detailed implementation history, see git commits from December 2025.
 
 ---
 
@@ -808,7 +463,7 @@ When `bundlePolicy == disable`, always create per-media transports regardless of
 | RTX | 85 | ✅ |
 | TURN | 50 | ✅ |
 | getStats | 9 | ✅ |
-| **Total** | **2430+** | All passing |
+| **Total** | **2431** | All passing |
 
 ### Browser Interop
 

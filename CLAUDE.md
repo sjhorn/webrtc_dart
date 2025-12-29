@@ -17,25 +17,12 @@ This is a pure Dart port of the [werift-webrtc](https://github.com/shinyoshiaki/
 
 ## Current Progress (December 2025)
 
-### Status: Phase 4 COMPLETE - werift Parity Achieved
+### Status: 100% werift Parity Achieved
 
-| Component | Status | Tests |
-|-----------|--------|-------|
-| Core Protocols (STUN/ICE/DTLS/SRTP/SCTP/RTP) | ✅ Complete | 500+ |
-| DataChannel | ✅ Complete | Full DCEP |
-| VP8 Depacketization | ✅ Complete | 22 |
-| VP9 Depacketization | ✅ Complete | 25 |
-| H.264 Depacketization | ✅ Complete | 22 |
-| AV1 Depacketization | ✅ Complete | 32 |
-| NACK | ✅ Complete | 41 |
-| PLI/FIR | ✅ Complete | 48 |
-| RTX + SDP Negotiation | ✅ Complete | 85 |
-| TURN (Core + Data Relay) | ✅ Complete | 50 |
-| TWCC | ✅ Complete | - |
-| Simulcast | ✅ Complete | - |
-| Jitter Buffer | ✅ Complete | - |
-| getStats() | ✅ Complete | 9 |
-| **Total** | **1650 tests passing** | **0 analyzer issues** |
+All WebRTC features complete: ICE, DTLS, SRTP, SCTP, RTP/RTCP, DataChannels, Media.
+Codecs: VP8, VP9, H.264, AV1, Opus. Features: NACK, PLI/FIR, RTX, TWCC, Simulcast, getStats().
+
+**2431 tests passing, 0 analyzer issues**
 
 ### Browser Interop Status
 - ✅ **Chrome**: DataChannel + Media working
@@ -44,7 +31,7 @@ This is a pure Dart port of the [werift-webrtc](https://github.com/shinyoshiaki/
 
 Automated Playwright test suite in `interop/automated/`
 
-See **ROADMAP.md** for detailed implementation history and future work.
+See **REFACTOR.md** for detailed werift comparison and implementation history.
 
 ---
 
@@ -245,29 +232,6 @@ Each layer should be validated independently before building on top of it.
 
 ---
 
-## Implementation Roadmap (15 Phases)
-
-### Phase 1-4: Core Implementation ✅ COMPLETE
-1. Scope & MVP Definition
-2. Architecture & Module Layout
-3. Binary & Crypto Foundations
-4. STUN & TURN Layer
-5. ICE Agent
-6. DTLS Handshake & Record Layer
-7. SRTP / SRTCP
-8. RTP & RTCP Stack
-9. SCTP & Data Channels
-10. SDP & Signalling API
-
-### Phase 5: Beyond werift (Future)
-11. Media Integration - Pluggable audio/video sources, encoders/decoders
-12. Observability, Logging & Debugging Tools
-13. Interop & Compliance Test Matrix
-14. Performance, Benchmarks & Tuning
-15. Packaging, Docs & Examples
-
----
-
 ## Pull Request Guidelines
 
 - Title format: `<component>: <short description>` or `bugfix(<component>): <short description>`
@@ -311,4 +275,4 @@ Each layer should be validated independently before building on top of it.
 ## References
 
 - TypeScript source: `./werift-webrtc`
-- Roadmap: See `ROADMAP.md`
+- Technical comparison: See `REFACTOR.md`

@@ -285,48 +285,17 @@ dart run example/quickstart_ice_restart.dart
 
 ## Architecture
 
-webrtc_dart is designed with a modular architecture:
-
-```
-webrtc_dart
-├── ICE      - Interactive Connectivity Establishment
-├── DTLS     - Datagram Transport Layer Security
-├── SCTP     - Stream Control Transmission Protocol (DataChannels)
-├── RTP      - Real-time Transport Protocol (Media)
-├── RTCP     - RTP Control Protocol
-├── SRTP     - Secure RTP
-└── SDP      - Session Description Protocol
-```
-
-### Code Structure
-
-```
-lib/src/
-├── stun/          # STUN/TURN protocol
-├── ice/           # ICE agent and candidates
-├── dtls/          # DTLS handshake and encryption
-├── srtp/          # SRTP/SRTCP encryption
-├── rtp/           # RTP/RTCP media transport
-├── sctp/          # SCTP reliable transport
-├── datachannel/   # DataChannel API
-├── media/         # Media tracks and transceivers
-├── codec/         # Codec implementations
-├── sdp/           # SDP parsing and generation
-├── stats/         # Statistics collection
-├── container/     # WebM/MP4 recording
-└── peer_connection.dart  # Main PeerConnection API
-```
-
-### Design Philosophy
+webrtc_dart uses a layered architecture: ICE → DTLS → SRTP/SCTP → RTP/RTCP → SDP.
 
 - **Pure Dart**: No native bindings or browser dependencies
 - **Direct RTP Access**: Full control over media packets for custom processing
 - **Browser-Compatible API**: Familiar `RTCPeerConnection`-style interface
-- **Modular**: Use only what you need
+
+See `CLAUDE.md` for detailed code structure.
 
 ## Test Coverage
 
-**2171 tests passing** with **80% code coverage**.
+**2431 tests passing** with **80% code coverage**.
 
 ```bash
 # Run all tests
@@ -340,16 +309,8 @@ dart test test/peer_connection_test.dart
 
 ## Browser Interop Testing
 
-Automated tests verify compatibility with Chrome, Firefox, and Safari:
-
-```bash
-cd interop
-npm install
-npm test              # Test all browsers
-npm run test:chrome   # Test Chrome only
-npm run test:firefox  # Test Firefox only
-npm run test:safari   # Test Safari/WebKit only
-```
+Automated Playwright tests verify compatibility with Chrome, Firefox, and Safari.
+See `CLAUDE.md` for test commands.
 
 ## Configuration Options
 

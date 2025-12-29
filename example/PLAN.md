@@ -587,8 +587,9 @@ BROWSER=firefox ./run_test.sh ice_restart
 ./run_test.sh
 
 # Stop orphaned processes (cleanup)
-./stop_test.sh              # Kill all test processes
+./stop_test.sh              # Kill all test processes + ffmpeg
 ./stop_test.sh ice_trickle  # Kill specific test's port
+./stop_test.sh --clean-recordings  # Remove all recording-*.webm files
 
 # Run ALL tests (comprehensive suite)
 ./run_all_tests.sh chrome   # Run all tests with Chrome
@@ -604,6 +605,8 @@ BROWSER=firefox ./run_test.sh ice_restart
 - Automatic cleanup of server processes on exit
 - Port conflict detection and resolution
 - Support for both `BROWSER=x` and command line argument
+- **Automatic ffmpeg cleanup** - Kills orphaned ffmpeg processes (from sendonly tests)
+- **Automatic recording cleanup** - Removes `recording-*.webm` files created during successful tests
 
 **Available test names:**
 | Test Name | Port | Description |
@@ -970,16 +973,27 @@ For each placeholder:
      - `5830dd9` - Fix Firefox headless camera access (firefoxUserPrefs at launch time)
      - `9b41c90` - Add canvas stream fallback for Safari headless camera access
 
-7. **Multi-client tests timeout in run_all_tests.sh** (TODO)
-   - **Status**: Needs investigation
-   - **Symptom**: 3 tests timeout when run via `./run_all_tests.sh chrome`:
-     - `multi_client_sendonly` - FAIL
-     - `multi_client_recvonly` - FAIL (Test timeout)
-     - `multi_client_sendrecv` - FAIL (Test timeout)
-   - **Context**: These tests were previously passing (documented above as Chrome PASS)
-   - **Possible Causes**:
-     - Server startup race condition in batch runner
-     - Resource exhaustion when running many tests sequentially
-     - Port conflicts from previous tests not cleaning up
-   - **Workaround**: Tests may pass when run individually via `./run_test.sh`
-   - **Action**: Investigate and fix in future session
+7. **Multi-client tests timeout in run_all_tests.sh** (FIXED Dec 2025)
+   - **Status**: RESOLVED
+   - **Original Symptom**: 3 tests timeout when run via `./run_all_tests.sh chrome`
+   - **Root Causes Found**:
+     - `multi_client_sendonly`: FFmpeg started before clients connected, causing keyframe miss
+     - `multi_client_sendrecv`: Browser candidate polling loop blocked createClient() from returning
+   - **Fixes Applied**:
+     - `multi_client_sendonly_server.dart`: Start FFmpeg when first client connects (not at /start)
+     - `multi_client_sendrecv_server.dart`: Early exit from candidate loop when already connected
+     - `multi_client_sendrecv_test.mjs`: Increased timeout from 50s to 90s
+   - **Result**: All 4 multi_client tests now pass:
+     - `multi_client` - PASS
+     - `multi_client_sendonly` - PASS (618 frames)
+     - `multi_client_recvonly` - PASS
+     - `multi_client_sendrecv` - PASS (110 echo frames)
+
+8. **Test cleanup improvements** (Dec 2025)
+   - **Orphaned ffmpeg processes**: When Dart server killed with SIGKILL, ffmpeg from sendonly tests kept running at high CPU
+     - **Fix**: Added ffmpeg cleanup to `run_test.sh`, `run_debug_test.sh`, and `stop_test.sh`
+     - Kills processes matching `ffmpeg.*testsrc` pattern
+   - **Accumulated recording files**: Tests creating `recording-*.webm` files in project root
+     - **Tests affected**: save_to_disk (8 variants), rtx, simulcast, twcc (12 servers total)
+     - **Fix**: Auto-cleanup of recording files created during test run (only on success)
+     - **Manual cleanup**: `./stop_test.sh --clean-recordings` removes all old recordings

@@ -818,6 +818,16 @@ When `bundlePolicy == disable`, always create per-media transports regardless of
 | Firefox | ✅ | ✅ | Fully working |
 | Safari | ✅ | ✅ | Fully working |
 
+### Test Infrastructure (Dec 2025)
+
+Test scripts in `interop/automated/` handle cleanup automatically:
+
+- **ffmpeg cleanup**: Kills orphaned `ffmpeg.*testsrc` processes (from sendonly tests)
+- **recording cleanup**: Auto-removes `recording-*.webm` files after successful tests
+- **Manual cleanup**: `./stop_test.sh --clean-recordings` removes all accumulated recordings
+
+Tests creating recordings: save_to_disk (8 variants), rtx, simulcast, twcc (12 servers total)
+
 ### Tests Needed for Gap Areas
 
 1. **RTCP SR/RR** - Add tests for timing synchronization

@@ -116,6 +116,8 @@ class MultiClientSendonlyServer {
     request.response.write(_testPageHtml);
   }
 
+  bool _videoSourceStarted = false;
+
   Future<void> _handleStart(HttpRequest request) async {
     _currentBrowser = request.uri.queryParameters['browser'] ?? 'unknown';
     print('[MultiSendonly] Starting test for: $_currentBrowser');
@@ -124,10 +126,10 @@ class MultiClientSendonlyServer {
     _clientCounter = 0;
     _maxConcurrentClients = 0;
     _stopped = false;
+    _videoSourceStarted = false;
 
-    // Start video source
-    await _startVideoSource();
-
+    // NOTE: Don't start video source here - start it when first client connects
+    // This ensures clients don't miss the initial keyframes
     request.response.headers.contentType = ContentType.json;
     request.response.write(jsonEncode({'status': 'ok'}));
   }
@@ -140,11 +142,20 @@ class MultiClientSendonlyServer {
     final udpPort = _udpSocket!.port;
     print('[MultiSendonly] UDP socket listening on port $udpPort');
 
+    var udpPacketCount = 0;
     _udpSocket!.listen((event) {
       if (event == RawSocketEvent.read && !_stopped) {
         final datagram = _udpSocket!.receive();
         if (datagram != null) {
+          udpPacketCount++;
+          if (udpPacketCount <= 5 || udpPacketCount % 100 == 0) {
+            print('[MultiSendonly] UDP packet #$udpPacketCount, size=${datagram.data.length}');
+          }
           // Broadcast to all connected clients
+          final connectedCount = _clients.values.where((c) => c.isConnected).length;
+          if (udpPacketCount == 1) {
+            print('[MultiSendonly] Connected clients: $connectedCount');
+          }
           for (final client in _clients.values) {
             if (client.isConnected) {
               client.videoTrack.writeRtp(datagram.data);
@@ -213,6 +224,12 @@ class MultiClientSendonlyServer {
       if (state == PeerConnectionState.connected) {
         client.isConnected = true;
         client.connectedTime = DateTime.now();
+        // Start video source when first client connects (not before)
+        // This ensures clients don't miss the initial keyframes
+        if (!_videoSourceStarted) {
+          _videoSourceStarted = true;
+          _startVideoSource();
+        }
       }
     });
 
@@ -388,6 +405,8 @@ class MultiClientSendonlyServer {
         _clients.values.fold<int>(0, (sum, c) => sum + c.rtpPacketsSent);
     final totalFramesReceived = _clients.values
         .fold<int>(0, (sum, c) => sum + c.framesReceivedByBrowser);
+
+    print('[MultiSendonly] Result: totalRtpSent=$totalRtpSent, totalFramesReceived=$totalFramesReceived');
 
     // Success if we had multiple clients connect and receive video
     final success = _maxConcurrentClients >= 2 &&

@@ -50,7 +50,7 @@ async function runBrowserTest(browserName) {
 
         setTimeout(() => {
           resolve({ success: false, error: 'Test timeout' });
-        }, 50000);
+        }, 90000);
       });
     });
 

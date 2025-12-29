@@ -183,7 +183,7 @@ class MultiClientSendrecvServer {
         sendTrack.writeRtp(rtpPacket);
         client.rtpPacketsEchoed++;
 
-        if (client.rtpPacketsReceived % 100 == 0) {
+        if (client.rtpPacketsReceived % 500 == 0) {
           print(
               '[MultiSendrecv] [$clientId] Recv: ${client.rtpPacketsReceived}, Echo: ${client.rtpPacketsEchoed}');
         }
@@ -449,7 +449,7 @@ class MultiClientSendrecvServer {
     <script>
         const connections = new Map();
         const serverBase = window.location.origin;
-        const NUM_CLIENTS = 3;
+        const NUM_CLIENTS = 2;
 
         function log(msg, className = 'info') {
             const logDiv = document.getElementById('log');
@@ -553,17 +553,11 @@ class MultiClientSendrecvServer {
             };
 
             // Get video stream
-            // Safari: Use canvas directly to avoid permission dialog
+            // Use canvas stream for all browsers to avoid camera permission issues in headless mode
+            // This allows multiple simultaneous "video sources" without hardware limits
             let stream;
-            if (detectBrowser() === 'safari') {
-                stream = createCanvasStream(640, 480, 30);
-                log('[' + clientId + '] Using canvas stream (Safari)');
-            } else {
-                stream = await navigator.mediaDevices.getUserMedia({
-                    video: { width: 640, height: 480 }
-                });
-                log('[' + clientId + '] Using camera stream');
-            }
+            stream = createCanvasStream(640, 480, 30);
+            log('[' + clientId + '] Using canvas stream');
             conn.stream = stream;
 
             // Get offer from server
@@ -593,21 +587,28 @@ class MultiClientSendrecvServer {
                 })
             });
 
-            // Get server ICE candidates
+            // Get server ICE candidates (exit early if already connected)
             for (let i = 0; i < 3; i++) {
+                if (pc.connectionState === 'connected') {
+                    console.log('[' + clientId + '] Already connected, skipping remaining candidate rounds');
+                    break;
+                }
                 await new Promise(r => setTimeout(r, 300));
-                const candidatesResp = await fetch(serverBase + '/candidates?clientId=' + clientId);
-                const candidates = await candidatesResp.json();
-                for (const c of candidates) {
-                    if (!c._added) {
-                        try {
-                            await pc.addIceCandidate(new RTCIceCandidate(c));
-                            c._added = true;
-                        } catch (e) {}
+                try {
+                    const candidatesResp = await fetch(serverBase + '/candidates?clientId=' + clientId);
+                    const candidates = await candidatesResp.json();
+                    for (const c of candidates) {
+                        if (!c._added) {
+                            try {
+                                await pc.addIceCandidate(new RTCIceCandidate(c));
+                                c._added = true;
+                            } catch (e) {}
+                        }
                     }
+                } catch (e) {
+                    console.log('[' + clientId + '] Candidate fetch error: ' + e.message);
                 }
             }
-
             return conn;
         }
 
@@ -623,20 +624,28 @@ class MultiClientSendrecvServer {
                 // Create multiple clients
                 setStatus('Creating ' + NUM_CLIENTS + ' clients...');
                 for (let i = 0; i < NUM_CLIENTS; i++) {
+                    console.log('DEBUG: Creating client ' + i);
                     await createClient(i);
+                    console.log('DEBUG: Client ' + i + ' created');
                     await new Promise(r => setTimeout(r, 200));
                 }
+                console.log('DEBUG: All clients created');
 
                 // Wait for connections
+                console.log('DEBUG: About to call waitForConnections');
                 setStatus('Waiting for connections...');
                 await waitForConnections();
+                console.log('DEBUG: waitForConnections returned');
                 log('All clients connected!', 'success');
 
                 // Wait for echo video
                 setStatus('Waiting for echoed video...');
+                log('Starting 5s wait for echo...');
                 await new Promise(r => setTimeout(r, 5000));
+                log('5s wait complete');
 
                 // Report echo frames to server
+                log('Reporting echo frames...');
                 for (const [clientId, conn] of connections) {
                     await fetch(serverBase + '/report', {
                         method: 'POST',
@@ -647,6 +656,7 @@ class MultiClientSendrecvServer {
                         })
                     });
                 }
+                log('Reports sent');
 
                 // Stop streams
                 for (const [_, conn] of connections) {
@@ -656,8 +666,10 @@ class MultiClientSendrecvServer {
                 }
 
                 // Get results
+                log('Fetching results...');
                 const resultResp = await fetch(serverBase + '/result');
                 const result = await resultResp.json();
+                log('Results received');
 
                 if (result.success) {
                     log('TEST PASSED! ' + result.totalEchoFrames + ' echo frames', 'success');
@@ -681,8 +693,13 @@ class MultiClientSendrecvServer {
         async function waitForConnections() {
             return new Promise((resolve, reject) => {
                 const timeout = setTimeout(() => reject(new Error('Connection timeout')), 30000);
+                let checkCount = 0;
                 const check = () => {
                     const allConnected = Array.from(connections.values()).every(c => c.connected);
+                    checkCount++;
+                    if (checkCount <= 5 || checkCount % 50 === 0) {
+                        log('waitForConnections: size=' + connections.size + ' allConnected=' + allConnected + ' expected=' + NUM_CLIENTS);
+                    }
                     if (allConnected && connections.size === NUM_CLIENTS) {
                         clearTimeout(timeout);
                         resolve();

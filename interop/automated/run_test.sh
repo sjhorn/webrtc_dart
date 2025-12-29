@@ -176,11 +176,30 @@ echo ""
 echo "[Test] Running $(basename "$TEST_FILE") (timeout: ${TEST_TIMEOUT}s)..."
 cd "$SCRIPT_DIR"
 
+# Record start time for cleanup
+TEST_START_TIME=$(date +%s)
+
 # Use timeout command to limit test execution
 if timeout $TEST_TIMEOUT node "$TEST_FILE" "$BROWSER_ARG"; then
     TEST_EXIT_CODE=0
     echo ""
     echo "[Result] PASSED"
+
+    # Clean up webm files created during this test (only on success)
+    cd "$PROJECT_ROOT"
+    webm_count=0
+    for f in recording-*.webm; do
+        if [ -f "$f" ]; then
+            file_time=$(stat -f %m "$f" 2>/dev/null || stat -c %Y "$f" 2>/dev/null)
+            if [ -n "$file_time" ] && [ "$file_time" -ge "$TEST_START_TIME" ]; then
+                rm -f "$f"
+                webm_count=$((webm_count + 1))
+            fi
+        fi
+    done
+    if [ $webm_count -gt 0 ]; then
+        echo "[Cleanup] Removed $webm_count recording file(s)"
+    fi
 else
     TEST_EXIT_CODE=$?
     if [ $TEST_EXIT_CODE -eq 124 ]; then

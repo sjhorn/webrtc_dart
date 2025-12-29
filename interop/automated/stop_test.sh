@@ -82,15 +82,35 @@ kill_ffmpeg() {
     return 1
 }
 
+clean_recordings() {
+    local project_root="$(cd "$SCRIPT_DIR/../.." && pwd)"
+    local count=$(ls -1 "$project_root"/recording-*.webm 2>/dev/null | wc -l | tr -d ' ')
+    if [ "$count" -gt 0 ]; then
+        echo "Removing $count recording file(s)..."
+        rm -f "$project_root"/recording-*.webm
+        return 0
+    fi
+    return 1
+}
+
 TEST_NAME="${1:-}"
 
-if [ -n "$TEST_NAME" ]; then
+if [ "$TEST_NAME" = "--clean-recordings" ] || [ "$TEST_NAME" = "-c" ]; then
+    # Just clean up recordings
+    if clean_recordings; then
+        echo "Done."
+    else
+        echo "No recording files found."
+    fi
+    exit 0
+elif [ -n "$TEST_NAME" ]; then
     # Kill specific test
     port=$(get_port_for_test "$TEST_NAME")
     if [ -z "$port" ]; then
         echo "Unknown test: $TEST_NAME"
         echo ""
         echo "Usage: $0 [test_name]"
+        echo "       $0 --clean-recordings  # Remove all recording-*.webm files"
         echo ""
         echo "Run without arguments to kill all test processes."
         echo "Or specify a test name to kill only that test's port."

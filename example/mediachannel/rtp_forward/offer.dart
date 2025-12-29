@@ -103,7 +103,7 @@ class RtpForwardTestServer {
     print('[Server] Created nonstandard video track');
 
     // Add video track with sendonly direction
-    _transceiver = _pc!.addTransceiverWithTrack(
+    _transceiver = _pc!.addTransceiver(
       _videoTrack!,
       direction: RtpTransceiverDirection.sendonly,
     );

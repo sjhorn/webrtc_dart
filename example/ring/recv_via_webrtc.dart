@@ -331,13 +331,13 @@ class RingVideoServer {
 
     // Add audio track first, then video - order matters for BUNDLE!
     // (matching werift_ring_server.ts:399-400)
-    client.audioTransceiver = pc.addTransceiverWithTrack(
+    client.audioTransceiver = pc.addTransceiver(
       audioTrack,
       direction: RtpTransceiverDirection.sendonly,
     );
 
     // Add video track (sendonly to browser)
-    client.videoTransceiver = pc.addTransceiverWithTrack(
+    client.videoTransceiver = pc.addTransceiver(
       videoTrack,
       direction: RtpTransceiverDirection.sendonly,
     );

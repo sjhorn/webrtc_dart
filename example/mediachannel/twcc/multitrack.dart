@@ -38,7 +38,7 @@ void main() async {
       final track = nonstandard.MediaStreamTrack(kind: nonstandard.MediaKind.video);
       tracks.add(track);
 
-      pc.addTransceiverWithTrack(
+      pc.addTransceiver(
         track,
         direction: RtpTransceiverDirection.sendonly,
       );

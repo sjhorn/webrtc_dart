@@ -41,7 +41,7 @@ void main() async {
 
     // Add transceivers for each layer
     for (final entry in tracks.entries) {
-      pc.addTransceiverWithTrack(
+      pc.addTransceiver(
         entry.value,
         direction: RtpTransceiverDirection.sendonly,
       );

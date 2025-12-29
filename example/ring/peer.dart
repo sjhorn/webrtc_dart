@@ -119,7 +119,7 @@ class CustomPeerConnection implements ring.BasicPeerConnection {
     );
 
     // audioTransceiver = pc.addTransceiver(this.returnAudioTrack, { direction: "sendrecv" });
-    _pc.addTransceiverWithTrack(
+    _pc.addTransceiver(
       returnAudioTrack,
       direction: RtpTransceiverDirection.sendrecv,
     );

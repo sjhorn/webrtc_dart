@@ -87,7 +87,7 @@ void main() async {
     });
 
     // Add send-only audio transceiver
-    pc.addTransceiverWithTrack(
+    pc.addTransceiver(
       track,
       direction: RtpTransceiverDirection.sendonly,
     );

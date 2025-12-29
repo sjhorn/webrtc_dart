@@ -50,7 +50,7 @@ void main() async {
     final outTrack = nonstandard.MediaStreamTrack(kind: nonstandard.MediaKind.video);
 
     // Add bidirectional video transceiver
-    pc.addTransceiverWithTrack(
+    pc.addTransceiver(
       outTrack,
       direction: RtpTransceiverDirection.sendrecv,
     );

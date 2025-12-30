@@ -92,6 +92,7 @@ class MediaTransport {
   }) {
     // Create ICE to DTLS adapter
     _dtlsAdapter = IceToDtlsAdapter(iceConnection);
+    _dtlsAdapter.debugLabel = debugLabel;
 
     // Forward SRTP packets
     _dtlsAdapter.onSrtpData.listen((data) {
@@ -336,6 +337,9 @@ class IceToDtlsAdapter implements dtls_ctx.DtlsTransport {
 
   bool _isOpen = true;
   StreamSubscription? _iceDataSubscription;
+
+  /// Debug label for logging
+  String debugLabel = '';
 
   IceToDtlsAdapter(this.iceConnection) {
     // Demux packets from ICE based on first byte (RFC 5764 Section 5.1.2)

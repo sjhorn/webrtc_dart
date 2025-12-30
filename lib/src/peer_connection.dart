@@ -576,19 +576,89 @@ class RtcPeerConnection {
     // ICE credentials are already set during construction
     // SDP parsing can be added here if needed in the future
 
-    // Start ICE gathering
-    if (_iceGatheringState == IceGatheringState.new_) {
+    // Start ICE gathering on primary connection (but NOT for bundlePolicy:disable)
+    // For bundlePolicy:disable, MediaTransports gather below
+    if (_iceGatheringState == IceGatheringState.new_ &&
+        _configuration.bundlePolicy != BundlePolicy.disable) {
       _setIceGatheringState(IceGatheringState.gathering);
       await _iceConnection.gatherCandidates();
       _setIceGatheringState(IceGatheringState.complete);
     }
 
+    // For bundlePolicy:disable offerer case, create MediaTransports from local SDP
+    // This handles: createOffer, setLocalDescription(offer) - before receiving answer
+    if (_configuration.bundlePolicy == BundlePolicy.disable &&
+        description.type == 'offer' &&
+        _mediaTransports.isEmpty) {
+      // Parse the local offer to extract media line info
+      final sdpLines = description.sdp.split('\n');
+      var mLineIndex = 0;
+      for (final line in sdpLines) {
+        if (line.startsWith('m=audio') || line.startsWith('m=video')) {
+          // Find the MID for this media line
+          final midIndex = sdpLines.indexOf(line);
+          String? mid;
+          for (var i = midIndex + 1; i < sdpLines.length; i++) {
+            if (sdpLines[i].startsWith('m=')) break;
+            if (sdpLines[i].startsWith('a=mid:')) {
+              mid = sdpLines[i].substring(6).trim();
+              break;
+            }
+          }
+          if (mid != null) {
+            _log.fine(
+                '[$_debugLabel] Creating MediaTransport for offerer: mid=$mid, mLineIndex=$mLineIndex');
+            await _findOrCreateMediaTransport(mid, mLineIndex);
+          }
+          mLineIndex++;
+        }
+      }
+
+      // Start gathering on all MediaTransports for the offerer
+      if (_mediaTransports.isNotEmpty) {
+        _setIceGatheringState(IceGatheringState.gathering);
+        await Future.wait(_mediaTransports.values.map((transport) async {
+          try {
+            await transport.iceConnection.gatherCandidates();
+          } catch (e) {
+            _log.fine(
+                '[$_debugLabel] Transport ${transport.id} gather error: $e');
+          }
+        }));
+        _setIceGatheringState(IceGatheringState.complete);
+      }
+    }
+
+    // For bundlePolicy:disable answerer case, start MediaTransport ICE
+    // This handles: setRemoteDescription, createAnswer, setLocalDescription(answer)
+    if (_configuration.bundlePolicy == BundlePolicy.disable &&
+        _remoteDescription != null &&
+        _mediaTransports.isNotEmpty &&
+        !_iceConnectCalled) {
+      _setConnectionState(PeerConnectionState.connecting);
+      _iceConnectCalled = true;
+      _log.fine(
+          '[$_debugLabel] Starting ${_mediaTransports.length} media transports (from setLocalDescription)');
+      // Start all media transports in parallel (don't await - run in background)
+      Future.wait(_mediaTransports.values.map((transport) async {
+        try {
+          await transport.iceConnection.gatherCandidates();
+          await transport.iceConnection.connect();
+        } catch (e) {
+          _log.fine(
+              '[$_debugLabel] Transport ${transport.id} connect error: $e');
+        }
+      }));
+    }
+
     // If we now have both local and remote descriptions, start connecting
     // Note: ICE connect runs asynchronously - don't await it here
     // This allows the signaling to complete while ICE runs in background
+    // Skip for bundlePolicy:disable - MediaTransports connect separately
     if (_localDescription != null &&
         _remoteDescription != null &&
-        !_iceConnectCalled) {
+        !_iceConnectCalled &&
+        _configuration.bundlePolicy != BundlePolicy.disable) {
       _iceConnectCalled = true;
       // Start ICE connectivity checks in background
       _iceConnection.connect().catchError((e) {
@@ -782,11 +852,15 @@ class RtcPeerConnection {
 
       if (_configuration.bundlePolicy == BundlePolicy.disable) {
         // bundlePolicy: disable - start all media transports in parallel
+        // Note: For offerer, candidates were already gathered in setLocalDescription
         _log.fine(
-            '[$_debugLabel] Starting ${_mediaTransports.length} media transports');
+            '[$_debugLabel] Starting ${_mediaTransports.length} media transports (connect only)');
         await Future.wait(_mediaTransports.values.map((transport) async {
           try {
-            await transport.iceConnection.gatherCandidates();
+            // Only gather if not already done (for offerer case)
+            if (transport.iceConnection.localCandidates.isEmpty) {
+              await transport.iceConnection.gatherCandidates();
+            }
             await transport.iceConnection.connect();
           } catch (e) {
             _log.fine(
@@ -1020,6 +1094,38 @@ class RtcPeerConnection {
     // Resolve mDNS candidates (.local addresses) to real IPs using shared helper
     final resolvedCandidate = await _resolveCandidate(candidate);
     if (resolvedCandidate == null) return;
+
+    // For bundlePolicy:disable, route candidate to the correct MediaTransport
+    if (_configuration.bundlePolicy == BundlePolicy.disable) {
+      // First try to route by sdpMid
+      if (candidate.sdpMid != null) {
+        final transport = _mediaTransports[candidate.sdpMid];
+        if (transport != null) {
+          _log.fine(
+              '[$_debugLabel] Adding ICE candidate to transport ${candidate.sdpMid}');
+          await transport.iceConnection.addRemoteCandidate(resolvedCandidate);
+          return;
+        }
+      }
+      // Fall back to sdpMLineIndex
+      if (candidate.sdpMLineIndex != null) {
+        // Find transport by mLineIndex
+        for (final transport in _mediaTransports.values) {
+          if (transport.mLineIndex == candidate.sdpMLineIndex) {
+            _log.fine(
+                '[$_debugLabel] Adding ICE candidate to transport by mLineIndex ${candidate.sdpMLineIndex}');
+            await transport.iceConnection.addRemoteCandidate(resolvedCandidate);
+            return;
+          }
+        }
+      }
+      // No matching transport found - log warning
+      _log.fine(
+          '[$_debugLabel] No transport found for ICE candidate (sdpMid=${candidate.sdpMid}, mLineIndex=${candidate.sdpMLineIndex})');
+      return;
+    }
+
+    // For bundled connections, add to primary ICE connection
     await _iceConnection.addRemoteCandidate(resolvedCandidate);
   }
 

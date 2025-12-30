@@ -131,7 +131,11 @@ class MediaTransport {
         break;
       case IceState.checking:
       case IceState.gathering:
-        _setState(TransportState.connecting);
+        // Don't regress from connected back to connecting
+        // This can happen with late ICE candidates (trickle ICE)
+        if (_state != TransportState.connected) {
+          _setState(TransportState.connecting);
+        }
         break;
       case IceState.connected:
       case IceState.completed:
@@ -506,7 +510,11 @@ class IntegratedTransport {
         break;
       case IceState.checking:
       case IceState.gathering:
-        _setState(TransportState.connecting);
+        // Don't regress from connected back to connecting
+        // This can happen with late ICE candidates (trickle ICE)
+        if (_state != TransportState.connected) {
+          _setState(TransportState.connecting);
+        }
         break;
       case IceState.connected:
       case IceState.completed:

@@ -554,7 +554,16 @@ class IceConnectionImpl implements IceConnection {
         '[ICE] STUN: Found ${hostCandidates.length} host candidates to probe');
 
     // Try to get reflexive candidates for each host candidate
+    // Like werift, only gather SRFLX for IPv4 candidates - IPv6 STUN is unreliable
     for (final hostCandidate in hostCandidates) {
+      // Skip IPv6 candidates - STUN servers typically only support IPv4
+      // and sending from IPv6 sockets often fails on misconfigured networks
+      if (hostCandidate.host.contains(':')) {
+        _log.fine(
+            '[ICE] STUN: Skipping IPv6 candidate ${hostCandidate.host}:${hostCandidate.port}');
+        continue;
+      }
+
       _log.fine(
           '[ICE] STUN: Probing from ${hostCandidate.host}:${hostCandidate.port}');
       try {
@@ -580,7 +589,14 @@ class IceConnectionImpl implements IceConnection {
         _log.fine(
             '[ICE] STUN: Sending binding request to ${stunAddress.address}:$stunPort (tid=$tid)');
         final bytes = request.toBytes();
-        socket.send(bytes, stunAddress, stunPort);
+        try {
+          socket.send(bytes, stunAddress, stunPort);
+        } catch (e) {
+          // Socket send can fail for IPv6 addresses on misconfigured networks
+          _log.fine('[ICE] STUN: Send failed for ${hostCandidate.host}: $e');
+          _pendingStunTransactions.remove(tid);
+          continue;
+        }
 
         // Wait for response with timeout
         StunMessage response;
@@ -928,7 +944,7 @@ class IceConnectionImpl implements IceConnection {
   }
 
   /// Perform connectivity checks on candidate pairs
-  /// Uses multiple rounds with retries for trickle ICE scenarios
+  /// Uses parallel checking with pacing (like werift) for faster ICE completion
   Future<void> _performConnectivityChecks() async {
     final labelStr = debugLabel.isNotEmpty ? ':$debugLabel' : '';
 
@@ -954,81 +970,86 @@ class IceConnectionImpl implements IceConnection {
     // RFC 8445 Section 7.2.1: Process early checks that were queued
     _processEarlyChecks();
 
-    // RFC 5245: Perform checks with retries
-    // Try up to 3 rounds of connectivity checks to allow remote to be ready
-    const maxRounds = 3;
-    const delayBetweenRounds = Duration(seconds: 2);
+    // Use parallel checking with pacing (20ms between check starts)
+    // This allows multiple checks to run concurrently, so we don't wait
+    // 3 seconds per failing IPv6 pair before reaching working reflexive pairs
+    const pacingInterval = Duration(milliseconds: 20);
+    const maxCheckTime = Duration(seconds: 15);
 
-    for (var round = 0; round < maxRounds; round++) {
-      if (round > 0) {
-        _log.fine('$labelStr Connectivity check round ${round + 1}/$maxRounds');
-        await Future.delayed(delayBetweenRounds);
+    final successCompleter = Completer<CandidatePair>();
+    final inProgressChecks = <Future<void>>[];
+
+    // Start checks with pacing - don't await each check
+    for (final pair in _checkList) {
+      // Stop starting new checks if we already succeeded
+      if (successCompleter.isCompleted) break;
+
+      // Skip pairs that aren't ready to check
+      if (pair.state != CandidatePairState.frozen &&
+          pair.state != CandidatePairState.waiting) {
+        continue;
       }
 
-      // RFC 5245: Perform checks in priority order
-      for (final pair in _checkList) {
-        // Skip already succeeded pairs
-        if (pair.state == CandidatePairState.succeeded) {
-          continue;
-        }
+      final localAddr =
+          '${pair.localCandidate.host}:${pair.localCandidate.port}';
+      final remoteAddr =
+          '${pair.remoteCandidate.host}:${pair.remoteCandidate.port}';
+      _log.fine('$labelStr Starting check: $localAddr -> $remoteAddr');
 
-        // Reset failed pairs on retry rounds
-        if (pair.state == CandidatePairState.failed && round > 0) {
-          pair.updateState(CandidatePairState.waiting);
-        }
-
-        if (pair.state != CandidatePairState.frozen &&
-            pair.state != CandidatePairState.waiting) {
-          continue;
-        }
-
-        // Attempt connectivity check
-        final labelStr = debugLabel.isNotEmpty ? ':$debugLabel' : '';
-        final localAddr =
-            '${pair.localCandidate.host}:${pair.localCandidate.port}';
-        final remoteAddr =
-            '${pair.remoteCandidate.host}:${pair.remoteCandidate.port}';
-        _log.fine('$labelStr Checking pair $localAddr -> $remoteAddr');
-        final success = await _performConnectivityCheck(pair);
-        _log.fine('$labelStr Check result: ${success ? 'SUCCESS' : 'FAILED'}');
+      // Mark as in-progress and start check WITHOUT awaiting
+      pair.updateState(CandidatePairState.inProgress);
+      final checkFuture = _performConnectivityCheck(pair).then((success) {
+        _log.fine(
+            '$labelStr Check result for $localAddr -> $remoteAddr: ${success ? 'SUCCESS' : 'FAILED'}');
 
         if (success) {
           pair.updateState(CandidatePairState.succeeded);
-
-          // First successful pair transitions to connected
-          _log.fine(
-              '[ICE$labelStr] Current state=$_state, checking transition to connected');
-          if (_state == IceState.checking) {
-            _setState(IceState.connected);
-          }
-
-          // If controlling, nominate this pair
-          if (_iceControlling && _nominated == null) {
-            _nominated = pair;
-            _setState(IceState.completed);
-            return;
-          }
-
-          // If controlled, wait for nomination from remote
-          // For now, just use the first successful pair
-          if (!_iceControlling && _nominated == null) {
-            _nominated = pair;
-            _setState(IceState.completed);
-            return;
+          if (!successCompleter.isCompleted) {
+            successCompleter.complete(pair);
           }
         } else {
           pair.updateState(CandidatePairState.failed);
         }
-      }
+      }).catchError((e, stack) {
+        // Catch any errors from connectivity check (e.g., socket errors)
+        _log.fine('$labelStr Check error for $localAddr -> $remoteAddr: $e');
+        pair.updateState(CandidatePairState.failed);
+      });
+      inProgressChecks.add(checkFuture);
 
-      // Check if any pair succeeded
-      if (_nominated != null) {
-        return;
-      }
+      // Pace: wait before starting next check
+      await Future.delayed(pacingInterval);
     }
 
-    // No successful pairs found after all retry rounds
-    if (_nominated == null) {
+    // Wait for first success or timeout
+    CandidatePair? successPair;
+    try {
+      successPair = await successCompleter.future.timeout(
+        maxCheckTime,
+        onTimeout: () {
+          _log.fine('$labelStr Connectivity checks timed out');
+          throw TimeoutException('ICE connectivity checks timed out');
+        },
+      );
+    } on TimeoutException {
+      // All checks timed out
+      successPair = null;
+    }
+
+    if (successPair != null) {
+      _log.fine(
+          '[ICE$labelStr] Check succeeded: ${successPair.localCandidate.host}:${successPair.localCandidate.port} -> ${successPair.remoteCandidate.host}:${successPair.remoteCandidate.port}');
+
+      // Transition to connected
+      if (_state == IceState.checking) {
+        _setState(IceState.connected);
+      }
+
+      // Nominate the successful pair
+      _nominated = successPair;
+      _setState(IceState.completed);
+    } else {
+      // No successful pairs found
       _setState(IceState.failed);
     }
   }
@@ -1509,7 +1530,21 @@ class IceConnectionImpl implements IceConnection {
         final peerAddress = (remoteCandidate.host, remoteCandidate.port);
         await _turnClient!.sendData(peerAddress, requestBytes);
       } else {
-        socket!.send(requestBytes, remoteAddr, remoteCandidate.port);
+        try {
+          socket!.send(requestBytes, remoteAddr, remoteCandidate.port);
+        } on SocketException catch (e) {
+          // Socket send can fail for IPv6 addresses on misconfigured networks
+          _log.fine(
+              '[ICE] Connectivity check send failed (SocketException) for ${localCandidate.host}: $e');
+          _pendingStunTransactions.remove(tid);
+          return false;
+        } catch (e) {
+          // Catch any other exceptions
+          _log.fine(
+              '[ICE] Connectivity check send failed for ${localCandidate.host}: $e');
+          _pendingStunTransactions.remove(tid);
+          return false;
+        }
       }
 
       // Wait for response with timeout
@@ -1816,10 +1851,15 @@ class IceConnectionImpl implements IceConnection {
   }
 
   /// Perform connectivity checks on new candidate pairs (for trickle ICE)
-  /// This runs asynchronously to not block addRemoteCandidate
+  /// Uses parallel checking with pacing (like werift) for faster ICE completion
   void _checkNewPairs(List<CandidatePair> newPairs) {
-    // Run checks asynchronously
+    final labelStr = debugLabel.isNotEmpty ? ':$debugLabel' : '';
+
+    // Run checks asynchronously with parallel pacing
     Future(() async {
+      const pacingInterval = Duration(milliseconds: 20);
+
+      // Start all checks with pacing - don't await each one
       for (final pair in newPairs) {
         // Skip if already checked or in progress
         if (pair.state != CandidatePairState.frozen &&
@@ -1827,34 +1867,44 @@ class IceConnectionImpl implements IceConnection {
           continue;
         }
 
-        // Perform connectivity check
-        final success = await _performConnectivityCheck(pair);
+        // Skip if already nominated
+        if (_nominated != null) break;
 
-        if (success) {
-          pair.updateState(CandidatePairState.succeeded);
+        final localAddr =
+            '${pair.localCandidate.host}:${pair.localCandidate.port}';
+        final remoteAddr =
+            '${pair.remoteCandidate.host}:${pair.remoteCandidate.port}';
+        _log.fine('$labelStr Trickle check: $localAddr -> $remoteAddr');
 
-          // First successful pair transitions to connected
-          if (_state == IceState.checking) {
-            _setState(IceState.connected);
+        // Mark as in-progress and start check WITHOUT awaiting
+        pair.updateState(CandidatePairState.inProgress);
+        _performConnectivityCheck(pair).then((success) {
+          if (success) {
+            pair.updateState(CandidatePairState.succeeded);
+            _log.fine(
+                '$labelStr Trickle check SUCCESS: $localAddr -> $remoteAddr');
+
+            // First successful pair transitions to connected
+            if (_state == IceState.checking) {
+              _setState(IceState.connected);
+            }
+
+            // Nominate this pair if not already nominated
+            if (_nominated == null) {
+              _nominated = pair;
+              _setState(IceState.completed);
+            }
+          } else {
+            pair.updateState(CandidatePairState.failed);
           }
-
-          // If controlling, nominate this pair
-          if (_iceControlling && _nominated == null) {
-            _nominated = pair;
-            _setState(IceState.completed);
-            return;
-          }
-
-          // If controlled, wait for nomination from remote
-          // For now, just use the first successful pair
-          if (!_iceControlling && _nominated == null) {
-            _nominated = pair;
-            _setState(IceState.completed);
-            return;
-          }
-        } else {
+        }).catchError((e, stack) {
+          // Catch any errors from connectivity check (e.g., socket errors)
+          _log.fine('$labelStr Trickle check error for $localAddr -> $remoteAddr: $e');
           pair.updateState(CandidatePairState.failed);
-        }
+        });
+
+        // Pace: wait before starting next check
+        await Future.delayed(pacingInterval);
       }
     });
   }
@@ -1879,7 +1929,13 @@ class IceConnectionImpl implements IceConnection {
       }
 
       final remoteAddr = InternetAddress(remoteCandidate.host);
-      socket.send(data, remoteAddr, remoteCandidate.port);
+      try {
+        socket.send(data, remoteAddr, remoteCandidate.port);
+      } catch (e) {
+        // Socket send can fail for IPv6 addresses on misconfigured networks
+        _log.fine('[ICE] Data send failed for ${localCandidate.host}: $e');
+        return;
+      }
     }
 
     // Update statistics
@@ -2057,7 +2113,15 @@ class IceConnectionImpl implements IceConnection {
       final peerAddress = (remoteCandidate.host, remoteCandidate.port);
       await _turnClient!.sendData(peerAddress, requestBytes);
     } else {
-      socket!.send(requestBytes, remoteAddr, remoteCandidate.port);
+      try {
+        socket!.send(requestBytes, remoteAddr, remoteCandidate.port);
+      } catch (e) {
+        // Socket send can fail for IPv6 addresses on misconfigured networks
+        _log.fine(
+            '[ICE] Consent check send failed for ${localCandidate.host}: $e');
+        _pendingStunTransactions.remove(tid);
+        return false;
+      }
     }
 
     // Wait for response with short timeout (consent checks should be quick)

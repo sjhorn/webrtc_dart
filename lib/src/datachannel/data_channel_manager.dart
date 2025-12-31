@@ -41,6 +41,18 @@ class DataChannelManager {
 
     // Handle stream reconfiguration (RFC 6525)
     _association.onReconfigStreams = _handleReconfigStreams;
+
+    // Handle buffered amount changes for flow control
+    _association.onBufferedAmountChange = _handleBufferedAmountChange;
+  }
+
+  /// Handle buffered amount changes from SCTP association
+  /// Dispatches to the appropriate DataChannel based on streamId
+  void _handleBufferedAmountChange(int streamId, int bufferedAmount) {
+    final channel = _channels[streamId];
+    if (channel != null) {
+      channel.handleBufferedAmountChange(bufferedAmount);
+    }
   }
 
   /// Handle stream reconfiguration (close event from peer or response to our close)

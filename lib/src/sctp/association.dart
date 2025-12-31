@@ -96,8 +96,8 @@ class SctpAssociation {
   /// Remote TSN (cumulative ack point)
   int _remoteCumulativeTsn = 0;
 
-  /// Last SACKed TSN
-  int _lastSackedTsn = 0;
+  /// Last SACKed TSN (null until first SACK received)
+  int? _lastSackedTsn;
 
   /// Advanced peer ack point for partial reliability (RFC 3758)
   int _advancedPeerAckTsn = 0;
@@ -119,6 +119,14 @@ class SctpAssociation {
 
   /// Sent queue - chunks sent but not yet ACKed
   List<_SentChunk> _sentQueue = [];
+
+  /// Per-stream buffered amount (bytes queued but not yet ACKed)
+  /// Used by DataChannel for flow control per W3C WebRTC spec
+  final Map<int, int> _streamBufferedAmount = {};
+
+  /// Callback when buffered amount changes for a stream
+  /// Called with (streamId, newBufferedAmount)
+  void Function(int streamId, int bufferedAmount)? onBufferedAmountChange;
 
   /// Receive buffer (by TSN)
   final Map<int, SctpDataChunk> _receiveBuffer = {};
@@ -391,7 +399,11 @@ class SctpAssociation {
       _outboundStreamSeq[streamId] = (streamSeq + 1) & 0xFFFF;
     }
 
-    // Transmit if T3 is not running (otherwise wait for SACK)
+    // Update buffered amount for this stream
+    _updateBufferedAmount(streamId, data.length);
+
+    // Transmit if T3 is not running, otherwise queue for later
+    // Non-blocking per W3C spec - applications use bufferedAmount for flow control
     _log.fine(
         '[SCTP] sendData: streamId=$streamId, ppid=$ppid, data=${data.length} bytes, t3=${_t3Timer != null}');
     if (_t3Timer == null) {
@@ -399,7 +411,9 @@ class SctpAssociation {
       await _transmit();
       _log.fine('[SCTP] sendData: _transmit() completed');
     } else {
-      _log.fine('[SCTP] sendData: T3 running, queuing for later');
+      // Non-blocking: data queued, will be sent when T3 fires or SACK received
+      // Applications should use bufferedAmount for flow control (W3C WebRTC spec)
+      _log.fine('[SCTP] sendData: T3 running, data queued for later transmission');
     }
   }
 
@@ -486,8 +500,8 @@ class SctpAssociation {
   /// Dequeues abandoned chunks from the front of sentQueue and
   /// creates a FORWARD-TSN chunk to notify the peer.
   void _updateAdvancedPeerAckPoint() {
-    if (uint32Gt(_lastSackedTsn, _advancedPeerAckTsn)) {
-      _advancedPeerAckTsn = _lastSackedTsn;
+    if (_lastSackedTsn != null && uint32Gt(_lastSackedTsn!, _advancedPeerAckTsn)) {
+      _advancedPeerAckTsn = _lastSackedTsn!;
     }
 
     var done = 0;
@@ -498,6 +512,9 @@ class SctpAssociation {
       final chunk = _sentQueue.removeAt(0);
       _advancedPeerAckTsn = chunk.tsn;
       done++;
+
+      // Decrement buffered amount for abandoned chunk
+      _decrementBufferedAmount(chunk);
 
       // Track stream sequence numbers for ordered chunks
       if (!chunk.chunk.unordered) {
@@ -566,8 +583,13 @@ class SctpAssociation {
       retransmitEarliest = false;
     }
 
-    // Then send new chunks from outboundQueue
+    // Then send new chunks from outboundQueue (with cwnd check)
     while (_outboundQueue.isNotEmpty) {
+      // Check cwnd before sending new data (congestion control)
+      if (_flightSize >= cwnd) {
+        break; // Stop sending, wait for SACKs to free up cwnd
+      }
+
       final sentChunk = _outboundQueue.removeAt(0);
       _sentQueue.add(sentChunk);
       _flightSizeIncrease(sentChunk);
@@ -586,7 +608,10 @@ class SctpAssociation {
     }
 
     // Reset outbound queue to avoid V8-style performance issues
-    _outboundQueue = [];
+    // Only reset if empty (may still have chunks if cwnd limited)
+    if (_outboundQueue.isEmpty) {
+      _outboundQueue = [];
+    }
   }
 
   /// Handle incoming chunk
@@ -793,8 +818,10 @@ class SctpAssociation {
 
   /// Handle SACK chunk (RFC 4960 Section 6.2.1)
   Future<void> _handleSack(SctpSackChunk chunk) async {
-    // Ignore old SACKs
-    if (uint32Gt(_lastSackedTsn, chunk.cumulativeTsnAck)) return;
+    // Ignore old SACKs (but accept first SACK when _lastSackedTsn is null)
+    if (_lastSackedTsn != null && uint32Gt(_lastSackedTsn!, chunk.cumulativeTsnAck)) {
+      return;
+    }
 
     final receivedTime = DateTime.now().millisecondsSinceEpoch / 1000.0;
     _lastSackedTsn = chunk.cumulativeTsnAck;
@@ -804,13 +831,16 @@ class SctpAssociation {
 
     // Handle acknowledged data (remove from sentQueue)
     while (_sentQueue.isNotEmpty &&
-        uint32Gte(_lastSackedTsn, _sentQueue.first.tsn)) {
+        uint32Gte(_lastSackedTsn!, _sentQueue.first.tsn)) {
       final sChunk = _sentQueue.removeAt(0);
       done++;
       if (!sChunk.acked) {
         doneBytes += sChunk.bookSize;
         _flightSizeDecrease(sChunk);
       }
+
+      // Decrement buffered amount for this stream
+      _decrementBufferedAmount(sChunk);
 
       // Update RTO based on first ACKed chunk that was sent only once
       if (done == 1 && sChunk.sentCount == 1 && sChunk.sentTime != null) {
@@ -1459,6 +1489,29 @@ class SctpAssociation {
     _sackDuplicates.clear();
     _setState(SctpAssociationState.closed);
     _stateController.close();
+  }
+
+  // === Buffered Amount Tracking ===
+
+  /// Get buffered amount for a stream (bytes queued but not yet ACKed)
+  int getBufferedAmount(int streamId) {
+    return _streamBufferedAmount[streamId] ?? 0;
+  }
+
+  /// Update buffered amount for a stream and fire callback
+  void _updateBufferedAmount(int streamId, int delta) {
+    final oldAmount = _streamBufferedAmount[streamId] ?? 0;
+    final newAmount = (oldAmount + delta).clamp(0, 0x7FFFFFFFFFFFFFFF);
+    _streamBufferedAmount[streamId] = newAmount;
+
+    if (newAmount != oldAmount) {
+      onBufferedAmountChange?.call(streamId, newAmount);
+    }
+  }
+
+  /// Decrement buffered amount when chunk is ACKed
+  void _decrementBufferedAmount(_SentChunk chunk) {
+    _updateBufferedAmount(chunk.chunk.streamId, -chunk.chunk.userData.length);
   }
 
   /// Generate verification tag

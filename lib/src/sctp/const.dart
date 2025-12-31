@@ -178,7 +178,8 @@ class SctpConstants {
   static const int userDataMaxLength = 1024;
 
   /// Initial congestion window (cwnd)
-  static const int initialCwnd = 4380; // 3 * MTU typical
+  /// Note: Increased from RFC default (4380) for better real-time performance
+  static const int initialCwnd = 65536; // 64KB - allows ~50 frames before SACKs needed
 
   /// RTO alpha for SRTT calculation
   static const double rtoAlpha = 0.125;

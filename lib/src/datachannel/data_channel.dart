@@ -73,6 +73,48 @@ class DataChannel {
   final StreamController<DataChannelState> _stateController =
       StreamController.broadcast();
 
+  /// Buffered amount low stream controller
+  /// Reference: werift-webrtc bufferedAmountLow Event
+  final StreamController<void> _bufferedAmountLowController =
+      StreamController.broadcast();
+
+  /// Threshold for bufferedAmountLow event
+  /// Reference: werift-webrtc bufferedAmountLowThreshold property
+  int _bufferedAmountLowThreshold = 0;
+
+  /// Previous buffered amount (for detecting threshold crossing)
+  int _previousBufferedAmount = 0;
+
+  /// Get current buffered amount from SCTP association
+  /// This reflects bytes queued but not yet ACKed
+  int get bufferedAmount => _association.getBufferedAmount(streamId);
+
+  /// Get buffered amount low threshold
+  int get bufferedAmountLowThreshold => _bufferedAmountLowThreshold;
+
+  /// Set buffered amount low threshold
+  set bufferedAmountLowThreshold(int value) {
+    if (value < 0 || value > 4294967295) {
+      throw ArgumentError(
+          'bufferedAmountLowThreshold must be in range 0 - 4294967295');
+    }
+    _bufferedAmountLowThreshold = value;
+  }
+
+  /// Stream of buffered amount low events
+  Stream<void> get onBufferedAmountLow => _bufferedAmountLowController.stream;
+
+  /// Handle buffered amount change from SCTP association
+  /// Fires onBufferedAmountLow when crossing threshold from above
+  void handleBufferedAmountChange(int newAmount) {
+    final crossesThreshold = _previousBufferedAmount > _bufferedAmountLowThreshold &&
+        newAmount <= _bufferedAmountLowThreshold;
+    _previousBufferedAmount = newAmount;
+    if (crossesThreshold) {
+      _bufferedAmountLowController.add(null);
+    }
+  }
+
   /// Ordered delivery
   bool get ordered => channelType.isOrdered;
 
@@ -205,6 +247,7 @@ class DataChannel {
         ? SctpPpid.webrtcStringEmpty.value
         : SctpPpid.webrtcString.value;
 
+    // bufferedAmount is tracked at SCTP level via onBufferedAmountChange callback
     await _association.sendData(
       streamId: streamId,
       data: data,
@@ -225,6 +268,7 @@ class DataChannel {
         ? SctpPpid.webrtcBinaryEmpty.value
         : SctpPpid.webrtcBinary.value;
 
+    // bufferedAmount is tracked at SCTP level via onBufferedAmountChange callback
     await _association.sendData(
       streamId: streamId,
       data: message,
@@ -296,6 +340,7 @@ class DataChannel {
     await _messageController.close();
     await _errorController.close();
     await _stateController.close();
+    await _bufferedAmountLowController.close();
   }
 
   @override
@@ -356,9 +401,16 @@ class ProxyDataChannel {
       StreamController.broadcast();
   final StreamController<DataChannelState> _stateController =
       StreamController.broadcast();
+  final StreamController<void> _bufferedAmountLowController =
+      StreamController.broadcast();
 
   /// Completer for when channel is ready
   final Completer<DataChannel> _readyCompleter = Completer<DataChannel>();
+
+  /// Buffered amount tracking (before real channel exists)
+  /// Note: _bufferedAmount is always 0 for proxy since sends are queued
+  final int _bufferedAmount = 0;
+  int _bufferedAmountLowThreshold = 0;
 
   ProxyDataChannel({
     required String label,
@@ -401,6 +453,26 @@ class ProxyDataChannel {
 
   bool get reliable => _realChannel?.reliable ?? channelType.isReliable;
 
+  /// Get current buffered amount
+  int get bufferedAmount => _realChannel?.bufferedAmount ?? _bufferedAmount;
+
+  /// Get buffered amount low threshold
+  int get bufferedAmountLowThreshold =>
+      _realChannel?.bufferedAmountLowThreshold ?? _bufferedAmountLowThreshold;
+
+  /// Set buffered amount low threshold
+  set bufferedAmountLowThreshold(int value) {
+    if (value < 0 || value > 4294967295) {
+      throw ArgumentError(
+          'bufferedAmountLowThreshold must be in range 0 - 4294967295');
+    }
+    if (_realChannel != null) {
+      _realChannel!.bufferedAmountLowThreshold = value;
+    } else {
+      _bufferedAmountLowThreshold = value;
+    }
+  }
+
   Stream<dynamic> get onMessage =>
       _realChannel?.onMessage ?? _messageController.stream;
 
@@ -409,6 +481,9 @@ class ProxyDataChannel {
 
   Stream<DataChannelState> get onStateChange =>
       _realChannel?.onStateChange ?? _stateController.stream;
+
+  Stream<void> get onBufferedAmountLow =>
+      _realChannel?.onBufferedAmountLow ?? _bufferedAmountLowController.stream;
 
   /// Future that completes when channel is ready
   Future<DataChannel> get ready => _readyCompleter.future;
@@ -424,6 +499,11 @@ class ProxyDataChannel {
     if (_realChannel != null) return;
 
     _realChannel = channel;
+
+    // Transfer bufferedAmountLowThreshold to real channel
+    if (_bufferedAmountLowThreshold > 0) {
+      channel.bufferedAmountLowThreshold = _bufferedAmountLowThreshold;
+    }
 
     // Forward events from real channel to our controllers
     channel.onMessage.listen((msg) {
@@ -445,6 +525,11 @@ class ProxyDataChannel {
       // Send queued messages when channel opens
       if (newState == DataChannelState.open && _pendingMessages.isNotEmpty) {
         _flushPendingMessages();
+      }
+    });
+    channel.onBufferedAmountLow.listen((_) {
+      if (!_isClosed && !_bufferedAmountLowController.isClosed) {
+        _bufferedAmountLowController.add(null);
       }
     });
 
@@ -512,6 +597,7 @@ class ProxyDataChannel {
     await _messageController.close();
     await _errorController.close();
     await _stateController.close();
+    await _bufferedAmountLowController.close();
   }
 
   @override

@@ -8,10 +8,20 @@ All notable changes to this project will be documented in this file.
 
 - **SCTP fragment reassembly** - Fixed critical bug where fragmented SCTP messages (>1024 bytes) were silently dropped. DataChannel messages larger than `userDataMaxLength` (1024 bytes) are now properly reassembled from multiple DATA chunks.
 - **Forward TSN reassembly integration** - Added missing reassembly logic to `_handleForwardTsn`: advances stream sequence numbers, delivers pending messages, and prunes obsolete chunks from all inbound streams.
+- **SCTP flow control improvements** - Multiple fixes for real-time streaming:
+  - Non-blocking `sendData()`: Removed blocking that caused complete stalls when T3 timer was running
+  - Congestion window check for new chunks: Added missing cwnd check in `_transmit()` to prevent flooding
+  - First SACK handling: Fixed `_lastSackedTsn` to be nullable, accepting first SACK correctly
+  - Increased initial cwnd from 4380 to 65536 bytes for better real-time performance
 
 ### Added
 
 - **InboundStream class** - New `lib/src/sctp/inbound_stream.dart` implementing per-stream fragment reassembly matching werift's `InboundStream` pattern. Handles ordered/unordered delivery, out-of-order chunks, and TSN wraparound.
+- **DataChannel bufferedAmount API** - Per W3C WebRTC spec:
+  - `bufferedAmount`: Returns bytes queued but not yet ACKed (tracked at SCTP level per-stream)
+  - `bufferedAmountLowThreshold`: Configurable threshold for flow control
+  - `onBufferedAmountLow`: Event fires when buffer drains below threshold
+  - Applications can wait for `bufferedAmount == 0` before disconnecting to ensure all data is delivered
 
 ### Tests
 

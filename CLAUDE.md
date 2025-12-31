@@ -248,12 +248,18 @@ Each layer should be validated independently before building on top of it.
 ## Versioning & CHANGELOG
 
 - Use [Semantic Versioning](https://semver.org): `MAJOR.MINOR.PATCH`
-- Update `CHANGELOG.md` for each version change under appropriate sections: Added, Changed, Fixed, Removed
+- **IMPORTANT**: When releasing a new version, update ALL files with version references:
+  - `pubspec.yaml` - version field
+  - `README.md` - installation example (`webrtc_dart: ^X.Y.Z`)
+  - `CHANGELOG.md` - add new version section
+  - `REFACTOR.md` - test count if changed
+  - `CLAUDE.md` - test count if changed
 - Tag the release in Git:
   ```bash
   git tag -a vX.Y.Z -m "Release version X.Y.Z"
   git push origin vX.Y.Z
   ```
+- Publish to pub.dev: `dart pub publish`
 
 ---
 

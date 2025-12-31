@@ -21,7 +21,7 @@ Add to your `pubspec.yaml`:
 
 ```yaml
 dependencies:
-  webrtc_dart: ^0.22.9
+  webrtc_dart: ^0.22.10
 ```
 
 Then run:

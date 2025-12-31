@@ -26,8 +26,10 @@ class IceTrickleRecreatePcServer {
 
   Future<void> _handleRequest(HttpRequest request) async {
     request.response.headers.add('Access-Control-Allow-Origin', '*');
-    request.response.headers.add('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
-    request.response.headers.add('Access-Control-Allow-Headers', 'Content-Type');
+    request.response.headers
+        .add('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
+    request.response.headers
+        .add('Access-Control-Allow-Headers', 'Content-Type');
 
     if (request.method == 'OPTIONS') {
       request.response.statusCode = 200;
@@ -95,7 +97,9 @@ class IceTrickleRecreatePcServer {
 
     // Create FIRST PC here (like ice_trickle_with_connect)
     final firstPc = RtcPeerConnection(RtcConfiguration(
-      iceServers: [IceServer(urls: ['stun:stun.l.google.com:19302'])],
+      iceServers: [
+        IceServer(urls: ['stun:stun.l.google.com:19302'])
+      ],
     ));
     print('[Recreate] Created FIRST PeerConnection');
 
@@ -119,7 +123,9 @@ class IceTrickleRecreatePcServer {
 
     // Create peer connection HERE
     _pc = RtcPeerConnection(RtcConfiguration(
-      iceServers: [IceServer(urls: ['stun:stun.l.google.com:19302'])],
+      iceServers: [
+        IceServer(urls: ['stun:stun.l.google.com:19302'])
+      ],
     ));
     print('[Recreate] SECOND PeerConnection created');
 

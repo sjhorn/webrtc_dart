@@ -412,7 +412,8 @@ class RtcPeerConnection {
   PeerConnectionState get connectionState => _secureManager.connectionState;
 
   /// Get ICE connection state (delegated to SecureTransportManager)
-  IceConnectionState get iceConnectionState => _secureManager.iceConnectionState;
+  IceConnectionState get iceConnectionState =>
+      _secureManager.iceConnectionState;
 
   /// Get ICE gathering state (delegated to SecureTransportManager)
   IceGatheringState get iceGatheringState => _secureManager.iceGatheringState;
@@ -958,8 +959,8 @@ class RtcPeerConnection {
             // Match if MID is null OR if MID doesn't match any remote m-line
             // (meaning it was assigned locally but not yet negotiated)
             (t.mid == null ||
-                !sdpMessage.mediaDescriptions.any(
-                    (m) => m.getAttributeValue('mid') == t.mid)));
+                !sdpMessage.mediaDescriptions
+                    .any((m) => m.getAttributeValue('mid') == t.mid)));
 
         if (existingTransceiver != null) {
           // Found a pre-created transceiver by kind - migrate it to the new MID
@@ -994,7 +995,8 @@ class RtcPeerConnection {
         matchedTransceivers.add(existingTransceiver);
 
         // Configure transceiver with header extensions and simulcast from remote SDP
-        _transceiverManager.setRemoteRTP(existingTransceiver, media, _rtpRouter);
+        _transceiverManager.setRemoteRTP(
+            existingTransceiver, media, _rtpRouter);
 
         // Emit the transceiver so the application can listen to the received track
         _trackController.add(existingTransceiver);
@@ -1789,8 +1791,7 @@ class RtcPeerConnection {
     try {
       // RTCP header: VV PT(8) length(16) SSRC(32)
       // SSRC is at bytes 4-7
-      final ssrc =
-          (data[4] << 24) | (data[5] << 16) | (data[6] << 8) | data[7];
+      final ssrc = (data[4] << 24) | (data[5] << 16) | (data[6] << 8) | data[7];
 
       // Route by SSRC to the appropriate session
       final session = _findSessionBySsrc(ssrc);
@@ -1840,7 +1841,8 @@ class RtcPeerConnection {
   }
 
   /// Get all transceivers
-  List<RtpTransceiver> getTransceivers() => _transceiverManager.getTransceivers();
+  List<RtpTransceiver> getTransceivers() =>
+      _transceiverManager.getTransceivers();
 
   /// Get all transceivers (getter form)
   List<RtpTransceiver> get transceivers => _transceiverManager.transceivers;

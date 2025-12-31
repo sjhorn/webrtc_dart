@@ -129,7 +129,9 @@ class SaveToDiskPacketlossServer {
 
     // Create peer connection with VP8 codec configured with NACK/PLI
     _pc = RtcPeerConnection(RtcConfiguration(
-      iceServers: [IceServer(urls: ['stun:stun.l.google.com:19302'])],
+      iceServers: [
+        IceServer(urls: ['stun:stun.l.google.com:19302'])
+      ],
       codecs: RtcCodecs(
         video: [
           // VP8 with explicit RTCP feedback for packet loss recovery
@@ -137,7 +139,8 @@ class SaveToDiskPacketlossServer {
             payloadType: 96,
             rtcpFeedback: [
               RtcpFeedbackTypes.nack, // Request retransmission of lost packets
-              RtcpFeedbackTypes.pli, // Request keyframe (Picture Loss Indication)
+              RtcpFeedbackTypes
+                  .pli, // Request keyframe (Picture Loss Indication)
               RtcpFeedbackTypes.remb, // Receiver Estimated Max Bitrate
             ],
           ),

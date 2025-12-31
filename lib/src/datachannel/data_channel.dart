@@ -103,7 +103,8 @@ class DataChannel {
 
   /// Open the data channel (send DCEP OPEN)
   Future<void> open() async {
-    _log.fine('DataChannel.open() called: label=$label, streamId=$streamId, state=$_state');
+    _log.fine(
+        'DataChannel.open() called: label=$label, streamId=$streamId, state=$_state');
     if (_state != DataChannelState.connecting) {
       throw StateError('DataChannel already opened or closed');
     }

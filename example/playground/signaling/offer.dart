@@ -37,14 +37,18 @@ void main() async {
 
       // Create peer connection for this client
       final pc = RtcPeerConnection(RtcConfiguration(
-        iceServers: [IceServer(urls: ['stun:stun.l.google.com:19302'])],
+        iceServers: [
+          IceServer(urls: ['stun:stun.l.google.com:19302'])
+        ],
       ));
       peers[peerId] = pc;
 
       // Log all state changes
-      pc.onConnectionStateChange.listen((s) => print('[$peerId] Connection: $s'));
+      pc.onConnectionStateChange
+          .listen((s) => print('[$peerId] Connection: $s'));
       pc.onIceConnectionStateChange.listen((s) => print('[$peerId] ICE: $s'));
-      pc.onIceGatheringStateChange.listen((s) => print('[$peerId] Gathering: $s'));
+      pc.onIceGatheringStateChange
+          .listen((s) => print('[$peerId] Gathering: $s'));
 
       // Forward ICE candidates
       pc.onIceCandidate.listen((candidate) {
@@ -52,7 +56,8 @@ void main() async {
         socket.add(json.encode({
           'type': 'candidate',
           'candidate': {
-            'candidate': '${candidate.foundation} ${candidate.component} ${candidate.transport} ${candidate.priority} ${candidate.host} ${candidate.port} typ ${candidate.type}',
+            'candidate':
+                '${candidate.foundation} ${candidate.component} ${candidate.transport} ${candidate.priority} ${candidate.host} ${candidate.port} typ ${candidate.type}',
             'sdpMid': '0',
             'sdpMLineIndex': 0,
           },
@@ -135,7 +140,7 @@ void _handleMessage(
         // ignore: unused_local_variable
         final candidate = msg['candidate'] as Map<String, dynamic>;
         print('[$peerId] Adding remote ICE candidate');
-        // Parse and add candidate...
+      // Parse and add candidate...
 
       default:
         print('[$peerId] Unknown message type: $type');

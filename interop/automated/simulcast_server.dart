@@ -129,7 +129,9 @@ class SimulcastServer {
 
     // Create peer connection with simulcast support
     _pc = RtcPeerConnection(RtcConfiguration(
-      iceServers: [IceServer(urls: ['stun:stun.l.google.com:19302'])],
+      iceServers: [
+        IceServer(urls: ['stun:stun.l.google.com:19302'])
+      ],
       codecs: RtcCodecs(
         video: [
           createVp8Codec(
@@ -175,7 +177,8 @@ class SimulcastServer {
     );
     // Add simulcast layers for receiving
     _transceiver!.addSimulcastLayer(
-      RTCRtpSimulcastParameters(rid: 'high', direction: SimulcastDirection.recv),
+      RTCRtpSimulcastParameters(
+          rid: 'high', direction: SimulcastDirection.recv),
     );
     _transceiver!.addSimulcastLayer(
       RTCRtpSimulcastParameters(rid: 'mid', direction: SimulcastDirection.recv),
@@ -222,7 +225,8 @@ class SimulcastServer {
 
       // Listen for new simulcast layer tracks
       transceiver.receiver.onTrack = (simulcastTrack) {
-        print('[Simulcast] New simulcast layer track: ${simulcastTrack.id}, RID: ${simulcastTrack.rid}');
+        print(
+            '[Simulcast] New simulcast layer track: ${simulcastTrack.id}, RID: ${simulcastTrack.rid}');
         listenToTrack(simulcastTrack);
       };
 

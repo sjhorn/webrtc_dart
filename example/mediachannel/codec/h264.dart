@@ -14,7 +14,9 @@ void main() async {
   print('=' * 50);
 
   final pc = RtcPeerConnection(RtcConfiguration(
-    iceServers: [IceServer(urls: ['stun:stun.l.google.com:19302'])],
+    iceServers: [
+      IceServer(urls: ['stun:stun.l.google.com:19302'])
+    ],
   ));
 
   pc.onConnectionStateChange.listen((state) {
@@ -58,7 +60,9 @@ void main() async {
   print('\n--- H.264 Offer SDP ---');
   final sdpLines = offer.sdp.split('\n');
   for (final line in sdpLines) {
-    if (line.contains('H264') || line.contains('h264') || line.startsWith('m=video')) {
+    if (line.contains('H264') ||
+        line.contains('h264') ||
+        line.startsWith('m=video')) {
       print(line);
     }
   }

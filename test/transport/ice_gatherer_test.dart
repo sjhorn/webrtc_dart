@@ -46,7 +46,8 @@ void main() {
       final str = params.toString();
       expect(str, contains('myUfrag'));
       expect(str, contains('mySe...')); // First 4 chars of password
-      expect(str.contains('mySecretPassword'), false); // Full password not shown
+      expect(
+          str.contains('mySecretPassword'), false); // Full password not shown
     });
   });
 

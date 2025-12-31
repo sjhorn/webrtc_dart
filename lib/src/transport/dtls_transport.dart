@@ -62,7 +62,8 @@ class RtcDtlsFingerprint {
   });
 
   @override
-  String toString() => 'RtcDtlsFingerprint($algorithm: ${value.substring(0, 20)}...)';
+  String toString() =>
+      'RtcDtlsFingerprint($algorithm: ${value.substring(0, 20)}...)';
 }
 
 /// DTLS parameters for negotiation
@@ -185,7 +186,8 @@ class RtcDtlsTransport {
       return RtcDtlsParameters(fingerprints: [], role: role);
     }
 
-    final fingerprint = computeCertificateFingerprint(localCertificate!.certificate);
+    final fingerprint =
+        computeCertificateFingerprint(localCertificate!.certificate);
     return RtcDtlsParameters(
       fingerprints: [
         RtcDtlsFingerprint(algorithm: 'sha-256', value: fingerprint),
@@ -493,7 +495,8 @@ class RtcDtlsTransport {
     }
   }
 
-  String get _debugPrefix => '[RtcDtlsTransport${debugLabel.isNotEmpty ? ":$debugLabel" : ""}]';
+  String get _debugPrefix =>
+      '[RtcDtlsTransport${debugLabel.isNotEmpty ? ":$debugLabel" : ""}]';
 }
 
 /// Adapter that bridges ICE connection to DTLS transport interface

@@ -13,7 +13,9 @@ void main() async {
   print('=' * 50);
 
   final pc = RtcPeerConnection(RtcConfiguration(
-    iceServers: [IceServer(urls: ['stun:stun.l.google.com:19302'])],
+    iceServers: [
+      IceServer(urls: ['stun:stun.l.google.com:19302'])
+    ],
   ));
 
   // Add transceivers for video and audio
@@ -97,7 +99,8 @@ void main() async {
       print('\n  [$mediaType]');
       print('    $line');
       inMedia = true;
-    } else if (inMedia && (line.startsWith('a=rtpmap:') || line.startsWith('a=fmtp:'))) {
+    } else if (inMedia &&
+        (line.startsWith('a=rtpmap:') || line.startsWith('a=fmtp:'))) {
       print('    $line');
     }
   }

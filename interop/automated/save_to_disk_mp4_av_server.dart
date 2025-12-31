@@ -165,13 +165,16 @@ class SaveToDiskMp4AvServer {
     _outputSub = _container!.onData.listen((data) {
       _outputChunks.add(data.data);
       if (data.type == Mp4DataType.init) {
-        print('[SaveToDisk-MP4-AV] MP4 init segment: ${data.data.length} bytes');
+        print(
+            '[SaveToDisk-MP4-AV] MP4 init segment: ${data.data.length} bytes');
       }
     });
 
     // Create peer connection with STUN server
     _pc = RtcPeerConnection(RtcConfiguration(
-      iceServers: [IceServer(urls: ['stun:stun.l.google.com:19302'])],
+      iceServers: [
+        IceServer(urls: ['stun:stun.l.google.com:19302'])
+      ],
       codecs: RtcCodecs(
         video: [
           createH264Codec(
@@ -393,7 +396,10 @@ class SaveToDiskMp4AvServer {
   }
 
   void _tryInitializeVideoTrack() {
-    if (_videoInitialized || _sps == null || _pps == null || _container == null) {
+    if (_videoInitialized ||
+        _sps == null ||
+        _pps == null ||
+        _container == null) {
       return;
     }
 

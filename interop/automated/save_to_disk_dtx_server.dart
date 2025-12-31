@@ -143,7 +143,9 @@ class SaveToDiskDtxServer {
 
     // Create peer connection with VP8 video and Opus audio (DTX enabled)
     _pc = RtcPeerConnection(RtcConfiguration(
-      iceServers: [IceServer(urls: ['stun:stun.l.google.com:19302'])],
+      iceServers: [
+        IceServer(urls: ['stun:stun.l.google.com:19302'])
+      ],
     ));
     print('[SaveToDisk-DTX] PeerConnection created');
 
@@ -330,8 +332,7 @@ class SaveToDiskDtxServer {
             RegExp(r'a=fmtp:111 ([^\r\n]+)'), r'a=fmtp:111 $1;usedtx=1');
       } else {
         // Add fmtp line after rtpmap
-        sdp = sdp.replaceFirst(
-            'a=rtpmap:111 opus/48000/2',
+        sdp = sdp.replaceFirst('a=rtpmap:111 opus/48000/2',
             'a=rtpmap:111 opus/48000/2\r\na=fmtp:111 minptime=10;useinbandfec=1;usedtx=1');
       }
       print('[SaveToDisk-DTX] Added usedtx=1 to SDP');

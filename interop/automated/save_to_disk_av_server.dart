@@ -127,7 +127,9 @@ class SaveToDiskAVServer {
 
     // Create peer connection with VP8 video and Opus audio
     _pc = RtcPeerConnection(RtcConfiguration(
-      iceServers: [IceServer(urls: ['stun:stun.l.google.com:19302'])],
+      iceServers: [
+        IceServer(urls: ['stun:stun.l.google.com:19302'])
+      ],
     ));
     print('[SaveToDisk-AV] PeerConnection created');
 

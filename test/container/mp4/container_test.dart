@@ -451,7 +451,14 @@ void main() {
     test('createAvccFromSpsPps creates basic avcC for Baseline', () {
       // Baseline Profile SPS/PPS
       final sps = Uint8List.fromList([
-        0x67, 0x42, 0xC0, 0x1E, 0xD9, 0x00, 0xA0, 0x27,
+        0x67,
+        0x42,
+        0xC0,
+        0x1E,
+        0xD9,
+        0x00,
+        0xA0,
+        0x27,
       ]);
       final pps = Uint8List.fromList([0x68, 0xCE, 0x3C, 0x80]);
 
@@ -493,8 +500,10 @@ void main() {
       // Check extra field format (last 4 bytes)
       final extraStart = baseLen;
       expect(avcc[extraStart] & 0xFC, equals(0xFC)); // reserved bits + chroma
-      expect(avcc[extraStart + 1] & 0xF8, equals(0xF8)); // reserved + bit_depth_luma
-      expect(avcc[extraStart + 2] & 0xF8, equals(0xF8)); // reserved + bit_depth_chroma
+      expect(avcc[extraStart + 1] & 0xF8,
+          equals(0xF8)); // reserved + bit_depth_luma
+      expect(avcc[extraStart + 2] & 0xF8,
+          equals(0xF8)); // reserved + bit_depth_chroma
       expect(avcc[extraStart + 3], equals(0)); // numSpsExt
     });
 

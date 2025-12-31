@@ -19,7 +19,8 @@ void main() {
 
         final buffer = ByteData.sublistView(bytes);
         // Parameter type
-        expect(buffer.getUint16(0), equals(ReconfigParamType.addOutgoingStreams));
+        expect(
+            buffer.getUint16(0), equals(ReconfigParamType.addOutgoingStreams));
         // Parameter length
         expect(buffer.getUint16(2), equals(12));
         // Request sequence

@@ -206,13 +206,17 @@ class WebmContainer {
     return ebmlElement(EbmlId.contentEncodings, [
       ebmlElement(EbmlId.contentEncoding, [
         ebmlElement(EbmlId.contentEncodingOrder, ebmlNumber(0)),
-        ebmlElement(EbmlId.contentEncodingScope, ebmlNumber(1)), // 1 = All frame contents
-        ebmlElement(EbmlId.contentEncodingType, ebmlNumber(1)), // 1 = Encryption
+        ebmlElement(EbmlId.contentEncodingScope,
+            ebmlNumber(1)), // 1 = All frame contents
+        ebmlElement(
+            EbmlId.contentEncodingType, ebmlNumber(1)), // 1 = Encryption
         ebmlElement(EbmlId.contentEncryption, [
-          ebmlElement(EbmlId.contentEncAlgo, ebmlNumber(ContentEncAlgorithm.aes)),
+          ebmlElement(
+              EbmlId.contentEncAlgo, ebmlNumber(ContentEncAlgorithm.aes)),
           ebmlElement(EbmlId.contentEncKeyId, ebmlBytes(_encryptionKeyId!)),
           ebmlElement(EbmlId.contentEncAesSettings, [
-            ebmlElement(EbmlId.aesSettingsCipherMode, ebmlNumber(AesCipherMode.ctr)),
+            ebmlElement(
+                EbmlId.aesSettingsCipherMode, ebmlNumber(AesCipherMode.ctr)),
           ]),
         ]),
       ]),
@@ -300,8 +304,7 @@ class WebmContainer {
     int relativeTimestamp,
   ) {
     if (isEncrypted) {
-      throw StateError(
-          'Use createSimpleBlockAsync for encrypted containers');
+      throw StateError('Use createSimpleBlockAsync for encrypted containers');
     }
     return _buildSimpleBlock(frame, isKeyframe, trackNumber, relativeTimestamp);
   }
@@ -319,12 +322,14 @@ class WebmContainer {
     int relativeTimestamp,
   ) async {
     if (!isEncrypted) {
-      return _buildSimpleBlock(frame, isKeyframe, trackNumber, relativeTimestamp);
+      return _buildSimpleBlock(
+          frame, isKeyframe, trackNumber, relativeTimestamp);
     }
 
     // Encrypt the frame using AES-128-CTR
     final encryptedFrame = await _encryptFrame(frame, trackNumber);
-    return _buildSimpleBlock(encryptedFrame, isKeyframe, trackNumber, relativeTimestamp);
+    return _buildSimpleBlock(
+        encryptedFrame, isKeyframe, trackNumber, relativeTimestamp);
   }
 
   /// Encrypt a frame using AES-128-CTR

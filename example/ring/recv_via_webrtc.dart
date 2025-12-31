@@ -80,7 +80,6 @@ void _runWithFilteredOutput(void Function() body) {
   }
 }
 
-
 /// Debug logging helper - only prints when RING_DEBUG=1
 void _log(String message) {
   if (_debug) print(message);

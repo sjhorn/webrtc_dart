@@ -126,7 +126,9 @@ class MultiClientRecvonlyServer {
 
     // Create peer connection for this client
     final pc = RtcPeerConnection(RtcConfiguration(
-      iceServers: [IceServer(urls: ['stun:stun.l.google.com:19302'])],
+      iceServers: [
+        IceServer(urls: ['stun:stun.l.google.com:19302'])
+      ],
     ));
 
     final client = ClientConnection(clientId, pc);
@@ -313,8 +315,8 @@ class MultiClientRecvonlyServer {
   Future<void> _handleResult(HttpRequest request) async {
     final connectedClients = _clients.values.where((c) => c.isConnected).length;
     final clientsWithTrack = _clients.values.where((c) => c.hasTrack).length;
-    final totalRtpReceived = _clients.values
-        .fold<int>(0, (sum, c) => sum + c.rtpPacketsReceived);
+    final totalRtpReceived =
+        _clients.values.fold<int>(0, (sum, c) => sum + c.rtpPacketsReceived);
 
     // Success if we had multiple clients connect and send video
     final success = _maxConcurrentClients >= 2 &&

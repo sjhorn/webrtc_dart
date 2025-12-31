@@ -148,7 +148,9 @@ class DartSignalingServer {
 
     // Create peer connection with STUN server for Firefox compatibility
     _pc = RtcPeerConnection(RtcConfiguration(
-      iceServers: [IceServer(urls: ['stun:stun.l.google.com:19302'])],
+      iceServers: [
+        IceServer(urls: ['stun:stun.l.google.com:19302'])
+      ],
     ));
     print('[Server] PeerConnection created');
 

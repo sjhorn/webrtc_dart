@@ -10,7 +10,10 @@ void main() {
       test('constructor accepts 16-byte encryption key', () {
         final key = randomBytes(16);
         final container = WebmContainer(
-          [WebmTrack(trackNumber: 1, kind: TrackKind.video, codec: WebmCodec.vp8)],
+          [
+            WebmTrack(
+                trackNumber: 1, kind: TrackKind.video, codec: WebmCodec.vp8)
+          ],
           encryptionKey: key,
         );
 
@@ -21,7 +24,10 @@ void main() {
       test('constructor rejects non-16-byte encryption key', () {
         expect(
           () => WebmContainer(
-            [WebmTrack(trackNumber: 1, kind: TrackKind.video, codec: WebmCodec.vp8)],
+            [
+              WebmTrack(
+                  trackNumber: 1, kind: TrackKind.video, codec: WebmCodec.vp8)
+            ],
             encryptionKey: Uint8List(8), // Too short
           ),
           throwsArgumentError,
@@ -29,7 +35,10 @@ void main() {
 
         expect(
           () => WebmContainer(
-            [WebmTrack(trackNumber: 1, kind: TrackKind.video, codec: WebmCodec.vp8)],
+            [
+              WebmTrack(
+                  trackNumber: 1, kind: TrackKind.video, codec: WebmCodec.vp8)
+            ],
             encryptionKey: Uint8List(32), // Too long
           ),
           throwsArgumentError,
@@ -38,7 +47,10 @@ void main() {
 
       test('isEncrypted is false without key', () {
         final container = WebmContainer(
-          [WebmTrack(trackNumber: 1, kind: TrackKind.video, codec: WebmCodec.vp8)],
+          [
+            WebmTrack(
+                trackNumber: 1, kind: TrackKind.video, codec: WebmCodec.vp8)
+          ],
         );
 
         expect(container.isEncrypted, isFalse);
@@ -47,7 +59,10 @@ void main() {
       test('createSimpleBlock throws when encrypted', () {
         final key = randomBytes(16);
         final container = WebmContainer(
-          [WebmTrack(trackNumber: 1, kind: TrackKind.video, codec: WebmCodec.vp8)],
+          [
+            WebmTrack(
+                trackNumber: 1, kind: TrackKind.video, codec: WebmCodec.vp8)
+          ],
           encryptionKey: key,
         );
 
@@ -59,7 +74,10 @@ void main() {
 
       test('createSimpleBlockAsync works without encryption', () async {
         final container = WebmContainer(
-          [WebmTrack(trackNumber: 1, kind: TrackKind.video, codec: WebmCodec.vp8)],
+          [
+            WebmTrack(
+                trackNumber: 1, kind: TrackKind.video, codec: WebmCodec.vp8)
+          ],
         );
 
         final frame = Uint8List.fromList(List.generate(100, (i) => i));
@@ -73,7 +91,10 @@ void main() {
       test('createSimpleBlockAsync encrypts frame data', () async {
         final key = randomBytes(16);
         final container = WebmContainer(
-          [WebmTrack(trackNumber: 1, kind: TrackKind.video, codec: WebmCodec.vp8)],
+          [
+            WebmTrack(
+                trackNumber: 1, kind: TrackKind.video, codec: WebmCodec.vp8)
+          ],
           encryptionKey: key,
         );
 
@@ -84,19 +105,25 @@ void main() {
         // Encrypted block should be larger (signal byte + IV + encrypted data)
         // Original: element ID + size + track + timestamp + flags + frame
         // Encrypted: element ID + size + track + timestamp + flags + signal + IV + encrypted
-        expect(block.length, greaterThan(frame.length + 9)); // +9 for signal + IV
+        expect(
+            block.length, greaterThan(frame.length + 9)); // +9 for signal + IV
       });
 
       test('encrypted blocks have unique IVs', () async {
         final key = randomBytes(16);
         final container = WebmContainer(
-          [WebmTrack(trackNumber: 1, kind: TrackKind.video, codec: WebmCodec.vp8)],
+          [
+            WebmTrack(
+                trackNumber: 1, kind: TrackKind.video, codec: WebmCodec.vp8)
+          ],
           encryptionKey: key,
         );
 
         final frame = Uint8List.fromList([1, 2, 3, 4, 5]);
-        final block1 = await container.createSimpleBlockAsync(frame, true, 1, 0);
-        final block2 = await container.createSimpleBlockAsync(frame, true, 1, 10);
+        final block1 =
+            await container.createSimpleBlockAsync(frame, true, 1, 0);
+        final block2 =
+            await container.createSimpleBlockAsync(frame, true, 1, 10);
 
         // Blocks should be different due to different IVs
         expect(block1, isNot(equals(block2)));
@@ -107,7 +134,10 @@ void main() {
       test('segment includes ContentEncodings for encrypted tracks', () {
         final key = randomBytes(16);
         final container = WebmContainer(
-          [WebmTrack(trackNumber: 1, kind: TrackKind.video, codec: WebmCodec.vp8)],
+          [
+            WebmTrack(
+                trackNumber: 1, kind: TrackKind.video, codec: WebmCodec.vp8)
+          ],
           encryptionKey: key,
         );
 
@@ -123,7 +153,10 @@ void main() {
 
       test('segment does not include ContentEncodings without encryption', () {
         final container = WebmContainer(
-          [WebmTrack(trackNumber: 1, kind: TrackKind.video, codec: WebmCodec.vp8)],
+          [
+            WebmTrack(
+                trackNumber: 1, kind: TrackKind.video, codec: WebmCodec.vp8)
+          ],
         );
 
         final segment = container.createSegment();
@@ -166,8 +199,10 @@ void main() {
         final iv = randomBytes(16);
         final plaintext = Uint8List.fromList([1, 2, 3, 4, 5]);
 
-        final encrypted1 = await aesCtrEncrypt(key: key, iv: iv, plaintext: plaintext);
-        final encrypted2 = await aesCtrEncrypt(key: key, iv: iv, plaintext: plaintext);
+        final encrypted1 =
+            await aesCtrEncrypt(key: key, iv: iv, plaintext: plaintext);
+        final encrypted2 =
+            await aesCtrEncrypt(key: key, iv: iv, plaintext: plaintext);
 
         expect(encrypted1, equals(encrypted2));
       });

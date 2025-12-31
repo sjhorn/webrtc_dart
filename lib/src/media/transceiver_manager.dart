@@ -137,12 +137,10 @@ class TransceiverManager {
         if (payloadType != null) {
           final codecInfo = parts[1].split('/');
           final codecName = codecInfo.isNotEmpty ? codecInfo[0] : '';
-          final clockRate = codecInfo.length > 1
-              ? int.tryParse(codecInfo[1])
-              : null;
-          final channels = codecInfo.length > 2
-              ? int.tryParse(codecInfo[2])
-              : null;
+          final clockRate =
+              codecInfo.length > 1 ? int.tryParse(codecInfo[1]) : null;
+          final channels =
+              codecInfo.length > 2 ? int.tryParse(codecInfo[2]) : null;
 
           // Update sender's codec with negotiated payload type
           final mediaType = media.type == 'audio' ? 'audio' : 'video';

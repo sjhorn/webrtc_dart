@@ -131,7 +131,8 @@ void main() {
           RtcpBye(ssrcs: [0x12345678]),
           RtcpBye(ssrcs: [0x11111111, 0x22222222]),
           RtcpBye(ssrcs: [0xAABBCCDD], reason: 'Goodbye'),
-          RtcpBye(ssrcs: [0x11111111, 0x22222222, 0x33333333], reason: 'Leaving'),
+          RtcpBye(
+              ssrcs: [0x11111111, 0x22222222, 0x33333333], reason: 'Leaving'),
           RtcpBye(ssrcs: [0xDEADBEEF], reason: ''),
         ];
 

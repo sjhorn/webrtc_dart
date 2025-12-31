@@ -79,7 +79,8 @@ class SimulcastMultipleServer {
 
     // Add simulcast layers for receiving (high, low)
     transceiverA.addSimulcastLayer(
-      RTCRtpSimulcastParameters(rid: 'high', direction: SimulcastDirection.recv),
+      RTCRtpSimulcastParameters(
+          rid: 'high', direction: SimulcastDirection.recv),
     );
     transceiverA.addSimulcastLayer(
       RTCRtpSimulcastParameters(rid: 'low', direction: SimulcastDirection.recv),
@@ -106,7 +107,8 @@ class SimulcastMultipleServer {
 
     // Add simulcast layers for receiving (high, low)
     transceiverB.addSimulcastLayer(
-      RTCRtpSimulcastParameters(rid: 'high', direction: SimulcastDirection.recv),
+      RTCRtpSimulcastParameters(
+          rid: 'high', direction: SimulcastDirection.recv),
     );
     transceiverB.addSimulcastLayer(
       RTCRtpSimulcastParameters(rid: 'low', direction: SimulcastDirection.recv),

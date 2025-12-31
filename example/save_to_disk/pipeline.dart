@@ -36,7 +36,8 @@ class PipelineRecordingServer {
     print('');
     print('Pipeline architecture (like werift):');
     print('  Audio: RTP -> NtpTime -> Depacketize -> Lipsync -> WebM');
-    print('  Video: RTP -> JitterBuffer -> NtpTime -> Depacketize -> Lipsync -> WebM');
+    print(
+        '  Video: RTP -> JitterBuffer -> NtpTime -> Depacketize -> Lipsync -> WebM');
     print('');
 
     await for (final request in _httpServer!) {
@@ -54,7 +55,8 @@ class PipelineRecordingServer {
     print('[Server] Client connected');
 
     // Output path with timestamp (like werift: output-${Date.now()}.webm)
-    final outputPath = './pipeline-${DateTime.now().millisecondsSinceEpoch}.webm';
+    final outputPath =
+        './pipeline-${DateTime.now().millisecondsSinceEpoch}.webm';
 
     // Track subscriptions for cleanup
     StreamSubscription? videoRtpSub;

@@ -25,7 +25,9 @@ void main() async {
     print('[WS] Client connected');
 
     final pc = RtcPeerConnection(RtcConfiguration(
-      iceServers: [IceServer(urls: ['stun:stun.l.google.com:19302'])],
+      iceServers: [
+        IceServer(urls: ['stun:stun.l.google.com:19302'])
+      ],
     ));
 
     pc.onConnectionStateChange.listen((state) {
@@ -88,7 +90,7 @@ void _startSimulatedVideo(Map<String, nonstandard.MediaStreamTrack> tracks) {
   // Simulate different bitrates for each layer
   final intervals = {
     'high': Duration(milliseconds: 33), // 30fps
-    'mid': Duration(milliseconds: 50),  // 20fps
+    'mid': Duration(milliseconds: 50), // 20fps
     'low': Duration(milliseconds: 100), // 10fps
   };
 
@@ -98,6 +100,7 @@ void _startSimulatedVideo(Map<String, nonstandard.MediaStreamTrack> tracks) {
       // Would write real RTP packets here
       // entry.value.writeRtp(rtpPacket);
     });
-    print('[Video] Started ${entry.key} layer at ${1000 ~/ interval.inMilliseconds}fps');
+    print(
+        '[Video] Started ${entry.key} layer at ${1000 ~/ interval.inMilliseconds}fps');
   }
 }

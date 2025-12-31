@@ -29,7 +29,9 @@ void main() async {
     print('[WS] Client connected');
 
     final pc = RtcPeerConnection(RtcConfiguration(
-      iceServers: [IceServer(urls: ['stun:stun.l.google.com:19302'])],
+      iceServers: [
+        IceServer(urls: ['stun:stun.l.google.com:19302'])
+      ],
     ));
 
     pc.onIceConnectionStateChange.listen((state) {

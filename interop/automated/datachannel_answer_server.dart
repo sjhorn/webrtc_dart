@@ -117,7 +117,9 @@ class DataChannelAnswerServer {
 
     // Create peer connection (will wait for offer)
     _pc = RtcPeerConnection(RtcConfiguration(
-      iceServers: [IceServer(urls: ['stun:stun.l.google.com:19302'])],
+      iceServers: [
+        IceServer(urls: ['stun:stun.l.google.com:19302'])
+      ],
     ));
     print('[DC-Answer] PeerConnection created (waiting for offer)');
 
@@ -167,7 +169,8 @@ class DataChannelAnswerServer {
 
       channel.onMessage.listen((message) {
         _messagesReceived++;
-        final text = message is String ? message : 'binary(${(message as List).length})';
+        final text =
+            message is String ? message : 'binary(${(message as List).length})';
         _receivedMessages.add(text);
         print('[DC-Answer] Received: $text');
 

@@ -479,7 +479,8 @@ void main() {
       // RTX payload type is max(all codec PTs) + 1
       // With VP8=96, VP9=97, H264=98, RTX gets 99
       expect(rtxInfo.rtxPayloadType, 99,
-          reason: 'RTX payload type should be 99 (after VP8=96, VP9=97, H264=98)');
+          reason:
+              'RTX payload type should be 99 (after VP8=96, VP9=97, H264=98)');
       expect(rtxInfo.associatedPayloadType, 96);
 
       await pc.close();
@@ -603,8 +604,7 @@ void main() {
   });
 
   group('Nonstandard Track API (werift parity)', () {
-    test('addTransceiver creates transceiver with track wired',
-        () async {
+    test('addTransceiver creates transceiver with track wired', () async {
       final pc = RtcPeerConnection();
 
       // Create nonstandard track (like TypeScript werift MediaStreamTrack)

@@ -35,7 +35,8 @@ void main(List<String> args) async {
 Future<void> _handleRequest(HttpRequest request) async {
   // CORS headers for browser access
   request.response.headers.add('Access-Control-Allow-Origin', '*');
-  request.response.headers.add('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
+  request.response.headers
+      .add('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
   request.response.headers.add('Access-Control-Allow-Headers', 'Content-Type');
 
   if (request.method == 'OPTIONS') {
@@ -67,7 +68,9 @@ Future<void> _handleOffer(HttpRequest request) async {
     print('[Server] Received offer from browser');
 
     final pc = RtcPeerConnection(RtcConfiguration(
-      iceServers: [IceServer(urls: ['stun:stun.l.google.com:19302'])],
+      iceServers: [
+        IceServer(urls: ['stun:stun.l.google.com:19302'])
+      ],
     ));
 
     pc.onConnectionStateChange.listen((state) {

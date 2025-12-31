@@ -2,6 +2,22 @@
 
 All notable changes to this project will be documented in this file.
 
+## 0.22.12
+
+### Fixed
+
+- **SCTP fragment reassembly** - Fixed critical bug where fragmented SCTP messages (>1024 bytes) were silently dropped. DataChannel messages larger than `userDataMaxLength` (1024 bytes) are now properly reassembled from multiple DATA chunks.
+- **Forward TSN reassembly integration** - Added missing reassembly logic to `_handleForwardTsn`: advances stream sequence numbers, delivers pending messages, and prunes obsolete chunks from all inbound streams.
+
+### Added
+
+- **InboundStream class** - New `lib/src/sctp/inbound_stream.dart` implementing per-stream fragment reassembly matching werift's `InboundStream` pattern. Handles ordered/unordered delivery, out-of-order chunks, and TSN wraparound.
+
+### Tests
+
+- Added 8 fragment reassembly tests covering: unfragmented, 2/3-fragment, out-of-order, multiple messages, missing fragments, duplicates, large messages
+- 2537 tests passing
+
 ## 0.22.11
 
 ### Fixed

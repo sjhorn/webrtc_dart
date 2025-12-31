@@ -117,7 +117,9 @@ class MediaAnswerServer {
 
     // Create peer connection (will wait for offer)
     _pc = RtcPeerConnection(RtcConfiguration(
-      iceServers: [IceServer(urls: ['stun:stun.l.google.com:19302'])],
+      iceServers: [
+        IceServer(urls: ['stun:stun.l.google.com:19302'])
+      ],
     ));
     print('[Media-Answer] PeerConnection created (waiting for offer)');
 

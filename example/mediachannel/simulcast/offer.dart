@@ -77,15 +77,18 @@ class SimulcastServer {
 
     // Add simulcast layers for receiving (high, middle, low)
     recvTransceiver.addSimulcastLayer(
-      RTCRtpSimulcastParameters(rid: 'high', direction: SimulcastDirection.recv),
+      RTCRtpSimulcastParameters(
+          rid: 'high', direction: SimulcastDirection.recv),
     );
     recvTransceiver.addSimulcastLayer(
-      RTCRtpSimulcastParameters(rid: 'middle', direction: SimulcastDirection.recv),
+      RTCRtpSimulcastParameters(
+          rid: 'middle', direction: SimulcastDirection.recv),
     );
     recvTransceiver.addSimulcastLayer(
       RTCRtpSimulcastParameters(rid: 'low', direction: SimulcastDirection.recv),
     );
-    print('[Server] Added recvonly transceiver with simulcast (high, middle, low)');
+    print(
+        '[Server] Added recvonly transceiver with simulcast (high, middle, low)');
 
     // Create 3 sendonly transceivers for forwarding each layer (like werift)
     final multiCast = <String, RtpTransceiver>{
@@ -132,7 +135,8 @@ class SimulcastServer {
 
       // Listen for additional simulcast layer tracks
       transceiver.receiver.onTrack = (simulcastTrack) {
-        print('[Server] New simulcast layer: ${simulcastTrack.id}, RID: ${simulcastTrack.rid}');
+        print(
+            '[Server] New simulcast layer: ${simulcastTrack.id}, RID: ${simulcastTrack.rid}');
 
         simulcastTrack.onReceiveRtp.listen((rtp) {
           final rid = simulcastTrack.rid ?? 'default';

@@ -163,7 +163,8 @@ void main() {
     });
 
     group('Role conflict resolution', () {
-      test('controlling agent with smaller tie-breaker switches to controlled', () {
+      test('controlling agent with smaller tie-breaker switches to controlled',
+          () {
         // We are controlling with smaller tie-breaker
         // Remote is also controlling with larger tie-breaker
         // Resolution: we switch to controlled
@@ -188,7 +189,8 @@ void main() {
         expect(shouldSend487, isTrue);
       });
 
-      test('controlled agent with smaller tie-breaker switches to controlling', () {
+      test('controlled agent with smaller tie-breaker switches to controlling',
+          () {
         // We are controlled with smaller tie-breaker
         // Remote is also controlled with larger tie-breaker
         // Resolution: we switch to controlling

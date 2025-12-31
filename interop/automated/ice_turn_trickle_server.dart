@@ -66,8 +66,7 @@ class TurnConfig {
         password == null ||
         username == 'your-username-here' ||
         password == 'your-password-here') {
-      throw Exception(
-          'Please fill in your TURN credentials in config.yaml. '
+      throw Exception('Please fill in your TURN credentials in config.yaml. '
           'See config.yaml.template for instructions on getting free credentials from Metered.ca');
     }
 
@@ -277,9 +276,11 @@ class IceTurnTrickleServer {
       // Check if it's a relay candidate
       if (candidate.type == 'relay') {
         _turnUsed = true;
-        print('[TURN+Trickle] RELAY candidate: ${candidate.host}:${candidate.port}');
+        print(
+            '[TURN+Trickle] RELAY candidate: ${candidate.host}:${candidate.port}');
       } else {
-        print('[TURN+Trickle] ${candidate.type} candidate (unexpected): ${candidate.host}:${candidate.port}');
+        print(
+            '[TURN+Trickle] ${candidate.type} candidate (unexpected): ${candidate.host}:${candidate.port}');
       }
 
       _localCandidates.add({
@@ -384,7 +385,8 @@ class IceTurnTrickleServer {
         _turnUsed = true;
         print('[TURN+Trickle] Browser RELAY candidate received');
       }
-      print('[TURN+Trickle] Received candidate #$_candidatesReceived: ${candidate.type}');
+      print(
+          '[TURN+Trickle] Received candidate #$_candidatesReceived: ${candidate.type}');
     } catch (e) {
       print('[TURN+Trickle] Failed to add candidate: $e');
     }

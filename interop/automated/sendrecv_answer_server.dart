@@ -127,13 +127,16 @@ class SendrecvAnswerServer {
 
     // Create peer connection
     _pc = RtcPeerConnection(RtcConfiguration(
-      iceServers: [IceServer(urls: ['stun:stun.l.google.com:19302'])],
+      iceServers: [
+        IceServer(urls: ['stun:stun.l.google.com:19302'])
+      ],
     ));
     print('[Sendrecv-Answer] PeerConnection created');
 
     // Create a nonstandard track for sending echoed video
     // This matches the WORKING pattern from media_sendrecv_server.dart
-    _sendTrack = nonstandard.MediaStreamTrack(kind: nonstandard.MediaKind.video);
+    _sendTrack =
+        nonstandard.MediaStreamTrack(kind: nonstandard.MediaKind.video);
 
     // Pre-create a transceiver with our send track BEFORE receiving the offer
     // With the MID matching fix, this transceiver will be matched by kind when
@@ -142,7 +145,8 @@ class SendrecvAnswerServer {
       _sendTrack!,
       direction: RtpTransceiverDirection.sendrecv,
     );
-    print('[Sendrecv-Answer] Pre-created video transceiver with track (sendrecv), mid=${transceiver.mid}, ssrc=${transceiver.sender.rtpSession.localSsrc}');
+    print(
+        '[Sendrecv-Answer] Pre-created video transceiver with track (sendrecv), mid=${transceiver.mid}, ssrc=${transceiver.sender.rtpSession.localSsrc}');
 
     // Track connection state
     _subscriptions.add(_pc!.onConnectionStateChange.listen((state) {
@@ -172,7 +176,8 @@ class SendrecvAnswerServer {
     // Handle incoming tracks - echo RTP via writeRtp on our send track
     // This matches the WORKING pattern from media_sendrecv_server.dart
     _subscriptions.add(_pc!.onTrack.listen((transceiver) {
-      print('[Sendrecv-Answer] onTrack fired: kind=${transceiver.kind}, mid=${transceiver.mid}, '
+      print(
+          '[Sendrecv-Answer] onTrack fired: kind=${transceiver.kind}, mid=${transceiver.mid}, '
           'ssrc=${transceiver.sender.rtpSession.localSsrc}, direction=${transceiver.direction}');
       _trackReceived = true;
 
@@ -194,7 +199,8 @@ class SendrecvAnswerServer {
           }
 
           if (_packetsReceived % 100 == 0) {
-            print('[Sendrecv-Answer] Received=$_packetsReceived, Echoed=$_packetsEchoed');
+            print(
+                '[Sendrecv-Answer] Received=$_packetsReceived, Echoed=$_packetsEchoed');
           }
         }));
       }

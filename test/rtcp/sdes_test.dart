@@ -57,11 +57,13 @@ void main() {
         final bytes = chunk.serialize();
 
         // 4 (SSRC) + 3 (item) + 1 (END) = 8 bytes (already 4-byte aligned)
-        expect(bytes, equals([
-          0x01, 0x02, 0x03, 0x04, // SSRC
-          0x01, 0x01, 0x41, // CNAME item
-          0x00, // END
-        ]));
+        expect(
+            bytes,
+            equals([
+              0x01, 0x02, 0x03, 0x04, // SSRC
+              0x01, 0x01, 0x41, // CNAME item
+              0x00, // END
+            ]));
       });
 
       test('should serialize chunk with multiple items', () {
@@ -76,12 +78,14 @@ void main() {
         final bytes = chunk.serialize();
 
         // Should include padding to 4-byte boundary
-        expect(bytes, equals([
-          0x10, 0x00, 0x00, 0x00, // SSRC
-          0x01, 0x01, 0x41, // CNAME
-          0x04, 0x01, 0x42, // PHONE
-          0x00, 0x00, // END + padding
-        ]));
+        expect(
+            bytes,
+            equals([
+              0x10, 0x00, 0x00, 0x00, // SSRC
+              0x01, 0x01, 0x41, // CNAME
+              0x04, 0x01, 0x42, // PHONE
+              0x00, 0x00, // END + padding
+            ]));
       });
 
       test('should deserialize chunk', () {
@@ -172,11 +176,22 @@ void main() {
 
       test('should deserialize packet with two items', () {
         final data = Uint8List.fromList([
-          0x81, 0xca, 0x00, 0x03,
-          0x10, 0x00, 0x00, 0x00,
-          0x01, 0x01, 0x41,
-          0x04, 0x01, 0x42,
-          0x00, 0x00,
+          0x81,
+          0xca,
+          0x00,
+          0x03,
+          0x10,
+          0x00,
+          0x00,
+          0x00,
+          0x01,
+          0x01,
+          0x41,
+          0x04,
+          0x01,
+          0x42,
+          0x00,
+          0x00,
         ]);
 
         // Parse payload (skip 4-byte header)
@@ -194,13 +209,30 @@ void main() {
 
       test('should deserialize packet with two chunks', () {
         final data = Uint8List.fromList([
-          0x82, 0xca, 0x00, 0x05,
-          0x01, 0x02, 0x03, 0x04,
-          0x01, 0x01, 0x41,
+          0x82,
+          0xca,
           0x00,
-          0x05, 0x06, 0x07, 0x08,
-          0x01, 0x03, 0x42, 0x43, 0x44,
-          0x00, 0x00, 0x00,
+          0x05,
+          0x01,
+          0x02,
+          0x03,
+          0x04,
+          0x01,
+          0x01,
+          0x41,
+          0x00,
+          0x05,
+          0x06,
+          0x07,
+          0x08,
+          0x01,
+          0x03,
+          0x42,
+          0x43,
+          0x44,
+          0x00,
+          0x00,
+          0x00,
         ]);
 
         // Parse payload (skip 4-byte header)

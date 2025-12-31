@@ -333,7 +333,8 @@ void main() {
         method: StunMethod.binding,
         messageClass: StunClass.errorResponse,
       );
-      response.setAttribute(StunAttributeType.errorCode, (487, 'Role Conflict'));
+      response
+          .setAttribute(StunAttributeType.errorCode, (487, 'Role Conflict'));
 
       final failed = TransactionFailed(response);
       expect(failed.toString(), contains('487'));

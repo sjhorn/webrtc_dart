@@ -147,7 +147,9 @@ class SaveToDiskMp4Server {
 
     // Create peer connection with STUN server and H.264 codec preference
     _pc = RtcPeerConnection(RtcConfiguration(
-      iceServers: [IceServer(urls: ['stun:stun.l.google.com:19302'])],
+      iceServers: [
+        IceServer(urls: ['stun:stun.l.google.com:19302'])
+      ],
       codecs: RtcCodecs(
         video: [
           createH264Codec(

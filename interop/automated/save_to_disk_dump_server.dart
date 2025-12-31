@@ -142,7 +142,9 @@ class SaveToDiskDumpServer {
 
     // Create peer connection
     _pc = RtcPeerConnection(RtcConfiguration(
-      iceServers: [IceServer(urls: ['stun:stun.l.google.com:19302'])],
+      iceServers: [
+        IceServer(urls: ['stun:stun.l.google.com:19302'])
+      ],
     ));
     print('[SaveToDisk-Dump] PeerConnection created');
 
@@ -269,8 +271,10 @@ class SaveToDiskDumpServer {
     _videoFile = null;
     _audioFile = null;
 
-    print('[SaveToDisk-Dump] Video output: $_videoOutputPath ($_videoBytes bytes)');
-    print('[SaveToDisk-Dump] Audio output: $_audioOutputPath ($_audioBytes bytes)');
+    print(
+        '[SaveToDisk-Dump] Video output: $_videoOutputPath ($_videoBytes bytes)');
+    print(
+        '[SaveToDisk-Dump] Audio output: $_audioOutputPath ($_audioBytes bytes)');
     print('[SaveToDisk-Dump] Recording stopped');
   }
 

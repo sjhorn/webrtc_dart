@@ -41,7 +41,8 @@ void main() {
     test('toString truncates fingerprint', () {
       final fingerprint = RtcDtlsFingerprint(
         algorithm: 'sha-256',
-        value: 'AA:BB:CC:DD:EE:FF:00:11:22:33:44:55:66:77:88:99:AA:BB:CC:DD:EE:FF:00:11:22:33:44:55:66:77:88:99',
+        value:
+            'AA:BB:CC:DD:EE:FF:00:11:22:33:44:55:66:77:88:99:AA:BB:CC:DD:EE:FF:00:11:22:33:44:55:66:77:88:99',
       );
 
       final str = fingerprint.toString();

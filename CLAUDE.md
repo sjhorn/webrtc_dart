@@ -22,7 +22,7 @@ This is a pure Dart port of the [werift-webrtc](https://github.com/shinyoshiaki/
 All WebRTC features complete: ICE, DTLS, SRTP, SCTP, RTP/RTCP, DataChannels, Media.
 Codecs: VP8, VP9, H.264, AV1, Opus. Features: NACK, PLI/FIR, RTX, TWCC, Simulcast, getStats().
 
-**2434 tests passing, 0 analyzer issues**
+**2537 tests passing, 0 analyzer issues**
 
 ### Browser Interop Status
 - ✅ **Chrome**: DataChannel + Media working
@@ -172,6 +172,54 @@ lib/
 7. **SCTP & Data Channels** - SCTP over DTLS, datachannel protocol
 8. **SDP & Signaling** - SDP parsing/generation, public API (`PeerConnection`, `addIceCandidate`, etc.)
 9. **Media Integration** - Audio/video sources, codec support
+
+---
+
+## RTP Forwarding/Echo Debugging Guide
+
+When debugging RTP forwarding issues (echo, relay, SFU scenarios), check these common pitfalls:
+
+### 1. Multiple SSRCs from Browser
+Chrome sends packets from **multiple SSRCs** early in a stream:
+- **Probing packets**: `ts=0`, small payload (~255 bytes), used for bandwidth estimation
+- **RTX packets**: Retransmission stream with different SSRC and PT (typically main PT + 1)
+- **Simulcast layers**: Different SSRCs for each quality layer
+
+**Fix**: Lock onto the first valid SSRC and filter out packets from other SSRCs. See `_primarySsrc` in `rtp_sender.dart`.
+
+### 2. Payload Type Mismatch
+When Dart is the **answerer**, the browser chooses the codec from our offered list. Chrome may pick AV1 (PT=119) instead of VP8 (PT=96).
+
+**Symptom**: Packets are sent but browser shows 0 frames.
+**Fix**: Capture and use the actual payload type from incoming packets, not the configured codec PT.
+
+### 3. Offerer vs Answerer Differences
+| Aspect | Dart as Offerer | Dart as Answerer |
+|--------|-----------------|------------------|
+| MID | Assigned by Dart (e.g., "1") | Assigned by browser (e.g., "0") |
+| Extension IDs | Dart's defaults (midExtId=1) | Browser's preferences (midExtId=9) |
+| Codec selection | Browser must use our preference | Browser chooses from our list |
+| SSRC behavior | Usually single SSRC | May see multiple SSRCs early |
+
+### 4. Header Extension IDs
+Extension IDs are negotiated per-session. When Dart is answerer:
+- The browser's offer specifies extension IDs (e.g., `a=extmap:9 sdes:mid`)
+- Dart's answer must echo these IDs
+- `setRemoteRTP()` updates sender's extension IDs from remote SDP
+
+### 5. Debugging RTP Issues
+```bash
+# Save test output to file to avoid repeated runs
+./run_test.sh sendrecv_answer chrome 2>&1 | tee /tmp/test_output.txt
+
+# Then grep for specific info
+grep "SSRC\|PT=" /tmp/test_output.txt
+grep "Skipping\|Forwarding" /tmp/test_output.txt
+```
+
+Key debug points in `rtp_sender.dart:_attachNonstandardTrack`:
+- Log incoming SSRC, PT, seq, ts for first N packets
+- Track which packets are filtered vs forwarded
 
 ---
 

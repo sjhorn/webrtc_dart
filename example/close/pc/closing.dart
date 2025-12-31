@@ -49,7 +49,8 @@ void main() async {
   // Create datachannel
   dc1 = pc1.createDataChannel('chat', protocol: 'bob');
   dc1.onStateChange.listen((s) => print('[DC1] State: $s'));
-  dc1.onMessage.listen((d) => print('[DC1] Got: ${d is String ? d : String.fromCharCodes(d)}'));
+  dc1.onMessage.listen(
+      (d) => print('[DC1] Got: ${d is String ? d : String.fromCharCodes(d)}'));
 
   // Connect
   final offer = await pc1.createOffer();

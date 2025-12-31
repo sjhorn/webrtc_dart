@@ -29,7 +29,9 @@ void main() async {
     print('[$clientId] Connected');
 
     final pc = RtcPeerConnection(RtcConfiguration(
-      iceServers: [IceServer(urls: ['stun:stun.l.google.com:19302'])],
+      iceServers: [
+        IceServer(urls: ['stun:stun.l.google.com:19302'])
+      ],
     ));
     _clients[clientId] = pc;
 
@@ -47,7 +49,8 @@ void main() async {
     });
 
     // Track for sending to this client
-    final outTrack = nonstandard.MediaStreamTrack(kind: nonstandard.MediaKind.video);
+    final outTrack =
+        nonstandard.MediaStreamTrack(kind: nonstandard.MediaKind.video);
 
     // Add bidirectional video transceiver
     pc.addTransceiver(

@@ -7,6 +7,7 @@ import 'package:crypto/crypto.dart';
 import 'package:webrtc_dart/src/common/logging.dart';
 import 'package:webrtc_dart/src/sctp/chunk.dart';
 import 'package:webrtc_dart/src/sctp/const.dart';
+import 'package:webrtc_dart/src/sctp/inbound_stream.dart';
 import 'package:webrtc_dart/src/sctp/packet.dart';
 
 final _log = WebRtcLogging.sctp;
@@ -130,6 +131,10 @@ class SctpAssociation {
 
   /// List of duplicate TSNs received
   List<int> _sackDuplicates = [];
+
+  /// Inbound streams for fragment reassembly (per stream ID)
+  /// Reference: werift-webrtc inboundStreams field
+  final Map<int, InboundStream> _inboundStreams = {};
 
   /// Last received TSN
   int? _lastReceivedTsn;
@@ -356,7 +361,8 @@ class SctpAssociation {
             SctpDataChunkFlags.beginningFragment |
             SctpDataChunkFlags.endFragment,
       );
-      _outboundQueue.add(_SentChunk(chunk, expiry: expiry, maxRetransmits: maxRetransmits));
+      _outboundQueue.add(
+          _SentChunk(chunk, expiry: expiry, maxRetransmits: maxRetransmits));
     } else {
       for (var i = 0; i < fragments; i++) {
         final start = i * maxDataSize;
@@ -375,7 +381,8 @@ class SctpAssociation {
           userData: fragment,
           flags: flags,
         );
-        _outboundQueue.add(_SentChunk(chunk, expiry: expiry, maxRetransmits: maxRetransmits));
+        _outboundQueue.add(
+            _SentChunk(chunk, expiry: expiry, maxRetransmits: maxRetransmits));
       }
     }
 
@@ -385,7 +392,8 @@ class SctpAssociation {
     }
 
     // Transmit if T3 is not running (otherwise wait for SACK)
-    _log.fine('[SCTP] sendData: streamId=$streamId, ppid=$ppid, data=${data.length} bytes, t3=${_t3Timer != null}');
+    _log.fine(
+        '[SCTP] sendData: streamId=$streamId, ppid=$ppid, data=${data.length} bytes, t3=${_t3Timer != null}');
     if (_t3Timer == null) {
       _log.fine('[SCTP] sendData: calling _transmit()');
       await _transmit();
@@ -429,7 +437,8 @@ class SctpAssociation {
     final data = packet.serialize();
     if (chunk.type == SctpChunkType.data) {
       _log.fine('[SCTP] _sendChunk DATA: ${data.length} bytes');
-      _log.fine('[SCTP] _sendChunk DATA hex: ${data.map((b) => b.toRadixString(16).padLeft(2, '0')).join(' ')}');
+      _log.fine(
+          '[SCTP] _sendChunk DATA hex: ${data.map((b) => b.toRadixString(16).padLeft(2, '0')).join(' ')}');
     }
     await onSendPacket(data);
   }
@@ -443,8 +452,8 @@ class SctpAssociation {
 
     // Check if limits are exceeded
     final now = DateTime.now().millisecondsSinceEpoch / 1000.0;
-    final abandon =
-        (chunk.maxRetransmits != null && chunk.sentCount > chunk.maxRetransmits!) ||
+    final abandon = (chunk.maxRetransmits != null &&
+            chunk.sentCount > chunk.maxRetransmits!) ||
         (chunk.expiry != null && chunk.expiry! < now);
 
     if (!abandon) return false;
@@ -477,7 +486,7 @@ class SctpAssociation {
   /// Dequeues abandoned chunks from the front of sentQueue and
   /// creates a FORWARD-TSN chunk to notify the peer.
   void _updateAdvancedPeerAckPoint() {
-    if (_uint32Gt(_lastSackedTsn, _advancedPeerAckTsn)) {
+    if (uint32Gt(_lastSackedTsn, _advancedPeerAckTsn)) {
       _advancedPeerAckTsn = _lastSackedTsn;
     }
 
@@ -509,7 +518,8 @@ class SctpAssociation {
 
   /// Transmit outbound data (RFC 4960 Section 6.1)
   Future<void> _transmit() async {
-    _log.fine('[SCTP] _transmit: outboundQueue=${_outboundQueue.length}, sentQueue=${_sentQueue.length}');
+    _log.fine(
+        '[SCTP] _transmit: outboundQueue=${_outboundQueue.length}, sentQueue=${_sentQueue.length}');
 
     // Send FORWARD-TSN first (RFC 3758)
     if (_forwardTsnChunk != null) {
@@ -565,7 +575,8 @@ class SctpAssociation {
       sentChunk.sentCount++;
       sentChunk.sentTime = DateTime.now().millisecondsSinceEpoch / 1000.0;
 
-      _log.fine('[SCTP] _transmit: sending DATA chunk tsn=${sentChunk.chunk.tsn}');
+      _log.fine(
+          '[SCTP] _transmit: sending DATA chunk tsn=${sentChunk.chunk.tsn}');
       await _sendChunk(sentChunk.chunk);
       _log.fine('[SCTP] _transmit: DATA chunk sent');
 
@@ -742,39 +753,48 @@ class SctpAssociation {
   }
 
   /// Handle DATA chunk
+  /// Reference: werift-webrtc/packages/sctp/src/sctp.ts receiveDataChunk
   Future<void> _handleData(SctpDataChunk chunk) async {
     if (_state != SctpAssociationState.established) {
       return;
     }
 
+    _sackNeeded = true;
+
     // Mark received and check for duplicates
     final isDuplicate = _markReceived(chunk.tsn);
     if (isDuplicate) {
-      _sackNeeded = true;
       _scheduleSack();
       return;
     }
 
-    // Store in receive buffer
+    // Store in receive buffer (for SACK generation)
     _receiveBuffer[chunk.tsn] = chunk;
-
-    // Update cumulative TSN and schedule SACK
-    _sackNeeded = true;
     _scheduleSack();
 
-    // Deliver complete messages
-    if (chunk.beginningFragment && chunk.endFragment) {
-      advertisedRwnd += chunk.userData.length;
+    // Add chunk to inbound stream for reassembly
+    final inboundStream = _getInboundStream(chunk.streamId);
+    inboundStream.addChunk(chunk);
+    advertisedRwnd -= chunk.userData.length;
+
+    // Deliver complete messages (handles both fragmented and unfragmented)
+    for (final (streamId, data, ppid) in inboundStream.popMessages()) {
+      advertisedRwnd += data.length;
       if (onReceiveData != null) {
-        onReceiveData!(chunk.streamId, chunk.userData, chunk.ppid);
+        onReceiveData!(streamId, data, ppid);
       }
     }
+  }
+
+  /// Get or create inbound stream for fragment reassembly
+  InboundStream _getInboundStream(int streamId) {
+    return _inboundStreams.putIfAbsent(streamId, () => InboundStream());
   }
 
   /// Handle SACK chunk (RFC 4960 Section 6.2.1)
   Future<void> _handleSack(SctpSackChunk chunk) async {
     // Ignore old SACKs
-    if (_uint32Gt(_lastSackedTsn, chunk.cumulativeTsnAck)) return;
+    if (uint32Gt(_lastSackedTsn, chunk.cumulativeTsnAck)) return;
 
     final receivedTime = DateTime.now().millisecondsSinceEpoch / 1000.0;
     _lastSackedTsn = chunk.cumulativeTsnAck;
@@ -784,7 +804,7 @@ class SctpAssociation {
 
     // Handle acknowledged data (remove from sentQueue)
     while (_sentQueue.isNotEmpty &&
-        _uint32Gte(_lastSackedTsn, _sentQueue.first.tsn)) {
+        uint32Gte(_lastSackedTsn, _sentQueue.first.tsn)) {
       final sChunk = _sentQueue.removeAt(0);
       done++;
       if (!sChunk.acked) {
@@ -819,7 +839,7 @@ class SctpAssociation {
 
       var highestNewlyAcked = chunk.cumulativeTsnAck;
       for (final sChunk in _sentQueue) {
-        if (highestSeenTsn != null && _uint32Gt(sChunk.tsn, highestSeenTsn)) {
+        if (highestSeenTsn != null && uint32Gt(sChunk.tsn, highestSeenTsn)) {
           break;
         }
         if (seen.contains(sChunk.tsn) && !sChunk.acked) {
@@ -832,7 +852,7 @@ class SctpAssociation {
 
       // Strike missing chunks prior to highest newly acked (fast retransmit)
       for (final sChunk in _sentQueue) {
-        if (_uint32Gt(sChunk.tsn, highestNewlyAcked)) {
+        if (uint32Gt(sChunk.tsn, highestNewlyAcked)) {
           break;
         }
         if (!seen.contains(sChunk.tsn)) {
@@ -879,7 +899,7 @@ class SctpAssociation {
         }
         _fastRecoveryTransmit = true;
       }
-    } else if (_uint32Gte(chunk.cumulativeTsnAck, _fastRecoveryExit!)) {
+    } else if (uint32Gte(chunk.cumulativeTsnAck, _fastRecoveryExit!)) {
       // Exit fast recovery
       _fastRecoveryExit = null;
     }
@@ -896,18 +916,19 @@ class SctpAssociation {
   }
 
   /// Handle FORWARD-TSN chunk (RFC 3758)
+  /// Reference: werift-webrtc/packages/sctp/src/sctp.ts receiveForwardTsnChunk
   Future<void> _handleForwardTsn(SctpForwardTsnChunk chunk) async {
     _sackNeeded = true;
 
     if (_lastReceivedTsn != null &&
-        _uint32Gte(_lastReceivedTsn!, chunk.newCumulativeTsn)) {
+        uint32Gte(_lastReceivedTsn!, chunk.newCumulativeTsn)) {
       return;
     }
 
     // Advance cumulative TSN
     _lastReceivedTsn = chunk.newCumulativeTsn;
     _sackMisOrdered = _sackMisOrdered
-        .where((tsn) => _uint32Gt(tsn, _lastReceivedTsn!))
+        .where((tsn) => uint32Gt(tsn, _lastReceivedTsn!))
         .toSet();
 
     // Update cumulative TSN based on misordered set
@@ -919,12 +940,34 @@ class SctpAssociation {
       }
     }
 
+    // Filter out obsolete entries
     _sackDuplicates = _sackDuplicates
-        .where((tsn) => _uint32Gt(tsn, _lastReceivedTsn!))
+        .where((tsn) => uint32Gt(tsn, _lastReceivedTsn!))
         .toList();
     _sackMisOrdered = _sackMisOrdered
-        .where((tsn) => _uint32Gt(tsn, _lastReceivedTsn!))
+        .where((tsn) => uint32Gt(tsn, _lastReceivedTsn!))
         .toSet();
+
+    // Update reassembly - advance stream sequence numbers and deliver pending messages
+    for (final stream in chunk.streams) {
+      final inboundStream = _getInboundStream(stream.streamId);
+
+      // Advance sequence number (uint16Add equivalent)
+      inboundStream.streamSequenceNumber = (stream.streamSeq + 1) & 0xFFFF;
+
+      // Deliver any pending messages
+      for (final (streamId, data, ppid) in inboundStream.popMessages()) {
+        advertisedRwnd += data.length;
+        if (onReceiveData != null) {
+          onReceiveData!(streamId, data, ppid);
+        }
+      }
+    }
+
+    // Prune obsolete chunks from all inbound streams
+    for (final inboundStream in _inboundStreams.values) {
+      advertisedRwnd += inboundStream.pruneChunks(_lastReceivedTsn!);
+    }
 
     _scheduleSack();
   }
@@ -1143,7 +1186,7 @@ class SctpAssociation {
   /// Mark TSN as received, returns true if duplicate
   bool _markReceived(int tsn) {
     if (_lastReceivedTsn != null &&
-        (_uint32Gte(_lastReceivedTsn!, tsn) || _sackMisOrdered.contains(tsn))) {
+        (uint32Gte(_lastReceivedTsn!, tsn) || _sackMisOrdered.contains(tsn))) {
       _sackDuplicates.add(tsn);
       return true;
     }
@@ -1162,11 +1205,10 @@ class SctpAssociation {
 
     // Prune obsolete entries
     if (_lastReceivedTsn != null) {
-      _sackDuplicates = _sackDuplicates
-          .where((x) => _uint32Gt(x, _lastReceivedTsn!))
-          .toList();
+      _sackDuplicates =
+          _sackDuplicates.where((x) => uint32Gt(x, _lastReceivedTsn!)).toList();
       _sackMisOrdered =
-          _sackMisOrdered.where((x) => _uint32Gt(x, _lastReceivedTsn!)).toSet();
+          _sackMisOrdered.where((x) => uint32Gt(x, _lastReceivedTsn!)).toSet();
     }
 
     return false;
@@ -1358,15 +1400,8 @@ class SctpAssociation {
   int _tsnPlusOne(int tsn) => (tsn + 1) & 0xFFFFFFFF;
   int _tsnMinusOne(int tsn) => (tsn - 1) & 0xFFFFFFFF;
 
-  /// Compare TSNs with wraparound (a > b)
-  bool _uint32Gt(int a, int b) {
-    return ((a - b) & 0xFFFFFFFF) < 0x80000000 && a != b;
-  }
-
-  /// Compare TSNs with wraparound (a >= b)
-  bool _uint32Gte(int a, int b) {
-    return a == b || _uint32Gt(a, b);
-  }
+  // Note: uint32Gt and uint32Gte are in inbound_stream.dart
+  // for InboundStream fragment reassembly
 
   /// Verify verification tag
   bool _verifyVerificationTag(SctpPacket packet) {

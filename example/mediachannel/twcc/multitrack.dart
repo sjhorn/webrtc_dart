@@ -25,7 +25,9 @@ void main() async {
     print('[WS] Client connected');
 
     final pc = RtcPeerConnection(RtcConfiguration(
-      iceServers: [IceServer(urls: ['stun:stun.l.google.com:19302'])],
+      iceServers: [
+        IceServer(urls: ['stun:stun.l.google.com:19302'])
+      ],
     ));
 
     pc.onConnectionStateChange.listen((state) {
@@ -35,7 +37,8 @@ void main() async {
     // Create multiple video tracks
     final tracks = <nonstandard.MediaStreamTrack>[];
     for (var i = 0; i < 3; i++) {
-      final track = nonstandard.MediaStreamTrack(kind: nonstandard.MediaKind.video);
+      final track =
+          nonstandard.MediaStreamTrack(kind: nonstandard.MediaKind.video);
       tracks.add(track);
 
       pc.addTransceiver(
@@ -50,7 +53,8 @@ void main() async {
 
     Timer.periodic(Duration(seconds: 2), (_) {
       print('[TWCC] Estimated bandwidth: ${estimatedBandwidth ~/ 1000} kbps');
-      print('[TWCC] Per-track allocation: ${estimatedBandwidth ~/ tracks.length ~/ 1000} kbps');
+      print(
+          '[TWCC] Per-track allocation: ${estimatedBandwidth ~/ tracks.length ~/ 1000} kbps');
     });
 
     // Create and send offer
@@ -83,7 +87,8 @@ void main() async {
   print('  REMB: Each track estimates independently');
   print('  TWCC: Shared estimate, coordinated adaptation');
   print('');
-  print('SDP extension: a=extmap:5 http://www.ietf.org/id/draft-holmer-rmcat-transport-wide-cc-extensions-01');
+  print(
+      'SDP extension: a=extmap:5 http://www.ietf.org/id/draft-holmer-rmcat-transport-wide-cc-extensions-01');
 
   print('\nWaiting for browser connection...');
 }

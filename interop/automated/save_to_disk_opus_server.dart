@@ -121,7 +121,9 @@ class SaveToDiskOpusServer {
 
     // Create peer connection - Opus is the default audio codec
     _pc = RtcPeerConnection(RtcConfiguration(
-      iceServers: [IceServer(urls: ['stun:stun.l.google.com:19302'])],
+      iceServers: [
+        IceServer(urls: ['stun:stun.l.google.com:19302'])
+      ],
     ));
     print('[SaveToDisk-Opus] PeerConnection created');
 

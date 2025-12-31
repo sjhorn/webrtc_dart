@@ -620,8 +620,7 @@ class SdpManager {
         }
 
         // Add local SSRC if we have a transceiver for this media
-        final transceiver =
-            transceivers.where((t) => t.mid == mid).firstOrNull;
+        final transceiver = transceivers.where((t) => t.mid == mid).firstOrNull;
         if (transceiver != null) {
           final ssrc = transceiver.sender.rtpSession.localSsrc;
 

@@ -130,7 +130,8 @@ class SaveToDiskGstServer {
     _connectionCompleter = Completer();
     _rtpPacketsReceived = 0;
     _rtpPacketsForwarded = 0;
-    _outputPath = './recording-gst-${DateTime.now().millisecondsSinceEpoch}.webm';
+    _outputPath =
+        './recording-gst-${DateTime.now().millisecondsSinceEpoch}.webm';
 
     // Find a free port for GStreamer UDP listener
     _gstPort = await _findFreePort();
@@ -138,7 +139,8 @@ class SaveToDiskGstServer {
 
     // Create UDP socket for forwarding RTP to GStreamer
     _udpSocket = await RawDatagramSocket.bind(InternetAddress.anyIPv4, 0);
-    print('[SaveToDisk-GST] UDP forwarding socket on port: ${_udpSocket!.port}');
+    print(
+        '[SaveToDisk-GST] UDP forwarding socket on port: ${_udpSocket!.port}');
 
     // Start GStreamer pipeline
     final gstCommand = [
@@ -157,7 +159,8 @@ class SaveToDiskGstServer {
       'location=$_outputPath',
     ];
 
-    print('[SaveToDisk-GST] Starting GStreamer: gst-launch-1.0 ${gstCommand.join(' ')}');
+    print(
+        '[SaveToDisk-GST] Starting GStreamer: gst-launch-1.0 ${gstCommand.join(' ')}');
     _gstProcess = await Process.start('gst-launch-1.0', gstCommand);
 
     _gstProcess!.stdout.transform(utf8.decoder).listen((data) {
@@ -172,7 +175,9 @@ class SaveToDiskGstServer {
 
     // Create peer connection with VP8 codec
     _pc = RtcPeerConnection(RtcConfiguration(
-      iceServers: [IceServer(urls: ['stun:stun.l.google.com:19302'])],
+      iceServers: [
+        IceServer(urls: ['stun:stun.l.google.com:19302'])
+      ],
       codecs: RtcCodecs(
         video: [
           createVp8Codec(

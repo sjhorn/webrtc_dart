@@ -24,7 +24,8 @@ void main() async {
   final candidates = <Candidate>[];
 
   pc.onIceCandidate.listen((candidate) {
-    print('[ICE] New candidate: ${candidate.type} ${candidate.host}:${candidate.port}');
+    print(
+        '[ICE] New candidate: ${candidate.type} ${candidate.host}:${candidate.port}');
     candidates.add(candidate);
   });
 
@@ -47,7 +48,8 @@ void main() async {
 
   var msgIndex = 0;
   dc.onMessage.listen((data) {
-    print('[DC] Received: ${data is String ? data : String.fromCharCodes(data)}');
+    print(
+        '[DC] Received: ${data is String ? data : String.fromCharCodes(data)}');
     dc.sendString('pong${msgIndex++}');
   });
 

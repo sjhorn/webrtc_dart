@@ -48,29 +48,42 @@ void main() async {
     });
 
     // Create nonstandard track for sending RTP
-    final track = nonstandard.MediaStreamTrack(kind: nonstandard.MediaKind.audio);
+    final track =
+        nonstandard.MediaStreamTrack(kind: nonstandard.MediaKind.audio);
 
     // Find available UDP port and set up GStreamer
-    final udpSocket = await RawDatagramSocket.bind(InternetAddress.loopbackIPv4, 0);
+    final udpSocket =
+        await RawDatagramSocket.bind(InternetAddress.loopbackIPv4, 0);
     final port = udpSocket.port;
     print('[UDP] Listening on port $port');
 
     // Start GStreamer pipeline to generate test audio
     final gstArgs = [
-      'audiotestsrc', 'wave=ticks', '!',
-      'audioconvert', '!',
-      'audioresample', '!',
-      'queue', '!',
-      'opusenc', '!',
-      'rtpopuspay', '!',
-      'udpsink', 'host=127.0.0.1', 'port=$port',
+      'audiotestsrc',
+      'wave=ticks',
+      '!',
+      'audioconvert',
+      '!',
+      'audioresample',
+      '!',
+      'queue',
+      '!',
+      'opusenc',
+      '!',
+      'rtpopuspay',
+      '!',
+      'udpsink',
+      'host=127.0.0.1',
+      'port=$port',
     ];
     print('[GStreamer] gst-launch-1.0 ${gstArgs.join(' ')}');
 
     try {
       final process = await Process.start('gst-launch-1.0', gstArgs);
-      process.stdout.listen((data) => print('[GST] ${String.fromCharCodes(data)}'));
-      process.stderr.listen((data) => print('[GST ERR] ${String.fromCharCodes(data)}'));
+      process.stdout
+          .listen((data) => print('[GST] ${String.fromCharCodes(data)}'));
+      process.stderr
+          .listen((data) => print('[GST ERR] ${String.fromCharCodes(data)}'));
     } catch (e) {
       print('[GST] Failed to start GStreamer: $e');
       print('[GST] Make sure GStreamer is installed with Opus support');

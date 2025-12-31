@@ -1085,7 +1085,8 @@ class SpsParser {
     }
 
     var width = (picWidthInMbsMinus1 + 1) * 16;
-    var height = (2 - frameMbsOnlyFlag) * ((picHeightInMapUnitsMinus1 + 1) * 16);
+    var height =
+        (2 - frameMbsOnlyFlag) * ((picHeightInMapUnitsMinus1 + 1) * 16);
     width -= (frameCropLeftOffset + frameCropRightOffset) * cropUnitX;
     height -= (frameCropTopOffset + frameCropBottomOffset) * cropUnitY;
 
@@ -1175,8 +1176,10 @@ class _ExpGolombReader {
 
     _fillWord();
 
-    final bitsToRead = bitsStillNeeded < _bitsLeft ? bitsStillNeeded : _bitsLeft;
-    final nextBits = (_currentWord >>> (32 - bitsToRead)) & ((1 << bitsToRead) - 1);
+    final bitsToRead =
+        bitsStillNeeded < _bitsLeft ? bitsStillNeeded : _bitsLeft;
+    final nextBits =
+        (_currentWord >>> (32 - bitsToRead)) & ((1 << bitsToRead) - 1);
     _currentWord <<= bitsToRead;
     _bitsLeft -= bitsToRead;
 

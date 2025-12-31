@@ -24,7 +24,9 @@ void main() async {
     print('[WS] Client connected');
 
     final pc = RtcPeerConnection(RtcConfiguration(
-      iceServers: [IceServer(urls: ['stun:stun.l.google.com:19302'])],
+      iceServers: [
+        IceServer(urls: ['stun:stun.l.google.com:19302'])
+      ],
     ));
 
     pc.onConnectionStateChange.listen((state) {
@@ -62,7 +64,8 @@ void main() async {
         if (rtp.sequenceNumber != expectedSeq) {
           final gap = (rtp.sequenceNumber - lastSeq) & 0xFFFF;
           stats.gaps++;
-          print('[$rid] Gap detected: expected $expectedSeq, got ${rtp.sequenceNumber} (gap: $gap)');
+          print(
+              '[$rid] Gap detected: expected $expectedSeq, got ${rtp.sequenceNumber} (gap: $gap)');
         }
       }
       lastSeq = rtp.sequenceNumber;
@@ -71,7 +74,8 @@ void main() async {
     // Stats timer
     Timer.periodic(Duration(seconds: 5), (_) {
       for (final entry in layerStats.entries) {
-        print('[Stats] ${entry.key}: ${entry.value.packetsReceived} pkts, ${entry.value.gaps} gaps');
+        print(
+            '[Stats] ${entry.key}: ${entry.value.packetsReceived} pkts, ${entry.value.gaps} gaps');
       }
     });
 

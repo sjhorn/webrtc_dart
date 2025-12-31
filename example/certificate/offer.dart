@@ -65,13 +65,16 @@ void main() async {
   // Note: In a real application, you would load the certificate from files
   // or generate them properly. This example shows the configuration pattern.
 
-  print('\nNote: Custom certificate configuration is done via RtcConfiguration');
+  print(
+      '\nNote: Custom certificate configuration is done via RtcConfiguration');
   print('The dtls.keys option accepts keyPem and certPem strings.');
 
   // Create peer connection with custom certificate
   // Note: The actual implementation may vary - check RtcConfiguration for options
   final pc = RtcPeerConnection(RtcConfiguration(
-    iceServers: [IceServer(urls: ['stun:stun.l.google.com:19302'])],
+    iceServers: [
+      IceServer(urls: ['stun:stun.l.google.com:19302'])
+    ],
     // Custom certificates would be configured here if supported
     // dtls: DtlsConfig(keyPem: _exampleKeyPem, certPem: _exampleCertPem),
   ));

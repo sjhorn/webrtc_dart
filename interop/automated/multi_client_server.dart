@@ -135,7 +135,9 @@ class MultiClientServer {
 
     // Create peer connection for this client
     final pc = RtcPeerConnection(RtcConfiguration(
-      iceServers: [IceServer(urls: ['stun:stun.l.google.com:19302'])],
+      iceServers: [
+        IceServer(urls: ['stun:stun.l.google.com:19302'])
+      ],
     ));
 
     final client = ClientConnection(clientId, pc);

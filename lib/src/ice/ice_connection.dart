@@ -1244,13 +1244,15 @@ class IceConnectionImpl implements IceConnection {
       // We are controlling, remote also thinks they're controlling
       if (theirTieBreaker >= _tieBreaker) {
         // Remote wins - we switch to controlled
-        _log.fine('[ICE] Tie-breaker: remote wins ($theirTieBreaker >= $_tieBreaker), '
+        _log.fine(
+            '[ICE] Tie-breaker: remote wins ($theirTieBreaker >= $_tieBreaker), '
             'switching to controlled');
         _iceControlling = false;
         return true; // Continue processing
       } else {
         // We win - send 487 error response
-        _log.fine('[ICE] Tie-breaker: we win ($_tieBreaker > $theirTieBreaker), '
+        _log.fine(
+            '[ICE] Tie-breaker: we win ($_tieBreaker > $theirTieBreaker), '
             'sending 487 Role Conflict');
         _send487RoleConflict(request, address, port);
         return false;
@@ -1259,13 +1261,15 @@ class IceConnectionImpl implements IceConnection {
       // We are controlled, remote also thinks they're controlled
       if (theirTieBreaker >= _tieBreaker) {
         // Remote wins - they should be controlled, we switch to controlling
-        _log.fine('[ICE] Tie-breaker: remote wins ($theirTieBreaker >= $_tieBreaker), '
+        _log.fine(
+            '[ICE] Tie-breaker: remote wins ($theirTieBreaker >= $_tieBreaker), '
             'switching to controlling');
         _iceControlling = true;
         return true; // Continue processing
       } else {
         // We win - we should be controlled, send 487 error response
-        _log.fine('[ICE] Tie-breaker: we win ($_tieBreaker > $theirTieBreaker), '
+        _log.fine(
+            '[ICE] Tie-breaker: we win ($_tieBreaker > $theirTieBreaker), '
             'sending 487 Role Conflict');
         _send487RoleConflict(request, address, port);
         return false;
@@ -1310,7 +1314,8 @@ class IceConnectionImpl implements IceConnection {
     if (sendSocket != null) {
       final responseBytes = response.toBytes();
       sendSocket.send(responseBytes, address, port);
-      _log.fine('[ICE] Sent 487 Role Conflict response to ${address.address}:$port');
+      _log.fine(
+          '[ICE] Sent 487 Role Conflict response to ${address.address}:$port');
     }
   }
 
@@ -1327,7 +1332,8 @@ class IceConnectionImpl implements IceConnection {
     _log.fine('[ICE] Processing ${_earlyChecks.length} early checks');
 
     for (final check in _earlyChecks) {
-      _log.fine('[ICE] Replaying early check from ${check.address.address}:${check.port}');
+      _log.fine(
+          '[ICE] Replaying early check from ${check.address.address}:${check.port}');
       // Process the check now that check list is ready
       // Skip the early check queue logic since we're already processing
       _earlyChecksDone = true; // Prevent re-queueing
@@ -1439,7 +1445,8 @@ class IceConnectionImpl implements IceConnection {
   static const int _maxConnectivityCheckRetries = 3;
 
   /// Perform a connectivity check on a single candidate pair
-  Future<bool> _performConnectivityCheck(CandidatePair pair, {int retryCount = 0}) async {
+  Future<bool> _performConnectivityCheck(CandidatePair pair,
+      {int retryCount = 0}) async {
     try {
       pair.updateState(CandidatePairState.inProgress);
 
@@ -1568,7 +1575,8 @@ class IceConnectionImpl implements IceConnection {
           pair.stats.rtt = rttSeconds;
           pair.stats.totalRoundTripTime += rttSeconds;
           pair.stats.roundTripTimeMeasurements++;
-          _log.fine('[ICE] Connectivity check succeeded, RTT: ${rttMs.toStringAsFixed(2)}ms');
+          _log.fine(
+              '[ICE] Connectivity check succeeded, RTT: ${rttMs.toStringAsFixed(2)}ms');
 
           return true;
         }
@@ -1582,10 +1590,12 @@ class IceConnectionImpl implements IceConnection {
             // RFC 8445: 487 Role Conflict - switch role and retry
             if (code == 487) {
               if (retryCount < _maxConnectivityCheckRetries) {
-                _log.fine('[ICE] Received 487 Role Conflict - switching role and retrying (attempt ${retryCount + 1})');
+                _log.fine(
+                    '[ICE] Received 487 Role Conflict - switching role and retrying (attempt ${retryCount + 1})');
                 // Switch role and retry the check
                 _iceControlling = !_iceControlling;
-                return _performConnectivityCheck(pair, retryCount: retryCount + 1);
+                return _performConnectivityCheck(pair,
+                    retryCount: retryCount + 1);
               }
               _log.fine('[ICE] Max retries reached for 487 Role Conflict');
             }
@@ -1593,13 +1603,16 @@ class IceConnectionImpl implements IceConnection {
             // RFC 5389 Section 7.3.3: 401 Unauthorized - retry with credentials
             if (code == 401) {
               if (retryCount < _maxConnectivityCheckRetries) {
-                _log.fine('[ICE] Received 401 Unauthorized - retrying (attempt ${retryCount + 1})');
-                return _performConnectivityCheck(pair, retryCount: retryCount + 1);
+                _log.fine(
+                    '[ICE] Received 401 Unauthorized - retrying (attempt ${retryCount + 1})');
+                return _performConnectivityCheck(pair,
+                    retryCount: retryCount + 1);
               }
               _log.fine('[ICE] Max retries reached for 401 Unauthorized');
             }
 
-            _log.fine('[ICE] Connectivity check failed with error $code: $reason');
+            _log.fine(
+                '[ICE] Connectivity check failed with error $code: $reason');
           }
         }
 
@@ -1748,7 +1761,8 @@ class IceConnectionImpl implements IceConnection {
           pair.stats.rtt = rttSeconds;
           pair.stats.totalRoundTripTime += rttSeconds;
           pair.stats.roundTripTimeMeasurements++;
-          _log.fine('[TCP] Connectivity check SUCCEEDED! RTT: ${rttMs.toStringAsFixed(2)}ms');
+          _log.fine(
+              '[TCP] Connectivity check SUCCEEDED! RTT: ${rttMs.toStringAsFixed(2)}ms');
 
           // Set up listener for application data
           tcpConnection.onMessage.listen((data) {
@@ -1768,13 +1782,15 @@ class IceConnectionImpl implements IceConnection {
           if (errorCode != null) {
             final (code, reason) = errorCode as (int, String);
             if (code == 487) {
-              _log.fine('[TCP] Received 487 Role Conflict - switching role and retrying');
+              _log.fine(
+                  '[TCP] Received 487 Role Conflict - switching role and retrying');
               _iceControlling = !_iceControlling;
               await tcpConnection.close();
               _tcpConnections.remove(connectionKey);
               return _performTcpConnectivityCheck(pair);
             }
-            _log.fine('[TCP] Connectivity check failed with error $code: $reason');
+            _log.fine(
+                '[TCP] Connectivity check failed with error $code: $reason');
           }
         }
 
@@ -1899,7 +1915,8 @@ class IceConnectionImpl implements IceConnection {
           }
         }).catchError((e, stack) {
           // Catch any errors from connectivity check (e.g., socket errors)
-          _log.fine('$labelStr Trickle check error for $localAddr -> $remoteAddr: $e');
+          _log.fine(
+              '$labelStr Trickle check error for $localAddr -> $remoteAddr: $e');
           pair.updateState(CandidatePairState.failed);
         });
 
@@ -2245,7 +2262,8 @@ class IceConnectionImpl implements IceConnection {
   @override
   void updateOptions(IceOptions options) {
     _options = options;
-    _log.fine('[ICE] Updated options: stunServer=${options.stunServer}, turnServer=${options.turnServer}');
+    _log.fine(
+        '[ICE] Updated options: stunServer=${options.stunServer}, turnServer=${options.turnServer}');
   }
 }
 

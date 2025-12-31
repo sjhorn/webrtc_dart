@@ -38,14 +38,17 @@ void main() async {
   print('1. Authenticate with Google SDM API');
   print('2. List devices: GET /enterprises/{projectId}/devices');
   print('3. Generate stream: POST /devices/{deviceId}:executeCommand');
-  print('   Command: sdm.devices.commands.CameraLiveStream.GenerateWebRtcStream');
+  print(
+      '   Command: sdm.devices.commands.CameraLiveStream.GenerateWebRtcStream');
   print('4. Receive offer SDP from Nest API');
   print('5. Create answer and send back');
   print('6. Receive H.264 video stream');
 
   // Create peer connection with Nest-compatible codecs
   final pc = RtcPeerConnection(RtcConfiguration(
-    iceServers: [IceServer(urls: ['stun:stun.l.google.com:19302'])],
+    iceServers: [
+      IceServer(urls: ['stun:stun.l.google.com:19302'])
+    ],
     bundlePolicy: BundlePolicy.maxBundle,
   ));
 

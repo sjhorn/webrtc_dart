@@ -71,7 +71,8 @@ class SendonlyServer {
     );
 
     // Create video track for sendonly (using nonstandard track with writeRtp)
-    final track = nonstandard.MediaStreamTrack(kind: nonstandard.MediaKind.video);
+    final track =
+        nonstandard.MediaStreamTrack(kind: nonstandard.MediaKind.video);
 
     // Bind UDP socket first to get port (like werift's randomPort())
     udpSocket = await RawDatagramSocket.bind(InternetAddress.anyIPv4, 0);
@@ -198,7 +199,8 @@ class SendonlyServer {
     } catch (e) {
       print('[Server] Failed to start GStreamer: $e');
       print('[Server] Make sure GStreamer is installed:');
-      print('  brew install gstreamer gst-plugins-base gst-plugins-good gst-plugins-bad');
+      print(
+          '  brew install gstreamer gst-plugins-base gst-plugins-good gst-plugins-bad');
       return null;
     }
   }

@@ -50,7 +50,8 @@ void _serveDashFiles(HttpServer server) {
     request.response.headers.add('Access-Control-Allow-Origin', '*');
 
     if (path == '/manifest.mpd') {
-      request.response.headers.contentType = ContentType('application', 'dash+xml');
+      request.response.headers.contentType =
+          ContentType('application', 'dash+xml');
       request.response.write(_generateMpd());
     } else if (path.endsWith('.webm')) {
       final file = File('$_dashDir$path');

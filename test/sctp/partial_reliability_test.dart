@@ -23,9 +23,12 @@ void main() {
       });
 
       test('partial reliable rexmit unordered has correct value', () {
-        expect(DataChannelType.partialReliableRexmitUnordered.value, equals(0x81));
-        expect(DataChannelType.partialReliableRexmitUnordered.isOrdered, isFalse);
-        expect(DataChannelType.partialReliableRexmitUnordered.isReliable, isFalse);
+        expect(
+            DataChannelType.partialReliableRexmitUnordered.value, equals(0x81));
+        expect(
+            DataChannelType.partialReliableRexmitUnordered.isOrdered, isFalse);
+        expect(
+            DataChannelType.partialReliableRexmitUnordered.isReliable, isFalse);
       });
 
       test('partial reliable timed has correct value', () {
@@ -35,9 +38,12 @@ void main() {
       });
 
       test('partial reliable timed unordered has correct value', () {
-        expect(DataChannelType.partialReliableTimedUnordered.value, equals(0x82));
-        expect(DataChannelType.partialReliableTimedUnordered.isOrdered, isFalse);
-        expect(DataChannelType.partialReliableTimedUnordered.isReliable, isFalse);
+        expect(
+            DataChannelType.partialReliableTimedUnordered.value, equals(0x82));
+        expect(
+            DataChannelType.partialReliableTimedUnordered.isOrdered, isFalse);
+        expect(
+            DataChannelType.partialReliableTimedUnordered.isReliable, isFalse);
       });
     });
 
@@ -55,7 +61,8 @@ void main() {
         expect(bytes[1], equals(0x01)); // partialReliableRexmit
 
         // Reliability parameter at bytes 4-7
-        final relParam = (bytes[4] << 24) | (bytes[5] << 16) | (bytes[6] << 8) | bytes[7];
+        final relParam =
+            (bytes[4] << 24) | (bytes[5] << 16) | (bytes[6] << 8) | bytes[7];
         expect(relParam, equals(5));
       });
 
@@ -72,7 +79,8 @@ void main() {
         expect(bytes[1], equals(0x02)); // partialReliableTimed
 
         // Reliability parameter at bytes 4-7
-        final relParam = (bytes[4] << 24) | (bytes[5] << 16) | (bytes[6] << 8) | bytes[7];
+        final relParam =
+            (bytes[4] << 24) | (bytes[5] << 16) | (bytes[6] << 8) | bytes[7];
         expect(relParam, equals(1000));
       });
 
@@ -88,7 +96,8 @@ void main() {
         final bytes = original.serialize();
         final parsed = DcepOpenMessage.parse(bytes);
 
-        expect(parsed.channelType, equals(DataChannelType.partialReliableRexmitUnordered));
+        expect(parsed.channelType,
+            equals(DataChannelType.partialReliableRexmitUnordered));
         expect(parsed.priority, equals(512));
         expect(parsed.reliabilityParameter, equals(3));
         expect(parsed.label, equals('unreliable-unordered'));

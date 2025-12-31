@@ -142,7 +142,9 @@ class MediaRecvonlyServer {
 
     // Create peer connection with STUN server
     _pc = RtcPeerConnection(RtcConfiguration(
-      iceServers: [IceServer(urls: ['stun:stun.l.google.com:19302'])],
+      iceServers: [
+        IceServer(urls: ['stun:stun.l.google.com:19302'])
+      ],
     ));
     print('[RecvServer] PeerConnection created');
 
@@ -173,7 +175,8 @@ class MediaRecvonlyServer {
 
     // Listen for incoming track from browser
     _pc!.onTrack.listen((transceiver) {
-      print('[RecvServer] Received track: ${transceiver.kind}, mid=${transceiver.mid}');
+      print(
+          '[RecvServer] Received track: ${transceiver.kind}, mid=${transceiver.mid}');
       _trackReceived = true;
 
       // Count received RTP packets
@@ -191,7 +194,8 @@ class MediaRecvonlyServer {
       MediaStreamTrackKind.video,
       direction: RtpTransceiverDirection.recvonly,
     );
-    print('[RecvServer] Added video transceiver (recvonly), mid=${_transceiver!.mid}');
+    print(
+        '[RecvServer] Added video transceiver (recvonly), mid=${_transceiver!.mid}');
 
     request.response.headers.contentType = ContentType.json;
     request.response.write(jsonEncode({'status': 'ok'}));

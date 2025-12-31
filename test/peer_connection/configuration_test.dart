@@ -24,7 +24,8 @@ void main() {
         final config = pc.getConfiguration();
 
         expect(config.iceServers.length, equals(1));
-        expect(config.iceServers[0].urls[0], equals('stun:stun.example.com:3478'));
+        expect(
+            config.iceServers[0].urls[0], equals('stun:stun.example.com:3478'));
         expect(config.bundlePolicy, equals(BundlePolicy.maxBundle));
       });
     });
@@ -48,8 +49,10 @@ void main() {
         final config = pc.getConfiguration();
 
         expect(config.iceServers.length, equals(2));
-        expect(config.iceServers[0].urls[0], equals('stun:stun.newserver.com:3478'));
-        expect(config.iceServers[1].urls[0], equals('turn:turn.newserver.com:3478'));
+        expect(config.iceServers[0].urls[0],
+            equals('stun:stun.newserver.com:3478'));
+        expect(config.iceServers[1].urls[0],
+            equals('turn:turn.newserver.com:3478'));
       });
 
       test('updates bundle policy', () {
@@ -57,13 +60,15 @@ void main() {
           RtcConfiguration(bundlePolicy: BundlePolicy.maxCompat),
         );
 
-        expect(pc.getConfiguration().bundlePolicy, equals(BundlePolicy.maxCompat));
+        expect(
+            pc.getConfiguration().bundlePolicy, equals(BundlePolicy.maxCompat));
 
         pc.setConfiguration(
           RtcConfiguration(bundlePolicy: BundlePolicy.maxBundle),
         );
 
-        expect(pc.getConfiguration().bundlePolicy, equals(BundlePolicy.maxBundle));
+        expect(
+            pc.getConfiguration().bundlePolicy, equals(BundlePolicy.maxBundle));
       });
 
       test('updates ICE transport policy', () {
@@ -112,7 +117,8 @@ void main() {
           RtcConfiguration(bundlePolicy: BundlePolicy.disable),
         );
 
-        expect(pc.getConfiguration().bundlePolicy, equals(BundlePolicy.disable));
+        expect(
+            pc.getConfiguration().bundlePolicy, equals(BundlePolicy.disable));
       });
     });
 

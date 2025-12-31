@@ -39,8 +39,10 @@ class SimulcastSfuServer {
   void _handleRequest(HttpRequest request) async {
     // CORS headers
     request.response.headers.add('Access-Control-Allow-Origin', '*');
-    request.response.headers.add('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
-    request.response.headers.add('Access-Control-Allow-Headers', 'Content-Type');
+    request.response.headers
+        .add('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
+    request.response.headers
+        .add('Access-Control-Allow-Headers', 'Content-Type');
 
     if (request.method == 'OPTIONS') {
       request.response.statusCode = HttpStatus.ok;
@@ -119,7 +121,9 @@ class SimulcastSfuServer {
     // Create peer connection with VP8
     _pc = RtcPeerConnection(
       RtcConfiguration(
-        iceServers: [IceServer(urls: ['stun:stun.l.google.com:19302'])],
+        iceServers: [
+          IceServer(urls: ['stun:stun.l.google.com:19302'])
+        ],
         codecs: RtcCodecs(
           video: [
             RtpCodecParameters(
@@ -145,7 +149,8 @@ class SimulcastSfuServer {
     });
 
     _pc!.onIceCandidate.listen((candidate) {
-      print('[SFU] Local ICE candidate: ${candidate.type} ${candidate.host}:${candidate.port}');
+      print(
+          '[SFU] Local ICE candidate: ${candidate.type} ${candidate.host}:${candidate.port}');
       _localCandidates.add({
         'candidate': 'candidate:${candidate.toSdp()}',
         'sdpMid': '0',
@@ -161,7 +166,8 @@ class SimulcastSfuServer {
       direction: RtpTransceiverDirection.recvonly,
     );
     receiver.addSimulcastLayer(
-      RTCRtpSimulcastParameters(rid: 'high', direction: SimulcastDirection.recv),
+      RTCRtpSimulcastParameters(
+          rid: 'high', direction: SimulcastDirection.recv),
     );
     receiver.addSimulcastLayer(
       RTCRtpSimulcastParameters(rid: 'mid', direction: SimulcastDirection.recv),
@@ -254,7 +260,8 @@ class SimulcastSfuServer {
     // Log simulcast features in offer
     print('[SFU] Simulcast features in offer:');
     for (final line in offer.sdp.split('\n')) {
-      if (line.contains('a=rid:') || line.contains('a=simulcast:') ||
+      if (line.contains('a=rid:') ||
+          line.contains('a=simulcast:') ||
           line.contains('rtp-stream-id')) {
         print(line.trim());
       }
@@ -279,7 +286,8 @@ class SimulcastSfuServer {
     // Log simulcast in answer
     print('[SFU] Simulcast in answer:');
     for (final line in sdp.split('\n')) {
-      if (line.contains('a=rid:') || line.contains('a=simulcast:') ||
+      if (line.contains('a=rid:') ||
+          line.contains('a=simulcast:') ||
           line.contains('rtp-stream-id')) {
         print(line.trim());
       }

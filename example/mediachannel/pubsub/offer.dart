@@ -108,7 +108,9 @@ class PubSubServer {
     // Create PeerConnection for this client
     client.pc = RtcPeerConnection(
       RtcConfiguration(
-        iceServers: [IceServer(urls: ['stun:stun.l.google.com:19302'])],
+        iceServers: [
+          IceServer(urls: ['stun:stun.l.google.com:19302'])
+        ],
         codecs: RtcCodecs(
           video: [
             RtpCodecParameters(
@@ -375,7 +377,8 @@ class PubSubServer {
         // Send cached keyframe FIRST so the subscriber can start decoding immediately
         final cachedKeyframe = keyframeCache[media];
         if (cachedKeyframe != null && cachedKeyframe.isNotEmpty) {
-          print('[Server] Sending cached keyframe (${cachedKeyframe.length} packets) to new subscriber');
+          print(
+              '[Server] Sending cached keyframe (${cachedKeyframe.length} packets) to new subscriber');
           await transceiver.sender.forwardCachedPackets(cachedKeyframe);
         }
 
@@ -404,7 +407,9 @@ class PubSubServer {
     } else {
       // Track not received yet, queue the subscription
       print('[Server] Track $media not yet received, queuing subscription');
-      pendingSubscriptions.putIfAbsent(media, () => []).add((client, transceiver));
+      pendingSubscriptions
+          .putIfAbsent(media, () => [])
+          .add((client, transceiver));
     }
   }
 

@@ -26,8 +26,10 @@ class SimplifiedMultiClientServer {
 
   Future<void> _handleRequest(HttpRequest request) async {
     request.response.headers.add('Access-Control-Allow-Origin', '*');
-    request.response.headers.add('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
-    request.response.headers.add('Access-Control-Allow-Headers', 'Content-Type');
+    request.response.headers
+        .add('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
+    request.response.headers
+        .add('Access-Control-Allow-Headers', 'Content-Type');
 
     if (request.method == 'OPTIONS') {
       request.response.statusCode = 200;
@@ -104,7 +106,9 @@ class SimplifiedMultiClientServer {
 
     // Create peer connection - same config as ice_trickle
     _pc = RtcPeerConnection(RtcConfiguration(
-      iceServers: [IceServer(urls: ['stun:stun.l.google.com:19302'])],
+      iceServers: [
+        IceServer(urls: ['stun:stun.l.google.com:19302'])
+      ],
     ));
     print('[Simple] PeerConnection created');
 

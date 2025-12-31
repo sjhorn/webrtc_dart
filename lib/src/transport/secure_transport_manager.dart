@@ -102,7 +102,8 @@ class SecureTransportManager {
     IntegratedTransport? transport,
     Map<String, RtpSession> rtpSessions,
   ) {
-    _log.fine('setupSrtpSessions called, rtpSessions.length=${rtpSessions.length}');
+    _log.fine(
+        'setupSrtpSessions called, rtpSessions.length=${rtpSessions.length}');
 
     final dtlsSocket = transport?.dtlsSocket;
     if (dtlsSocket == null) {
@@ -117,7 +118,8 @@ class SecureTransportManager {
 
     // Store at manager level for use in decryption
     _srtpSession = srtpSession;
-    _log.fine('Created SRTP session, applying to ${rtpSessions.length} RTP sessions');
+    _log.fine(
+        'Created SRTP session, applying to ${rtpSessions.length} RTP sessions');
 
     // Apply SRTP session to all RTP sessions
     for (final entry in rtpSessions.entries) {
@@ -185,7 +187,8 @@ class SecureTransportManager {
 
     // Store SRTP session by transport ID (MID)
     _srtpSessionsByMid[transport.id] = srtpSession;
-    _log.fine('SRTP session created for transport ${transport.id} (per-transport setup)');
+    _log.fine(
+        'SRTP session created for transport ${transport.id} (per-transport setup)');
 
     // Find transceivers using this transport and update their SRTP sessions
     final mids = getMidsForTransport(transport.id);
@@ -319,7 +322,8 @@ class SecureTransportManager {
       newState = IceConnectionState.checking;
     } else if (allMatch([IceState.completed, IceState.closed])) {
       newState = IceConnectionState.completed;
-    } else if (allMatch([IceState.connected, IceState.completed, IceState.closed])) {
+    } else if (allMatch(
+        [IceState.connected, IceState.completed, IceState.closed])) {
       newState = IceConnectionState.connected;
     } else {
       newState = IceConnectionState.new_;
@@ -384,7 +388,8 @@ class SecureTransportManager {
   /// Set ICE connection state directly (for single transport case).
   void setIceConnectionState(IceConnectionState state) {
     if (_iceConnectionState != state) {
-      _log.fine('ICE connection state (direct): $_iceConnectionState -> $state');
+      _log.fine(
+          'ICE connection state (direct): $_iceConnectionState -> $state');
       _iceConnectionState = state;
       if (!_iceConnectionStateController.isClosed) {
         _iceConnectionStateController.add(state);

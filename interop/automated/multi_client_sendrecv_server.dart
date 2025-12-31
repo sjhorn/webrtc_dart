@@ -133,7 +133,9 @@ class MultiClientSendrecvServer {
 
     // Create peer connection for this client
     final pc = RtcPeerConnection(RtcConfiguration(
-      iceServers: [IceServer(urls: ['stun:stun.l.google.com:19302'])],
+      iceServers: [
+        IceServer(urls: ['stun:stun.l.google.com:19302'])
+      ],
     ));
 
     // Create send track for echoing
@@ -316,7 +318,8 @@ class MultiClientSendrecvServer {
     final client = _clients[clientId];
     if (client != null) {
       client.echoFramesReported = echoFrames;
-      print('[MultiSendrecv] [$clientId] Browser reports $echoFrames echo frames');
+      print(
+          '[MultiSendrecv] [$clientId] Browser reports $echoFrames echo frames');
     }
 
     request.response.headers.contentType = ContentType.json;
@@ -347,12 +350,12 @@ class MultiClientSendrecvServer {
   Future<void> _handleResult(HttpRequest request) async {
     final connectedClients = _clients.values.where((c) => c.isConnected).length;
     final clientsWithTrack = _clients.values.where((c) => c.hasTrack).length;
-    final totalRtpReceived = _clients.values
-        .fold<int>(0, (sum, c) => sum + c.rtpPacketsReceived);
-    final totalRtpEchoed = _clients.values
-        .fold<int>(0, (sum, c) => sum + c.rtpPacketsEchoed);
-    final totalEchoFrames = _clients.values
-        .fold<int>(0, (sum, c) => sum + c.echoFramesReported);
+    final totalRtpReceived =
+        _clients.values.fold<int>(0, (sum, c) => sum + c.rtpPacketsReceived);
+    final totalRtpEchoed =
+        _clients.values.fold<int>(0, (sum, c) => sum + c.rtpPacketsEchoed);
+    final totalEchoFrames =
+        _clients.values.fold<int>(0, (sum, c) => sum + c.echoFramesReported);
 
     // Success if multiple clients connected, sent video, and received echoes
     final success = _maxConcurrentClients >= 2 &&

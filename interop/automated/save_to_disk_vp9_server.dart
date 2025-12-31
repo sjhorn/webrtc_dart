@@ -123,7 +123,9 @@ class SaveToDiskVp9Server {
 
     // Create peer connection with VP9 codec preference
     _pc = RtcPeerConnection(RtcConfiguration(
-      iceServers: [IceServer(urls: ['stun:stun.l.google.com:19302'])],
+      iceServers: [
+        IceServer(urls: ['stun:stun.l.google.com:19302'])
+      ],
       codecs: RtcCodecs(
         video: [
           createVp9Codec(payloadType: 96),

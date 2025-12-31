@@ -126,7 +126,9 @@ class TwccServer {
 
     // Create peer connection with VP8 + TWCC feedback
     _pc = RtcPeerConnection(RtcConfiguration(
-      iceServers: [IceServer(urls: ['stun:stun.l.google.com:19302'])],
+      iceServers: [
+        IceServer(urls: ['stun:stun.l.google.com:19302'])
+      ],
       codecs: RtcCodecs(
         video: [
           // VP8 with TWCC feedback

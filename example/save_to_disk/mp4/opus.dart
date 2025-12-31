@@ -26,7 +26,9 @@ void main() async {
     print('[WS] Client connected');
 
     final pc = RtcPeerConnection(RtcConfiguration(
-      iceServers: [IceServer(urls: ['stun:stun.l.google.com:19302'])],
+      iceServers: [
+        IceServer(urls: ['stun:stun.l.google.com:19302'])
+      ],
       codecs: RtcCodecs(
         audio: [
           createOpusCodec(payloadType: 111),
@@ -65,7 +67,8 @@ void main() async {
     // Stats timer
     Timer.periodic(Duration(seconds: 3), (_) {
       final kbps = totalBytes * 8.0 / 3.0 / 1000.0;
-      print('[Stats] $packetCount packets, ${totalBytes ~/ 1024} KB, ~${kbps.toStringAsFixed(1)} kbps');
+      print(
+          '[Stats] $packetCount packets, ${totalBytes ~/ 1024} KB, ~${kbps.toStringAsFixed(1)} kbps');
     });
 
     // Create offer and send

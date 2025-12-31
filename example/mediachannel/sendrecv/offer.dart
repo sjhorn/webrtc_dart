@@ -179,7 +179,8 @@ class SendRecvServer {
       },
       onDone: () async {
         print('[Server] Client disconnected');
-        print('[Server] Final stats - Video: $videoPackets, Audio: $audioPackets');
+        print(
+            '[Server] Final stats - Video: $videoPackets, Audio: $audioPackets');
         await pc.close();
       },
     );

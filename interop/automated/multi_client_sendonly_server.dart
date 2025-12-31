@@ -149,10 +149,12 @@ class MultiClientSendonlyServer {
         if (datagram != null) {
           udpPacketCount++;
           if (udpPacketCount <= 5 || udpPacketCount % 100 == 0) {
-            print('[MultiSendonly] UDP packet #$udpPacketCount, size=${datagram.data.length}');
+            print(
+                '[MultiSendonly] UDP packet #$udpPacketCount, size=${datagram.data.length}');
           }
           // Broadcast to all connected clients
-          final connectedCount = _clients.values.where((c) => c.isConnected).length;
+          final connectedCount =
+              _clients.values.where((c) => c.isConnected).length;
           if (udpPacketCount == 1) {
             print('[MultiSendonly] Connected clients: $connectedCount');
           }
@@ -169,16 +171,26 @@ class MultiClientSendonlyServer {
     // Start FFmpeg with testsrc
     final ffmpegArgs = [
       '-re',
-      '-f', 'lavfi',
-      '-i', 'testsrc=size=640x480:rate=30',
-      '-c:v', 'libvpx',
-      '-deadline', 'realtime',
-      '-cpu-used', '8',
-      '-b:v', '1M',
-      '-keyint_min', '30',
-      '-g', '30',
-      '-f', 'rtp',
-      '-payload_type', '96',
+      '-f',
+      'lavfi',
+      '-i',
+      'testsrc=size=640x480:rate=30',
+      '-c:v',
+      'libvpx',
+      '-deadline',
+      'realtime',
+      '-cpu-used',
+      '8',
+      '-b:v',
+      '1M',
+      '-keyint_min',
+      '30',
+      '-g',
+      '30',
+      '-f',
+      'rtp',
+      '-payload_type',
+      '96',
       'rtp://127.0.0.1:$udpPort',
     ];
 
@@ -203,7 +215,9 @@ class MultiClientSendonlyServer {
 
     // Create peer connection for this client
     final pc = RtcPeerConnection(RtcConfiguration(
-      iceServers: [IceServer(urls: ['stun:stun.l.google.com:19302'])],
+      iceServers: [
+        IceServer(urls: ['stun:stun.l.google.com:19302'])
+      ],
     ));
 
     // Create dedicated video track for this client
@@ -406,7 +420,8 @@ class MultiClientSendonlyServer {
     final totalFramesReceived = _clients.values
         .fold<int>(0, (sum, c) => sum + c.framesReceivedByBrowser);
 
-    print('[MultiSendonly] Result: totalRtpSent=$totalRtpSent, totalFramesReceived=$totalFramesReceived');
+    print(
+        '[MultiSendonly] Result: totalRtpSent=$totalRtpSent, totalFramesReceived=$totalFramesReceived');
 
     // Success if we had multiple clients connect and receive video
     final success = _maxConcurrentClients >= 2 &&

@@ -118,16 +118,20 @@ class SaveToDiskH264Server {
     _connectedTime = null;
     _connectionCompleter = Completer();
     _rtpPacketsReceived = 0;
-    _outputPath = './recording-h264-${DateTime.now().millisecondsSinceEpoch}.webm';
+    _outputPath =
+        './recording-h264-${DateTime.now().millisecondsSinceEpoch}.webm';
 
     // Create peer connection with STUN server and H.264 codec preference
     _pc = RtcPeerConnection(RtcConfiguration(
-      iceServers: [IceServer(urls: ['stun:stun.l.google.com:19302'])],
+      iceServers: [
+        IceServer(urls: ['stun:stun.l.google.com:19302'])
+      ],
       codecs: RtcCodecs(
         video: [
           createH264Codec(
             payloadType: 96,
-            parameters: 'level-asymmetry-allowed=1;packetization-mode=1;profile-level-id=42e01f',
+            parameters:
+                'level-asymmetry-allowed=1;packetization-mode=1;profile-level-id=42e01f',
           ),
         ],
       ),
@@ -182,7 +186,8 @@ class SaveToDiskH264Server {
             _rtpPacketsReceived++;
             handler(rtp);
             if (_rtpPacketsReceived % 100 == 0) {
-              print('[SaveToDisk-H264] Received $_rtpPacketsReceived RTP packets');
+              print(
+                  '[SaveToDisk-H264] Received $_rtpPacketsReceived RTP packets');
             }
           });
         },

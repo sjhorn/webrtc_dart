@@ -122,19 +122,23 @@ class RedSendrecvServer {
 
     // Create peer connection - RED + Opus codecs will be used
     _pc = RtcPeerConnection(RtcConfiguration(
-      iceServers: [IceServer(urls: ['stun:stun.l.google.com:19302'])],
+      iceServers: [
+        IceServer(urls: ['stun:stun.l.google.com:19302'])
+      ],
     ));
     print('[RED-Sendrecv] PeerConnection created');
 
     // Create nonstandard track for sending echoed audio
-    _sendTrack = nonstandard.MediaStreamTrack(kind: nonstandard.MediaKind.audio);
+    _sendTrack =
+        nonstandard.MediaStreamTrack(kind: nonstandard.MediaKind.audio);
 
     // Add sendrecv audio transceiver with our send track
     final transceiver = _pc!.addTransceiver(
       _sendTrack!,
       direction: RtpTransceiverDirection.sendrecv,
     );
-    print('[RED-Sendrecv] Added audio transceiver (sendrecv), mid=${transceiver.mid}');
+    print(
+        '[RED-Sendrecv] Added audio transceiver (sendrecv), mid=${transceiver.mid}');
 
     _pc!.onConnectionStateChange.listen((state) {
       print('[RED-Sendrecv] Connection state: $state');
@@ -150,7 +154,8 @@ class RedSendrecvServer {
     });
 
     _pc!.onIceCandidate.listen((candidate) {
-      print('[RED-Sendrecv] Local ICE candidate: ${candidate.type} ${candidate.host}:${candidate.port}');
+      print(
+          '[RED-Sendrecv] Local ICE candidate: ${candidate.type} ${candidate.host}:${candidate.port}');
       _localCandidates.add({
         'candidate': 'candidate:${candidate.toSdp()}',
         'sdpMid': '0',
@@ -160,7 +165,8 @@ class RedSendrecvServer {
 
     // Handle incoming audio - echo via writeRtp
     _subscriptions.add(_pc!.onTrack.listen((transceiver) {
-      print('[RED-Sendrecv] onTrack: kind=${transceiver.kind}, mid=${transceiver.mid}');
+      print(
+          '[RED-Sendrecv] onTrack: kind=${transceiver.kind}, mid=${transceiver.mid}');
 
       if (transceiver.kind == MediaStreamTrackKind.audio) {
         final receivedTrack = transceiver.receiver.track;
@@ -179,7 +185,8 @@ class RedSendrecvServer {
           }
 
           if (_packetsReceived % 50 == 0) {
-            print('[RED-Sendrecv] Received=$_packetsReceived, Echoed=$_packetsEchoed');
+            print(
+                '[RED-Sendrecv] Received=$_packetsReceived, Echoed=$_packetsEchoed');
           }
         }));
       }

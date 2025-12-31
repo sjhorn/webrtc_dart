@@ -26,8 +26,10 @@ class IceTrickleWithConnectServer {
 
   Future<void> _handleRequest(HttpRequest request) async {
     request.response.headers.add('Access-Control-Allow-Origin', '*');
-    request.response.headers.add('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
-    request.response.headers.add('Access-Control-Allow-Headers', 'Content-Type');
+    request.response.headers
+        .add('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
+    request.response.headers
+        .add('Access-Control-Allow-Headers', 'Content-Type');
 
     if (request.method == 'OPTIONS') {
       request.response.statusCode = 200;
@@ -95,7 +97,9 @@ class IceTrickleWithConnectServer {
 
     // Create peer connection in /start (same as ice_trickle)
     _pc = RtcPeerConnection(RtcConfiguration(
-      iceServers: [IceServer(urls: ['stun:stun.l.google.com:19302'])],
+      iceServers: [
+        IceServer(urls: ['stun:stun.l.google.com:19302'])
+      ],
     ));
     print('[Connect] PeerConnection created');
 
@@ -122,7 +126,8 @@ class IceTrickleWithConnectServer {
 
   // NEW: /connect endpoint that just returns clientId (does nothing else)
   Future<void> _handleConnect(HttpRequest request) async {
-    print('[Connect] /connect called - returning clientId (PC already created in /start)');
+    print(
+        '[Connect] /connect called - returning clientId (PC already created in /start)');
     request.response.headers.contentType = ContentType.json;
     request.response.write(jsonEncode({'clientId': 'client_1'}));
   }

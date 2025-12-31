@@ -15,7 +15,9 @@ void main() async {
   print('=' * 50);
 
   final pc = RtcPeerConnection(RtcConfiguration(
-    iceServers: [IceServer(urls: ['stun:stun.l.google.com:19302'])],
+    iceServers: [
+      IceServer(urls: ['stun:stun.l.google.com:19302'])
+    ],
   ));
 
   pc.onConnectionStateChange.listen((state) {
@@ -42,9 +44,8 @@ void main() async {
 
   // Periodically evaluate and adjust redundancy
   Timer.periodic(Duration(seconds: 5), (_) {
-    final lossRate = packetsReceived > 0
-        ? (packetsLost / packetsReceived * 100)
-        : 0.0;
+    final lossRate =
+        packetsReceived > 0 ? (packetsLost / packetsReceived * 100) : 0.0;
 
     print('[Stats] Loss rate: ${lossRate.toStringAsFixed(1)}%');
 

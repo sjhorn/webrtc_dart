@@ -145,7 +145,9 @@ class MediaSendonlyServer {
 
     // Create peer connection with STUN server
     _pc = RtcPeerConnection(RtcConfiguration(
-      iceServers: [IceServer(urls: ['stun:stun.l.google.com:19302'])],
+      iceServers: [
+        IceServer(urls: ['stun:stun.l.google.com:19302'])
+      ],
     ));
     print('[MediaServer] PeerConnection created');
 
@@ -177,7 +179,8 @@ class MediaSendonlyServer {
     });
 
     // Create video track for sendonly
-    _videoTrack = nonstandard.MediaStreamTrack(kind: nonstandard.MediaKind.video);
+    _videoTrack =
+        nonstandard.MediaStreamTrack(kind: nonstandard.MediaKind.video);
 
     // Add transceiver with sendonly direction
     _pc!.addTransceiver(

@@ -44,7 +44,9 @@ class SimulcastTwccServer {
     // Create PeerConnection with RID, abs-send-time, and TWCC header extensions
     // Plus VP8 codec with transport-cc feedback (like werift)
     final pc = RtcPeerConnection(RtcConfiguration(
-      iceServers: [IceServer(urls: ['stun:stun.l.google.com:19302'])],
+      iceServers: [
+        IceServer(urls: ['stun:stun.l.google.com:19302'])
+      ],
       codecs: RtcCodecs(
         video: [
           RtpCodecParameters(
@@ -83,7 +85,8 @@ class SimulcastTwccServer {
 
     // Add simulcast layers for receiving (high, low)
     recvTransceiver.addSimulcastLayer(
-      RTCRtpSimulcastParameters(rid: 'high', direction: SimulcastDirection.recv),
+      RTCRtpSimulcastParameters(
+          rid: 'high', direction: SimulcastDirection.recv),
     );
     recvTransceiver.addSimulcastLayer(
       RTCRtpSimulcastParameters(rid: 'low', direction: SimulcastDirection.recv),
@@ -129,7 +132,8 @@ class SimulcastTwccServer {
 
     // Listen for additional simulcast layer tracks
     recvTransceiver.receiver.onTrack = (simulcastTrack) {
-      print('[Server] New simulcast layer: ${simulcastTrack.id}, RID: ${simulcastTrack.rid}');
+      print(
+          '[Server] New simulcast layer: ${simulcastTrack.id}, RID: ${simulcastTrack.rid}');
 
       simulcastTrack.onReceiveRtp.listen((rtp) {
         final rid = simulcastTrack.rid ?? 'default';

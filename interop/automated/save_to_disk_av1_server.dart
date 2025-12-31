@@ -125,7 +125,9 @@ class SaveToDiskAv1Server {
 
     // Create peer connection with AV1 codec preference
     _pc = RtcPeerConnection(RtcConfiguration(
-      iceServers: [IceServer(urls: ['stun:stun.l.google.com:19302'])],
+      iceServers: [
+        IceServer(urls: ['stun:stun.l.google.com:19302'])
+      ],
       codecs: RtcCodecs(
         video: [
           createAv1Codec(payloadType: 96),

@@ -45,7 +45,8 @@ void main() async {
   // Handle incoming datachannel on pc2
   pc2.onDataChannel.listen((channel) {
     dc2 = channel;
-    print('[PC2] DataChannel received: ${channel.label}, state: ${channel.state}, type: ${channel.runtimeType}');
+    print(
+        '[PC2] DataChannel received: ${channel.label}, state: ${channel.state}, type: ${channel.runtimeType}');
 
     // Set up message handler
     print('[PC2] Setting up message listener...');
@@ -119,7 +120,8 @@ void main() async {
   ];
 
   print('--- Sending Messages ---');
-  print('[PC1] DC1 state before send: ${dc1.state}, isInitialized: ${(dc1 as dynamic).isInitialized}');
+  print(
+      '[PC1] DC1 state before send: ${dc1.state}, isInitialized: ${(dc1 as dynamic).isInitialized}');
   for (final msg in messagesToSend) {
     print('[PC1] Sending: "$msg"');
     await dc1.sendString(msg);

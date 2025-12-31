@@ -59,8 +59,10 @@ class SimulcastSelectServer {
   void _handleRequest(HttpRequest request) async {
     // CORS
     request.response.headers.add('Access-Control-Allow-Origin', '*');
-    request.response.headers.add('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
-    request.response.headers.add('Access-Control-Allow-Headers', 'Content-Type');
+    request.response.headers
+        .add('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
+    request.response.headers
+        .add('Access-Control-Allow-Headers', 'Content-Type');
 
     if (request.method == 'OPTIONS') {
       request.response.statusCode = HttpStatus.ok;
@@ -209,7 +211,9 @@ class SimulcastSelectServer {
 
     _pc = RtcPeerConnection(
       RtcConfiguration(
-        iceServers: [IceServer(urls: ['stun:stun.l.google.com:19302'])],
+        iceServers: [
+          IceServer(urls: ['stun:stun.l.google.com:19302'])
+        ],
         codecs: RtcCodecs(
           video: [
             RtpCodecParameters(
@@ -243,7 +247,8 @@ class SimulcastSelectServer {
       direction: RtpTransceiverDirection.recvonly,
     );
     receiver.addSimulcastLayer(
-      RTCRtpSimulcastParameters(rid: 'high', direction: SimulcastDirection.recv),
+      RTCRtpSimulcastParameters(
+          rid: 'high', direction: SimulcastDirection.recv),
     );
     receiver.addSimulcastLayer(
       RTCRtpSimulcastParameters(rid: 'mid', direction: SimulcastDirection.recv),
@@ -354,7 +359,8 @@ class SimulcastSelectServer {
   Future<void> _handleAnswer(HttpRequest request) async {
     final body = await utf8.decodeStream(request);
     final data = jsonDecode(body) as Map<String, dynamic>;
-    final answer = SessionDescription(type: 'answer', sdp: data['sdp'] as String);
+    final answer =
+        SessionDescription(type: 'answer', sdp: data['sdp'] as String);
 
     await _pc!.setRemoteDescription(answer);
     print('[Select] Remote description set');

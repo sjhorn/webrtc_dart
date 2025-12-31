@@ -140,7 +140,9 @@ class IceRestartServer {
 
     // Create peer connection
     _pc = RtcPeerConnection(RtcConfiguration(
-      iceServers: [IceServer(urls: ['stun:stun.l.google.com:19302'])],
+      iceServers: [
+        IceServer(urls: ['stun:stun.l.google.com:19302'])
+      ],
     ));
     print('[Restart] PeerConnection created');
 
@@ -163,7 +165,7 @@ class IceRestartServer {
       print('[Restart] ICE state: $state');
       // Also check ICE state for restart success (connection state may not change)
       if ((state == IceConnectionState.connected ||
-           state == IceConnectionState.completed) &&
+              state == IceConnectionState.completed) &&
           _restartInProgress) {
         _restartSuccess = true;
         _restartInProgress = false;
@@ -437,13 +439,14 @@ class IceRestartServer {
         ? _connectedTime!.difference(_startTime!)
         : Duration.zero;
 
-    final iceCredentialsChanged =
-        _originalIceUfrag != null && _restartedIceUfrag != null &&
+    final iceCredentialsChanged = _originalIceUfrag != null &&
+        _restartedIceUfrag != null &&
         _originalIceUfrag != _restartedIceUfrag;
 
     // Success if ICE is connected/completed, DC is open, and restart was triggered
-    final iceConnected = _pc?.iceConnectionState == IceConnectionState.connected ||
-        _pc?.iceConnectionState == IceConnectionState.completed;
+    final iceConnected =
+        _pc?.iceConnectionState == IceConnectionState.connected ||
+            _pc?.iceConnectionState == IceConnectionState.completed;
 
     final result = {
       'browser': _currentBrowser,

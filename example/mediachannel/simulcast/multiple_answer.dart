@@ -55,7 +55,9 @@ class SimulcastMultipleAnswerServer {
 
             // Create PeerConnection with STUN and RID header extensions (like werift)
             final pc = RtcPeerConnection(RtcConfiguration(
-              iceServers: [IceServer(urls: ['stun:stun.l.google.com:19302'])],
+              iceServers: [
+                IceServer(urls: ['stun:stun.l.google.com:19302'])
+              ],
             ));
 
             // Track connection state
@@ -76,12 +78,14 @@ class SimulcastMultipleAnswerServer {
 
             // Handle tracks from transceiver A
             transceiverA.receiver.onTrack = (track) {
-              print('[Server] TransceiverA track: ${track.id}, RID: ${track.rid}');
+              print(
+                  '[Server] TransceiverA track: ${track.id}, RID: ${track.rid}');
               track.onReceiveRtp.listen((rtp) {
                 final rid = track.rid ?? 'default';
                 ridPacketsA[rid] = (ridPacketsA[rid] ?? 0) + 1;
                 if (ridPacketsA[rid]! % 100 == 0) {
-                  print('[Server] TransceiverA RID $rid: ${ridPacketsA[rid]} packets');
+                  print(
+                      '[Server] TransceiverA RID $rid: ${ridPacketsA[rid]} packets');
                 }
               });
             };
@@ -95,12 +99,14 @@ class SimulcastMultipleAnswerServer {
 
             // Handle tracks from transceiver B
             transceiverB.receiver.onTrack = (track) {
-              print('[Server] TransceiverB track: ${track.id}, RID: ${track.rid}');
+              print(
+                  '[Server] TransceiverB track: ${track.id}, RID: ${track.rid}');
               track.onReceiveRtp.listen((rtp) {
                 final rid = track.rid ?? 'default';
                 ridPacketsB[rid] = (ridPacketsB[rid] ?? 0) + 1;
                 if (ridPacketsB[rid]! % 100 == 0) {
-                  print('[Server] TransceiverB RID $rid: ${ridPacketsB[rid]} packets');
+                  print(
+                      '[Server] TransceiverB RID $rid: ${ridPacketsB[rid]} packets');
                 }
               });
             };

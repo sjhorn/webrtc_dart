@@ -80,7 +80,8 @@ void main() {
         expect(connection.checkList, isNotEmpty);
       });
 
-      test('early checks are processed when connectivity checks start', () async {
+      test('early checks are processed when connectivity checks start',
+          () async {
         // Gather local candidates
         await connection.gatherCandidates();
 
@@ -129,10 +130,12 @@ void main() {
         // At least some pairs should be created
         expect(connection.checkList.length, greaterThan(0));
         // Maximum possible pairs
-        expect(connection.checkList.length, lessThanOrEqualTo(localCount * remoteCount));
+        expect(connection.checkList.length,
+            lessThanOrEqualTo(localCount * remoteCount));
       });
 
-      test('trickle ICE handles candidates arriving after connect starts', () async {
+      test('trickle ICE handles candidates arriving after connect starts',
+          () async {
         await connection.gatherCandidates();
 
         // In trickle ICE, connect() may be called before remote candidates arrive

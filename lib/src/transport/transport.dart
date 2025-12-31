@@ -344,7 +344,8 @@ class IceToDtlsAdapter implements dtls_ctx.DtlsTransport {
     if (!_isOpen) {
       throw StateError('Transport is closed');
     }
-    _logDemux.fine(' Sending DTLS packet: ${data.length} bytes, firstByte=${data.isNotEmpty ? data[0] : "empty"}');
+    _logDemux.fine(
+        ' Sending DTLS packet: ${data.length} bytes, firstByte=${data.isNotEmpty ? data[0] : "empty"}');
     await iceConnection.send(data);
   }
 
@@ -702,7 +703,8 @@ class IntegratedTransport {
       // Following werift pattern: ICE controlling side initiates SCTP
       // This aligns with the common case where ICE controlling is also DTLS client,
       // but uses ICE role as the definitive signal (like werift does)
-      _log.fine('[$debugLabel] SCTP: dtlsRole=$_effectiveDtlsRole, iceControlling=${iceConnection.iceControlling}');
+      _log.fine(
+          '[$debugLabel] SCTP: dtlsRole=$_effectiveDtlsRole, iceControlling=${iceConnection.iceControlling}');
       if (iceConnection.iceControlling) {
         // ICE controlling initiates SCTP (like werift)
         _log.fine('[$debugLabel] SCTP: initiating as ICE controlling');

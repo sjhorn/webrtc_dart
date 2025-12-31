@@ -298,10 +298,12 @@ class RtpSession {
     //
     // Also reinitialize when incoming SSRC changes (handles Chrome probing packets
     // which come from a different SSRC before main video starts).
-    final ssrcChanged = _lastIncomingSsrc != null && packet.ssrc != _lastIncomingSsrc;
+    final ssrcChanged =
+        _lastIncomingSsrc != null && packet.ssrc != _lastIncomingSsrc;
     if (applyOffsets && (!_offsetsInitialized || ssrcChanged)) {
       if (ssrcChanged) {
-        _log.fine('Incoming SSRC changed from $_lastIncomingSsrc to ${packet.ssrc}, reinitializing offsets');
+        _log.fine(
+            'Incoming SSRC changed from $_lastIncomingSsrc to ${packet.ssrc}, reinitializing offsets');
       }
       initializeForwardingOffsets(packet.sequenceNumber, packet.timestamp);
     }
@@ -427,7 +429,8 @@ class RtpSession {
 
     if (config.transportWideCCId != null) {
       final twccSeq = _nextTransportSequenceNumber();
-      extensionMap[config.transportWideCCId!] = serializeTransportWideCC(twccSeq);
+      extensionMap[config.transportWideCCId!] =
+          serializeTransportWideCC(twccSeq);
     }
 
     if (config.sdesMidId != null && config.mid != null) {
@@ -591,7 +594,8 @@ class RtpSession {
     final Uint8List data;
     if (cname != null && srtpSession != null) {
       // Create SDES packet with CNAME
-      final sdes = RtcpSourceDescription.withCname(ssrc: localSsrc, cname: cname!);
+      final sdes =
+          RtcpSourceDescription.withCname(ssrc: localSsrc, cname: cname!);
 
       // Serialize compound: SR + SDES
       final srBytes = sr.toPacket().serialize();
@@ -630,7 +634,8 @@ class RtpSession {
     final Uint8List data;
     if (cname != null && srtpSession != null) {
       // Create SDES packet with CNAME
-      final sdes = RtcpSourceDescription.withCname(ssrc: localSsrc, cname: cname!);
+      final sdes =
+          RtcpSourceDescription.withCname(ssrc: localSsrc, cname: cname!);
 
       // Serialize compound: RR + SDES
       final rrBytes = rr.toPacket().serialize();

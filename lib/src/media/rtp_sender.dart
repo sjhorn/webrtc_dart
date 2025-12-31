@@ -456,11 +456,42 @@ class RtpSender {
   ///
   /// Header extensions (mid, abs-send-time, transport-cc) are regenerated using
   /// HeaderExtensionConfig, matching werift rtpSender.ts:sendRtp behavior.
+  int? _primarySsrc; // Track the primary SSRC to filter RTX/probing packets
+  int?
+      _actualPayloadType; // Track the actual PT used by the remote (may differ from codec.payloadType)
+
   void _attachNonstandardTrack(nonstandard.MediaStreamTrack track) {
     _trackSubscription = track.onReceiveRtp.listen((event) async {
       if (_stopped) return;
 
       final (rtp, _) = event;
+
+      // Filter RTX and probing packets:
+      // - RTX packets use a different payload type (marked in SDP with rtx attribute)
+      // - Probing packets often have ts=0 and come early in stream
+      // - We want to forward the primary video stream only
+      //
+      // RTX payload types are typically the main codec PT + 1 (e.g., VP8=96, VP8-RTX=97)
+      // Also skip padding probes (ts=0, small payload)
+      final isProbing = rtp.timestamp == 0 && rtp.payload.length < 300;
+      final isLikelyRtx = rtp.payloadType == (codec.payloadType ?? 96) + 1;
+
+      if (isProbing || isLikelyRtx) {
+        return;
+      }
+
+      // Lock onto the first non-RTX, non-probing SSRC as primary.
+      // This ensures we forward a consistent video stream and ignore
+      // packets from other SSRCs (RTX retransmissions, simulcast layers, etc.)
+      if (_primarySsrc == null) {
+        _primarySsrc = rtp.ssrc;
+        // Capture the actual payload type being used by the remote.
+        // Chrome may choose a different codec than our default (e.g., AV1 vs VP8).
+        _actualPayloadType = rtp.payloadType;
+      } else if (rtp.ssrc != _primarySsrc) {
+        // Skip packets from non-primary SSRCs
+        return;
+      }
 
       // Build header extension config at SEND TIME, not at attachment time
       // This is critical for the answerer pattern where MID is migrated after attachment
@@ -475,16 +506,19 @@ class RtpSender {
       // Forward the RTP packet through the session with extension regeneration
       // sendRawRtpPacket will:
       // - Rewrite SSRC to sender's SSRC
-      // - Rewrite payloadType to match negotiated codec (matching werift rtpSender.ts)
       // - Regenerate header extensions (mid, abs-send-time, transport-cc)
       //
-      // The payload type MUST be rewritten to match what was negotiated with Ring.
-      // FFmpeg sends RTP with its own payload type (e.g., 97 for Opus), but Ring
-      // expects the payload type from the SDP answer.
+      // For echo scenarios: preserve the incoming payload type since Chrome may
+      // choose a different codec than our default (e.g., AV1 instead of VP8).
+      // For transcoding scenarios (Ring camera): use codec.payloadType to rewrite.
+      //
+      // We detect echo scenario by checking if _actualPayloadType was captured.
+      final effectivePayloadType = _actualPayloadType ?? codec.payloadType;
+
       await rtpSession.sendRawRtpPacket(
         rtp,
         replaceSsrc: true,
-        payloadType: codec.payloadType,
+        payloadType: effectivePayloadType,
         extensionConfig: extensionConfig,
       );
     });

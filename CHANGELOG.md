@@ -2,6 +2,26 @@
 
 All notable changes to this project will be documented in this file.
 
+## 0.22.10
+
+### Fixed
+
+- **Return audio for bundlePolicy:disable** - Fixed three issues preventing return audio from reaching Ring cameras:
+  - MID migration bug: `_mediaTransports` map wasn't updated when Ring's SDP answer migrates MIDs
+  - Closure capture bug: `onSendRtp`/`onSendRtcp` callbacks captured mid at creation time instead of looking up dynamically
+  - Codec payload type bug: Sender's `codec.payloadType` wasn't updated from SDP answer, causing PT mismatch
+- **ICE connectivity for bundlePolicy:disable** - Improved candidate pair priority for separate audio/video transports
+
+### Added
+
+- **debugLabel for IceToDtlsAdapter** - Helps trace which transport receives DTLS packets during debugging
+- **Public export for nonstandard MediaStreamTrack** - Enables custom track implementations
+
+### Tests
+
+- 2433 tests passing (up from 2431)
+- All browser interop tests passing on Chrome, Firefox, Safari
+
 ## 0.22.9
 
 ### Fixed

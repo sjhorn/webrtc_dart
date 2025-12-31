@@ -295,7 +295,7 @@ See `CLAUDE.md` for detailed code structure.
 
 ## Test Coverage
 
-**2431 tests passing** with **80% code coverage**.
+**2433 tests passing** with **80% code coverage**.
 
 ```bash
 # Run all tests

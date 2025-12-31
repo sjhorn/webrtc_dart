@@ -36,7 +36,7 @@ The Dart port achieves **~95-100% feature parity** with the TypeScript werift-we
 - ✅ Polymorphic addTransceiver(trackOrKind) - matches werift API for Ring camera compatibility
 - ✅ Fixed bundlePolicy logic to match werift's findOrCreateTransport()
 - ✅ Updated all examples to match werift patterns (30 examples, all verified)
-- ✅ All 2431 tests passing, 0 analyzer issues
+- ✅ All 2433 tests passing, 0 analyzer issues
 - ✅ 22/22 Chrome browser interop tests passing
 
 ---

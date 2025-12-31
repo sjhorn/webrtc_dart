@@ -2,6 +2,17 @@
 
 All notable changes to this project will be documented in this file.
 
+## 0.22.11
+
+### Fixed
+
+- **DTLS close race condition** - Fixed "Cannot add to a closed controller" error when browser disconnects during async processing. Added double-check guard (`!isClosed && !errorController.isClosed`) before all `errorController.add()` calls in socket.dart, server.dart, and client.dart.
+
+### Tests
+
+- Added regression test: "close during async processing does not throw"
+- 2434 tests passing
+
 ## 0.22.10
 
 ### Fixed

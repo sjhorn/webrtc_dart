@@ -21,7 +21,7 @@ Add to your `pubspec.yaml`:
 
 ```yaml
 dependencies:
-  webrtc_dart: ^0.22.10
+  webrtc_dart: ^0.22.11
 ```
 
 Then run:
@@ -295,7 +295,7 @@ See `CLAUDE.md` for detailed code structure.
 
 ## Test Coverage
 
-**2433 tests passing** with **80% code coverage**.
+**2434 tests passing** with **80% code coverage**.
 
 ```bash
 # Run all tests

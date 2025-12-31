@@ -1,5 +1,7 @@
 import 'dart:async';
 
+import 'package:webrtc_dart/src/codec/codec_parameters.dart'
+    show RtpCodecParameters;
 import 'package:webrtc_dart/src/media/rtp_router.dart';
 import 'package:webrtc_dart/src/media/rtp_transceiver.dart';
 import 'package:webrtc_dart/src/sdp/sdp.dart' show SdpMedia;
@@ -121,6 +123,36 @@ class TransceiverManager {
       } else if (ext.uri ==
           'http://www.ietf.org/id/draft-holmer-rmcat-transport-wide-cc-extensions-01') {
         transceiver.sender.transportWideCCExtensionId = ext.id;
+      }
+    }
+
+    // Extract codec from remote SDP and update sender's codec
+    // This is critical for return audio to use the correct payload type
+    final rtpmap = media.getAttributeValue('rtpmap');
+    if (rtpmap != null) {
+      // Format: <pt> <codec>/<clock-rate>[/<channels>]
+      final parts = rtpmap.split(' ');
+      if (parts.length >= 2) {
+        final payloadType = int.tryParse(parts[0]);
+        if (payloadType != null) {
+          final codecInfo = parts[1].split('/');
+          final codecName = codecInfo.isNotEmpty ? codecInfo[0] : '';
+          final clockRate = codecInfo.length > 1
+              ? int.tryParse(codecInfo[1])
+              : null;
+          final channels = codecInfo.length > 2
+              ? int.tryParse(codecInfo[2])
+              : null;
+
+          // Update sender's codec with negotiated payload type
+          final mediaType = media.type == 'audio' ? 'audio' : 'video';
+          transceiver.sender.codec = RtpCodecParameters(
+            mimeType: '$mediaType/$codecName',
+            clockRate: clockRate ?? (mediaType == 'audio' ? 48000 : 90000),
+            payloadType: payloadType,
+            channels: channels,
+          );
+        }
       }
     }
 

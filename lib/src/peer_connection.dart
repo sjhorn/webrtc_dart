@@ -958,12 +958,21 @@ class RtcPeerConnection {
           _log.fine(
               '[$_debugLabel] Migrating transceiver from mid=${existingTransceiver.mid} to mid=$mid');
 
-          // Update the _rtpSessions map key
           final oldMid = existingTransceiver.mid;
+
+          // Update the _rtpSessions map key
           if (oldMid != null && _rtpSessions.containsKey(oldMid)) {
             final rtpSession = _rtpSessions.remove(oldMid);
             if (rtpSession != null) {
               _rtpSessions[mid] = rtpSession;
+            }
+          }
+
+          // Update the _mediaTransports map key (for bundlePolicy:disable)
+          if (oldMid != null && _mediaTransports.containsKey(oldMid)) {
+            final mediaTransport = _mediaTransports.remove(oldMid);
+            if (mediaTransport != null) {
+              _mediaTransports[mid] = mediaTransport;
             }
           }
 
@@ -1500,13 +1509,19 @@ class RtcPeerConnection {
       localSsrc: ssrc,
       srtpSession: null,
       onSendRtp: (packet) async {
-        final iceConnection = _getIceConnectionForMid(mid);
+        // Use transceiver's current MID (may be migrated from initial value)
+        final transceiver = getTransceiver();
+        final currentMid = transceiver?.mid ?? mid;
+        final iceConnection = _getIceConnectionForMid(currentMid);
         if (iceConnection != null) {
           await iceConnection.send(packet);
         }
       },
       onSendRtcp: (packet) async {
-        final iceConnection = _getIceConnectionForMid(mid);
+        // Use transceiver's current MID (may be migrated from initial value)
+        final transceiver = getTransceiver();
+        final currentMid = transceiver?.mid ?? mid;
+        final iceConnection = _getIceConnectionForMid(currentMid);
         if (iceConnection != null) {
           try {
             await iceConnection.send(packet);

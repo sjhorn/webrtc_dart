@@ -22,8 +22,8 @@ class RtpSender {
   /// RTP session for sending
   final RtpSession rtpSession;
 
-  /// Codec parameters
-  final RtpCodecParameters codec;
+  /// Codec parameters (can be updated from SDP negotiation)
+  RtpCodecParameters codec;
 
   /// Stream subscription for track frames
   StreamSubscription? _trackSubscription;
@@ -475,14 +475,15 @@ class RtpSender {
       // Forward the RTP packet through the session with extension regeneration
       // sendRawRtpPacket will:
       // - Rewrite SSRC to sender's SSRC
+      // - Rewrite payloadType to match negotiated codec (matching werift rtpSender.ts)
       // - Regenerate header extensions (mid, abs-send-time, transport-cc)
-      // - Keep the same payload type to maintain codec format (RED, RTX, etc.)
       //
-      // Note: We intentionally do NOT override payloadType here.
-      // The browser may send RED-wrapped video (pt=123) and expects
-      // the echo to use the same codec format. Changing PT breaks decoding.
+      // The payload type MUST be rewritten to match what was negotiated with Ring.
+      // FFmpeg sends RTP with its own payload type (e.g., 97 for Opus), but Ring
+      // expects the payload type from the SDP answer.
       await rtpSession.sendRawRtpPacket(
         rtp,
+        payloadType: codec.payloadType,
         extensionConfig: extensionConfig,
       );
     });

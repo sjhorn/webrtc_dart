@@ -483,6 +483,7 @@ class RtpSender {
       // expects the payload type from the SDP answer.
       await rtpSession.sendRawRtpPacket(
         rtp,
+        replaceSsrc: true,
         payloadType: codec.payloadType,
         extensionConfig: extensionConfig,
       );

@@ -142,6 +142,9 @@ class RtpSession {
   /// Whether offsets have been initialized for forwarding.
   bool _offsetsInitialized = false;
 
+  /// Last incoming SSRC for detecting source changes.
+  int? _lastIncomingSsrc;
+
   /// Initialize offsets for packet forwarding.
   /// This should be called when starting to forward packets from a new source.
   /// Matches werift replaceTrack offset calculation.
@@ -292,9 +295,17 @@ class RtpSession {
     // Initialize forwarding offsets on first packet if not already done.
     // This matches werift's replaceTrack behavior where offsets are calculated
     // to ensure continuous sequence numbers when forwarding from a new source.
-    if (applyOffsets && !_offsetsInitialized) {
+    //
+    // Also reinitialize when incoming SSRC changes (handles Chrome probing packets
+    // which come from a different SSRC before main video starts).
+    final ssrcChanged = _lastIncomingSsrc != null && packet.ssrc != _lastIncomingSsrc;
+    if (applyOffsets && (!_offsetsInitialized || ssrcChanged)) {
+      if (ssrcChanged) {
+        _log.fine('Incoming SSRC changed from $_lastIncomingSsrc to ${packet.ssrc}, reinitializing offsets');
+      }
       initializeForwardingOffsets(packet.sequenceNumber, packet.timestamp);
     }
+    _lastIncomingSsrc = packet.ssrc;
 
     // Apply sequence number and timestamp offsets for continuous stream.
     // Matches werift rtpSender.ts:sendRtp:

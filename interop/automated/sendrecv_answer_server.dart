@@ -183,7 +183,7 @@ class SendrecvAnswerServer {
         _echoStarted = true;
 
         // Echo RTP packets via writeRtp on our send track
-        bool pliSent = false;
+        // Match the WORKING pattern from media_sendrecv_server.dart exactly
         _subscriptions.add(receivedTrack.onReceiveRtp.listen((rtpPacket) {
           _packetsReceived++;
 
@@ -191,12 +191,6 @@ class SendrecvAnswerServer {
           if (_sendTrack != null) {
             _sendTrack!.writeRtp(rtpPacket);
             _packetsEchoed++;
-          }
-
-          // Send PLI after first RTP packet to request keyframe
-          if (!pliSent) {
-            pliSent = true;
-            transceiver.sender.rtpSession.sendPli(rtpPacket.ssrc);
           }
 
           if (_packetsReceived % 100 == 0) {

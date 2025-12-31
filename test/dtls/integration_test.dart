@@ -301,5 +301,65 @@ void main() {
       await client.close();
       await server.close();
     }, timeout: const Timeout(Duration(seconds: 15)));
+
+    test('close during async processing does not throw', () async {
+      // This test verifies the fix for race condition where close() is called
+      // while async processing is still happening, which could cause
+      // "Cannot add to a closed controller" errors.
+      //
+      // The fix adds `if (!isClosed)` guards before errorController.add() calls.
+
+      // Generate server certificate
+      final serverCert = await generateSelfSignedCertificate(
+        info: CertificateInfo(commonName: 'Test Server'),
+      );
+
+      // Create mock transports
+      final clientTransport = MockTransport();
+      final serverTransport = MockTransport();
+      MockTransport.connectPair(clientTransport, serverTransport);
+
+      // Create client and server
+      final client = DtlsClient(
+        transport: clientTransport,
+        cipherSuites: [CipherSuite.tlsEcdheEcdsaWithAes128GcmSha256],
+        supportedCurves: [NamedCurve.x25519],
+      );
+
+      final server = DtlsServer(
+        transport: serverTransport,
+        cipherSuites: [CipherSuite.tlsEcdheEcdsaWithAes128GcmSha256],
+        supportedCurves: [NamedCurve.x25519],
+        certificate: serverCert.certificate,
+        privateKey: serverCert.privateKey,
+      );
+
+      // Start handshake
+      await server.connect();
+      await client.connect();
+
+      // Wait for connection
+      await Future.wait([
+        client.onStateChange
+            .firstWhere((state) => state == DtlsSocketState.connected),
+        server.onStateChange
+            .firstWhere((state) => state == DtlsSocketState.connected),
+      ]).timeout(const Duration(seconds: 5));
+
+      // Close immediately - this simulates browser disconnect
+      // Any in-flight async processing should not throw when trying to
+      // add errors to the closed controller
+      await client.close();
+      await server.close();
+
+      // Verify closed state
+      expect(client.isClosed, true);
+      expect(server.isClosed, true);
+
+      // Give any pending async operations time to complete
+      await Future.delayed(const Duration(milliseconds: 100));
+
+      // If we get here without exception, the test passes
+    }, timeout: const Timeout(Duration(seconds: 10)));
   });
 }

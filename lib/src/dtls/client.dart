@@ -175,7 +175,7 @@ class DtlsClient extends DtlsSocket {
           _onHandshakeComplete();
         }
       } catch (e) {
-        if (!isClosed) {
+        if (!isClosed && !errorController.isClosed) {
           errorController.add(e);
           setState(DtlsSocketState.failed);
         }
@@ -291,7 +291,7 @@ class DtlsClient extends DtlsSocket {
 
       if (alert.isFatal) {
         _log.warning('Fatal alert received, closing connection');
-        if (!isClosed) {
+        if (!isClosed && !errorController.isClosed) {
           errorController.add(Exception('Fatal alert: ${alert.description}'));
           setState(DtlsSocketState.failed);
         }
@@ -304,7 +304,7 @@ class DtlsClient extends DtlsSocket {
       }
     } catch (e) {
       _log.warning('Error processing alert: $e');
-      if (!isClosed) {
+      if (!isClosed && !errorController.isClosed) {
         errorController.add(e);
       }
     }

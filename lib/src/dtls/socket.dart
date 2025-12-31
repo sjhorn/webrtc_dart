@@ -114,7 +114,7 @@ abstract class DtlsSocket {
       // Parse DTLS records and process
       processReceivedData(data);
     } catch (e) {
-      if (!isClosed) {
+      if (!isClosed && !_errorController.isClosed) {
         _errorController.add(e);
       }
     }
@@ -154,7 +154,7 @@ abstract class DtlsSocket {
     _transportSubscription = transport.onData.listen(
       _handleTransportData,
       onError: (error) {
-        if (!isClosed) {
+        if (!isClosed && !_errorController.isClosed) {
           _errorController.add(error);
         }
       },

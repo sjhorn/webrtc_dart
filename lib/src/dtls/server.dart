@@ -182,8 +182,10 @@ class DtlsServer extends DtlsSocket {
         }
       } catch (e) {
         _log.warning('Error processing data: $e');
-        errorController.add(e);
-        setState(DtlsSocketState.failed);
+        if (!isClosed && !errorController.isClosed) {
+          errorController.add(e);
+          setState(DtlsSocketState.failed);
+        }
       }
     });
   }
@@ -331,8 +333,10 @@ class DtlsServer extends DtlsSocket {
 
       if (alert.isFatal) {
         _log.warning('Fatal alert received, closing connection');
-        errorController.add(Exception('Fatal alert: ${alert.description}'));
-        setState(DtlsSocketState.failed);
+        if (!isClosed && !errorController.isClosed) {
+          errorController.add(Exception('Fatal alert: ${alert.description}'));
+          setState(DtlsSocketState.failed);
+        }
         await close();
       } else if (alert.description == AlertDescription.closeNotify) {
         _log.fine('Close notify received, closing connection');
@@ -342,7 +346,9 @@ class DtlsServer extends DtlsSocket {
       }
     } catch (e) {
       _log.warning('Error processing alert: $e');
-      errorController.add(e);
+      if (!isClosed && !errorController.isClosed) {
+        errorController.add(e);
+      }
     }
   }
 

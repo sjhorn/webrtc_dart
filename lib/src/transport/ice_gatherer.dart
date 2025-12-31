@@ -137,7 +137,12 @@ class RtcIceGatherer {
     await _candidateSubscription?.cancel();
     _candidateSubscription = null;
 
-    await _gatheringStateController.close();
-    await _iceCandidateController.close();
+    // Only close controllers if not already closed
+    if (!_gatheringStateController.isClosed) {
+      await _gatheringStateController.close();
+    }
+    if (!_iceCandidateController.isClosed) {
+      await _iceCandidateController.close();
+    }
   }
 }

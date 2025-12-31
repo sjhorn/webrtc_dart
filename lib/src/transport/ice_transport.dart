@@ -251,9 +251,16 @@ class RtcIceTransport {
     await _connectionStateSubscription?.cancel();
     _connectionStateSubscription = null;
 
-    await _stateController.close();
-    await _candidateController.close();
-    await _negotiationNeededController.close();
+    // Only close controllers if not already closed
+    if (!_stateController.isClosed) {
+      await _stateController.close();
+    }
+    if (!_candidateController.isClosed) {
+      await _candidateController.close();
+    }
+    if (!_negotiationNeededController.isClosed) {
+      await _negotiationNeededController.close();
+    }
 
     await gatherer.close();
   }

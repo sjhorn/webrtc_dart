@@ -97,8 +97,13 @@ class RtcDtlsTransport {
   /// Current DTLS state
   RtcDtlsState _state = RtcDtlsState.new_;
 
-  /// DTLS role
-  final RtcDtlsRole _role;
+  /// DTLS role for negotiation.
+  ///
+  /// This can be set at any time, but it only takes effect if called
+  /// before start(). After start(), the effective role has already been
+  /// determined (either from this value or auto-detected from ICE role).
+  /// This matches werift behavior where role is a simple public property.
+  RtcDtlsRole role;
 
   /// Effective DTLS role (after auto-detection)
   RtcDtlsRole? _effectiveRole;
@@ -153,17 +158,14 @@ class RtcDtlsTransport {
   RtcDtlsTransport({
     required this.iceTransport,
     this.localCertificate,
-    RtcDtlsRole role = RtcDtlsRole.auto,
-  }) : _role = role {
+    this.role = RtcDtlsRole.auto,
+  }) {
     // Create the ICE-to-DTLS adapter for packet demuxing
     _dtlsAdapter = _IceToDtlsAdapter(iceTransport.connection);
   }
 
   /// Current DTLS state
   RtcDtlsState get state => _state;
-
-  /// DTLS role
-  RtcDtlsRole get role => _role;
 
   /// Effective DTLS role (after auto-detection)
   RtcDtlsRole? get effectiveRole => _effectiveRole;
@@ -180,7 +182,7 @@ class RtcDtlsTransport {
   /// Local DTLS parameters (fingerprints, role)
   RtcDtlsParameters get localParameters {
     if (localCertificate == null) {
-      return RtcDtlsParameters(fingerprints: [], role: _role);
+      return RtcDtlsParameters(fingerprints: [], role: role);
     }
 
     final fingerprint = computeCertificateFingerprint(localCertificate!.certificate);
@@ -188,7 +190,7 @@ class RtcDtlsTransport {
       fingerprints: [
         RtcDtlsFingerprint(algorithm: 'sha-256', value: fingerprint),
       ],
-      role: _role,
+      role: role,
     );
   }
 
@@ -199,29 +201,34 @@ class RtcDtlsTransport {
 
   /// Start DTLS handshake
   ///
+  /// [requireRemoteFingerprints] - If true (default), throws if remote fingerprints
+  /// are not set. If false, allows handshake to proceed without fingerprint validation
+  /// (fingerprints will be validated during handshake via certificate).
+  ///
   /// Throws if:
   /// - State is not "new"
-  /// - Remote fingerprints are missing
-  Future<void> start() async {
+  /// - Remote fingerprints are missing (when requireRemoteFingerprints is true)
+  Future<void> start({bool requireRemoteFingerprints = true}) async {
     if (_state != RtcDtlsState.new_) {
       throw StateError('DTLS state must be new, got $_state');
     }
 
-    if (_remoteParameters?.fingerprints.isEmpty ?? true) {
+    if (requireRemoteFingerprints &&
+        (_remoteParameters?.fingerprints.isEmpty ?? true)) {
       throw StateError('Remote DTLS fingerprints not set');
     }
 
     // Determine effective role
-    if (_role == RtcDtlsRole.auto) {
-      // Convention: ICE controlling agent acts as DTLS server
-      // (This is the opposite of what you might expect, but matches werift)
+    if (role == RtcDtlsRole.auto) {
+      // Convention: ICE controlling agent acts as DTLS client (per RFC 5763)
+      // The entity that sends the SDP offer (typically ICE controlling) is the DTLS client
       _effectiveRole = iceTransport.connection.iceControlling
-          ? RtcDtlsRole.server
-          : RtcDtlsRole.client;
+          ? RtcDtlsRole.client
+          : RtcDtlsRole.server;
       _log.fine('$_debugPrefix DTLS role auto-detected: $_effectiveRole '
           '(iceControlling=${iceTransport.connection.iceControlling})');
     } else {
-      _effectiveRole = _role;
+      _effectiveRole = role;
       _log.fine('$_debugPrefix DTLS role preset: $_effectiveRole');
     }
 
@@ -451,6 +458,9 @@ class RtcDtlsTransport {
 
   /// Stop and close the transport
   Future<void> stop() async {
+    if (_state == RtcDtlsState.closed) {
+      return; // Already closed, nothing to do
+    }
     _setState(RtcDtlsState.closed);
 
     await _dtlsStateSubscription?.cancel();
@@ -460,9 +470,16 @@ class RtcDtlsTransport {
     await _dtlsAdapter.close();
     await iceTransport.stop();
 
-    await _stateController.close();
-    await _rtpController.close();
-    await _rtcpController.close();
+    // Only close controllers if not already closed
+    if (!_stateController.isClosed) {
+      await _stateController.close();
+    }
+    if (!_rtpController.isClosed) {
+      await _rtpController.close();
+    }
+    if (!_rtcpController.isClosed) {
+      await _rtcpController.close();
+    }
   }
 
   /// Set state and emit event
@@ -483,18 +500,38 @@ class RtcDtlsTransport {
 /// Also handles demultiplexing of DTLS vs SRTP packets (RFC 5764)
 class _IceToDtlsAdapter implements dtls_ctx.DtlsTransport {
   final dynamic iceConnection; // IceConnection interface
-  final StreamController<Uint8List> _receiveController =
-      StreamController<Uint8List>.broadcast();
+
+  /// Buffer for DTLS packets that arrive before DtlsSocket subscribes
+  final List<Uint8List> _receiveBuffer = [];
+
+  /// Controller for DTLS packets - broadcast with buffering for early packets
+  late final StreamController<Uint8List> _receiveController;
 
   /// Stream of SRTP/SRTCP packets (first byte 128-191)
   /// These bypass DTLS and go directly to SRTP session for decryption
+  /// Broadcast is OK here because SRTP subscription happens synchronously.
   final StreamController<Uint8List> _srtpController =
       StreamController<Uint8List>.broadcast();
 
   bool _isOpen = true;
+  bool _hasListener = false;
   StreamSubscription? _iceDataSubscription;
 
   _IceToDtlsAdapter(this.iceConnection) {
+    // Create broadcast controller with onListen callback to replay buffered events
+    _receiveController = StreamController<Uint8List>.broadcast(
+      onListen: () {
+        _hasListener = true;
+        // Replay any buffered packets
+        for (final packet in _receiveBuffer) {
+          if (!_receiveController.isClosed) {
+            _receiveController.add(packet);
+          }
+        }
+        _receiveBuffer.clear();
+      },
+    );
+
     // Demux packets from ICE based on first byte (RFC 5764 Section 5.1.2)
     // - 0-3: Reserved (STUN handled by ICE)
     // - 20-63: DTLS
@@ -504,14 +541,22 @@ class _IceToDtlsAdapter implements dtls_ctx.DtlsTransport {
         final firstByte = data[0];
 
         if (firstByte >= 20 && firstByte <= 63) {
-          // DTLS packet - forward to DTLS transport
-          _receiveController.add(data);
+          // DTLS packet - forward to DTLS transport or buffer if no listener
+          if (_hasListener) {
+            _receiveController.add(data);
+          } else {
+            _receiveBuffer.add(data);
+          }
         } else if (firstByte >= 128 && firstByte <= 191) {
           // RTP/RTCP packet (SRTP encrypted) - bypass DTLS
           _srtpController.add(data);
         } else {
           // Unknown packet type - forward to DTLS as fallback
-          _receiveController.add(data);
+          if (_hasListener) {
+            _receiveController.add(data);
+          } else {
+            _receiveBuffer.add(data);
+          }
         }
       }
     });
@@ -535,6 +580,7 @@ class _IceToDtlsAdapter implements dtls_ctx.DtlsTransport {
   Future<void> close() async {
     if (_isOpen) {
       _isOpen = false;
+      _receiveBuffer.clear();
       await _iceDataSubscription?.cancel();
       await _receiveController.close();
       await _srtpController.close();

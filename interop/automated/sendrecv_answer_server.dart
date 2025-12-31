@@ -623,7 +623,7 @@ class SendrecvAnswerServer {
                 result.echoFramesReceived = remoteFramesReceived;
 
                 // Safari headless doesn't support frame counting, so accept if packets work
-                const browser = detectBrowser();
+                // (browser was already detected at start of runTest)
                 if (browser === 'safari' && remoteFramesReceived === 0) {
                     // For Safari, accept if packets were received and echoed
                     result.success = result.success && result.packetsReceived > 0 && result.packetsEchoed > 0;

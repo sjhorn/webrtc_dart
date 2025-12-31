@@ -1,8 +1,6 @@
-import 'dart:async';
-
 import 'package:test/test.dart';
 import 'package:webrtc_dart/src/dtls/certificate/certificate_generator.dart'
-    show CertificateKeyPair, computeCertificateFingerprint, generateSelfSignedCertificate;
+    show CertificateKeyPair, generateSelfSignedCertificate;
 import 'package:webrtc_dart/src/ice/ice_connection.dart';
 import 'package:webrtc_dart/src/transport/dtls_transport.dart';
 import 'package:webrtc_dart/src/transport/ice_gatherer.dart';

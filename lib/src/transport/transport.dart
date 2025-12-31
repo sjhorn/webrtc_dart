@@ -5,17 +5,16 @@ import 'package:webrtc_dart/src/common/logging.dart';
 import 'package:webrtc_dart/src/datachannel/data_channel.dart';
 import 'package:webrtc_dart/src/datachannel/data_channel_manager.dart' as dcm;
 import 'package:webrtc_dart/src/dtls/certificate/certificate_generator.dart';
-import 'package:webrtc_dart/src/dtls/cipher/const.dart';
-import 'package:webrtc_dart/src/dtls/client.dart';
-import 'package:webrtc_dart/src/dtls/context/cipher_context.dart';
 import 'package:webrtc_dart/src/dtls/context/transport.dart' as dtls_ctx;
 import 'package:webrtc_dart/src/dtls/dtls_transport.dart';
-import 'package:webrtc_dart/src/dtls/server.dart';
 import 'package:webrtc_dart/src/dtls/socket.dart';
 import 'package:webrtc_dart/src/ice/ice_connection.dart';
 import 'package:webrtc_dart/src/sctp/association.dart';
 import 'package:webrtc_dart/src/srtp/rtp_packet.dart';
 import 'package:webrtc_dart/src/srtp/srtp_session.dart';
+import 'package:webrtc_dart/src/transport/dtls_transport.dart' as rtc;
+import 'package:webrtc_dart/src/transport/ice_gatherer.dart';
+import 'package:webrtc_dart/src/transport/ice_transport.dart';
 
 final _log = WebRtcLogging.transport;
 final _logMedia = WebRtcLogging.transportMedia;
@@ -33,6 +32,9 @@ enum TransportState {
 
 /// MediaTransport encapsulates ICE + DTLS + SRTP for a single media line
 /// This supports bundlePolicy: "disable" where each m-line has its own transport
+///
+/// Internally uses RtcIceGatherer, RtcIceTransport, and RtcDtlsTransport wrappers
+/// to align with werift-webrtc architecture.
 class MediaTransport {
   /// Unique identifier (typically the MID from SDP)
   final String id;
@@ -40,23 +42,21 @@ class MediaTransport {
   /// Associated m-line index (position in SDP media sections)
   int? mLineIndex;
 
-  /// ICE connection for this transport
-  final IceConnection iceConnection;
-
-  /// ICE to DTLS adapter (demultiplexes DTLS vs SRTP)
-  late final IceToDtlsAdapter _dtlsAdapter;
-
-  /// DTLS socket (client or server)
-  DtlsSocket? dtlsSocket;
-
-  /// DTLS role (client or server)
-  DtlsRole dtlsRole;
-
-  /// Server certificate (for DTLS handshake)
-  final CertificateKeyPair? certificate;
-
   /// Debug label
   final String debugLabel;
+
+  // ============= Internal Transport Wrappers =============
+
+  /// ICE Gatherer (wraps IceConnection for candidate gathering)
+  late final RtcIceGatherer _iceGatherer;
+
+  /// ICE Transport (manages ICE connectivity state)
+  late final RtcIceTransport _iceTransport;
+
+  /// DTLS Transport (manages DTLS handshake and SRTP)
+  late final rtc.RtcDtlsTransport _dtlsTransport;
+
+  // ============= State and Event Streams =============
 
   /// Current transport state
   TransportState _state = TransportState.new_;
@@ -73,37 +73,90 @@ class MediaTransport {
   /// Decrypted RTCP packet stream (matching werift DtlsTransport.onRtcp)
   final _decryptedRtcpController = StreamController<Uint8List>.broadcast();
 
-  /// SRTP session for decrypting incoming media packets
-  SrtpSession? _srtpSession;
+  /// Subscriptions
+  StreamSubscription<RtcIceConnectionState>? _iceStateSubscription;
+  StreamSubscription<RtpPacket>? _rtpSubscription;
+  StreamSubscription<dynamic>? _rtcpSubscription;
+  StreamSubscription<rtc.RtcDtlsState>? _dtlsStateSubscription;
 
-  /// Whether SRTP has been started
-  bool _srtpStarted = false;
-
-  /// ICE state subscription
-  StreamSubscription<IceState>? _iceStateSubscription;
+  /// Whether DTLS handshake has been started
+  bool _dtlsStarted = false;
 
   MediaTransport({
     required this.id,
-    required this.iceConnection,
-    this.dtlsRole = DtlsRole.auto,
-    this.certificate,
+    required IceConnection iceConnection,
+    DtlsRole dtlsRole = DtlsRole.auto,
+    CertificateKeyPair? certificate,
     this.debugLabel = '',
     this.mLineIndex,
   }) {
-    // Create ICE to DTLS adapter
-    _dtlsAdapter = IceToDtlsAdapter(iceConnection);
-    _dtlsAdapter.debugLabel = debugLabel;
+    // Create transport wrapper chain: IceGatherer -> IceTransport -> DtlsTransport
+    _iceGatherer = RtcIceGatherer(iceConnection);
+    _iceTransport = RtcIceTransport(_iceGatherer);
 
-    // Forward SRTP packets
-    _dtlsAdapter.onSrtpData.listen((data) {
-      if (!_rtpDataController.isClosed) {
-        _rtpDataController.add(data);
+    // Map DtlsRole to RtcDtlsRole
+    final rtcDtlsRole = switch (dtlsRole) {
+      DtlsRole.auto => rtc.RtcDtlsRole.auto,
+      DtlsRole.client => rtc.RtcDtlsRole.client,
+      DtlsRole.server => rtc.RtcDtlsRole.server,
+    };
+
+    _dtlsTransport = rtc.RtcDtlsTransport(
+      iceTransport: _iceTransport,
+      localCertificate: certificate,
+      role: rtcDtlsRole,
+    );
+    _dtlsTransport.debugLabel = debugLabel;
+
+    // Subscribe to ICE transport state changes
+    _iceStateSubscription =
+        _iceTransport.onStateChange.listen(_handleIceStateChange);
+
+    // Subscribe to DTLS transport state changes
+    _dtlsStateSubscription =
+        _dtlsTransport.onStateChange.listen(_handleDtlsStateChange);
+
+    // Forward decrypted RTP packets from DTLS transport
+    _rtpSubscription = _dtlsTransport.onRtp.listen((packet) {
+      if (!_decryptedRtpController.isClosed) {
+        _decryptedRtpController.add(packet);
       }
     });
 
-    // Listen to ICE state changes
-    _iceStateSubscription =
-        iceConnection.onStateChanged.listen(_handleIceStateChange);
+    // Forward decrypted RTCP packets from DTLS transport (serialize to bytes)
+    _rtcpSubscription = _dtlsTransport.onRtcp.listen((packet) {
+      if (!_decryptedRtcpController.isClosed) {
+        _decryptedRtcpController.add(packet.serialize());
+      }
+    });
+  }
+
+  // ============= Public API (backwards compatible) =============
+
+  /// ICE connection for this transport
+  IceConnection get iceConnection => _iceTransport.connection;
+
+  /// DTLS socket (client or server)
+  DtlsSocket? get dtlsSocket => _dtlsTransport.dtls;
+
+  /// DTLS role getter
+  DtlsRole get dtlsRole {
+    final role = _dtlsTransport.role;
+    return switch (role) {
+      rtc.RtcDtlsRole.auto => DtlsRole.auto,
+      rtc.RtcDtlsRole.client => DtlsRole.client,
+      rtc.RtcDtlsRole.server => DtlsRole.server,
+    };
+  }
+
+  /// DTLS role setter (must be set before connection is established)
+  set dtlsRole(DtlsRole value) {
+    final rtcRole = switch (value) {
+      DtlsRole.auto => rtc.RtcDtlsRole.auto,
+      DtlsRole.client => rtc.RtcDtlsRole.client,
+      DtlsRole.server => rtc.RtcDtlsRole.server,
+    };
+    _dtlsTransport.role = rtcRole;
   }
 
   /// Get current state
@@ -122,107 +175,71 @@ class MediaTransport {
   Stream<Uint8List> get onRtcp => _decryptedRtcpController.stream;
 
   /// Get the SRTP session (for encryption of outgoing packets)
-  SrtpSession? get srtpSession => _srtpSession;
+  SrtpSession? get srtpSession => _dtlsTransport.srtp;
 
-  /// Handle ICE state changes
-  void _handleIceStateChange(IceState iceState) async {
+  // ============= Internal State Handling =============
+
+  /// Handle ICE transport state changes
+  void _handleIceStateChange(RtcIceConnectionState iceState) async {
     switch (iceState) {
-      case IceState.newState:
+      case RtcIceConnectionState.new_:
         _setState(TransportState.new_);
         break;
-      case IceState.checking:
-      case IceState.gathering:
+      case RtcIceConnectionState.checking:
         // Don't regress from connected back to connecting
-        // This can happen with late ICE candidates (trickle ICE)
         if (_state != TransportState.connected) {
           _setState(TransportState.connecting);
         }
         break;
-      case IceState.connected:
-      case IceState.completed:
+      case RtcIceConnectionState.connected:
+      case RtcIceConnectionState.completed:
         // Start DTLS handshake when ICE is connected
         await _startDtlsHandshake();
         break;
-      case IceState.failed:
+      case RtcIceConnectionState.failed:
         _setState(TransportState.failed);
         break;
-      case IceState.disconnected:
+      case RtcIceConnectionState.disconnected:
         _setState(TransportState.disconnected);
         break;
-      case IceState.closed:
+      case RtcIceConnectionState.closed:
         _setState(TransportState.closed);
+        break;
+    }
+  }
+
+  /// Handle DTLS transport state changes
+  void _handleDtlsStateChange(rtc.RtcDtlsState dtlsState) {
+    switch (dtlsState) {
+      case rtc.RtcDtlsState.connecting:
+        // Already in connecting state from ICE
+        break;
+      case rtc.RtcDtlsState.connected:
+        _logMedia.fine('[$debugLabel] DTLS connected');
+        _setState(TransportState.connected);
+        break;
+      case rtc.RtcDtlsState.failed:
+        _setState(TransportState.failed);
+        break;
+      case rtc.RtcDtlsState.closed:
+        _setState(TransportState.closed);
+        break;
+      case rtc.RtcDtlsState.new_:
         break;
     }
   }
 
   /// Start DTLS handshake after ICE connection is established
   Future<void> _startDtlsHandshake() async {
-    if (dtlsSocket != null) {
+    if (_dtlsStarted) {
       _logMedia.fine('[$debugLabel] DTLS already started, skipping');
-      return; // Already started
+      return;
     }
+    _dtlsStarted = true;
 
     try {
-      // Determine DTLS role
-      DtlsRole effectiveRole = dtlsRole;
-      if (dtlsRole == DtlsRole.auto) {
-        // Convention: ICE controlling agent acts as DTLS client
-        effectiveRole =
-            iceConnection.iceControlling ? DtlsRole.client : DtlsRole.server;
-        _log.fine(
-            '[MEDIA-TRANSPORT:$debugLabel] DTLS role auto-detected: ${effectiveRole == DtlsRole.client ? "client" : "server"} (iceControlling=${iceConnection.iceControlling})');
-      } else {
-        _log.fine(
-            '[MEDIA-TRANSPORT:$debugLabel] DTLS role preset: ${effectiveRole == DtlsRole.client ? "client" : "server"}');
-      }
-
-      // Create DTLS socket based on role
-      if (effectiveRole == DtlsRole.client) {
-        CipherContext? clientCipherContext;
-        if (certificate != null) {
-          clientCipherContext = CipherContext(isClient: true);
-          clientCipherContext.localCertificate = certificate!.certificate;
-          clientCipherContext.localSigningKey = certificate!.privateKey;
-          clientCipherContext.localFingerprint =
-              computeCertificateFingerprint(certificate!.certificate);
-          _log.fine(
-              '[MEDIA-TRANSPORT:$debugLabel] DTLS client configured with certificate');
-        }
-        dtlsSocket = DtlsClient(
-          transport: _dtlsAdapter,
-          cipherContext: clientCipherContext,
-          cipherSuites: [CipherSuite.tlsEcdheEcdsaWithAes128GcmSha256],
-          supportedCurves: [NamedCurve.x25519, NamedCurve.secp256r1],
-        );
-      } else {
-        // Server role requires certificate
-        if (certificate == null) {
-          throw StateError('Server certificate required for DTLS server role');
-        }
-        dtlsSocket = DtlsServer(
-          transport: _dtlsAdapter,
-          cipherSuites: [CipherSuite.tlsEcdheEcdsaWithAes128GcmSha256],
-          supportedCurves: [NamedCurve.x25519, NamedCurve.secp256r1],
-          certificate: certificate!.certificate,
-          privateKey: certificate!.privateKey,
-        );
-      }
-
-      // Listen for DTLS state changes
-      dtlsSocket!.onStateChange.listen((dtlsState) async {
-        if (dtlsState == DtlsSocketState.connected) {
-          _logMedia.fine('[$debugLabel] DTLS connected');
-          _setState(TransportState.connected);
-
-          // Start SRTP decryption (emits decrypted packets via onRtp/onRtcp)
-          startSrtp();
-        } else if (dtlsState == DtlsSocketState.failed) {
-          _setState(TransportState.failed);
-        }
-      });
-
-      // Start handshake
-      await dtlsSocket!.connect();
+      // Start DTLS handshake (don't require remote fingerprints for backwards compat)
+      await _dtlsTransport.start(requireRemoteFingerprints: false);
     } catch (e) {
       _logMedia.fine('[$debugLabel] DTLS handshake failed: $e');
       _setState(TransportState.failed);
@@ -230,65 +247,11 @@ class MediaTransport {
     }
   }
 
-  /// Start SRTP decryption after DTLS handshake completes.
-  /// This matches werift's DtlsTransport pattern where onRtp emits decrypted packets.
+  /// Start SRTP decryption (for backwards compat - now handled internally by RtcDtlsTransport)
   void startSrtp() {
-    if (_srtpStarted) return;
-    _srtpStarted = true;
-
-    if (dtlsSocket == null) {
-      _logMedia.warning('[$debugLabel] startSrtp called but dtlsSocket is null');
-      return;
-    }
-
-    final srtpContext = dtlsSocket!.srtpContext;
-    if (srtpContext.localMasterKey == null ||
-        srtpContext.localMasterSalt == null ||
-        srtpContext.remoteMasterKey == null ||
-        srtpContext.remoteMasterSalt == null ||
-        srtpContext.profile == null) {
-      _logMedia.warning(
-          '[$debugLabel] SRTP keys not available - skipping SRTP setup');
-      return;
-    }
-
-    // Create SRTP session from DTLS-exported keys
-    _srtpSession = SrtpSession(
-      profile: srtpContext.profile!,
-      localMasterKey: srtpContext.localMasterKey!,
-      localMasterSalt: srtpContext.localMasterSalt!,
-      remoteMasterKey: srtpContext.remoteMasterKey!,
-      remoteMasterSalt: srtpContext.remoteMasterSalt!,
-    );
-
-    _logMedia.fine('[$debugLabel] SRTP session initialized');
-
-    // Subscribe to encrypted SRTP packets and decrypt them
-    _dtlsAdapter.onSrtpData.listen((data) async {
-      if (_srtpSession == null) return;
-
-      try {
-        // Determine if this is RTP or RTCP based on payload type byte
-        final payloadType = data[1] & 0x7F;
-        final isRtcp = payloadType >= 72 && payloadType <= 76;
-
-        if (isRtcp) {
-          // Decrypt SRTCP and emit as raw bytes
-          final rtcpPacket = await _srtpSession!.decryptSrtcp(data);
-          if (!_decryptedRtcpController.isClosed) {
-            _decryptedRtcpController.add(rtcpPacket.serialize());
-          }
-        } else {
-          // Decrypt SRTP and emit as RtpPacket
-          final packet = await _srtpSession!.decryptSrtp(data);
-          if (!_decryptedRtpController.isClosed) {
-            _decryptedRtpController.add(packet);
-          }
-        }
-      } catch (e) {
-        _logMedia.warning('[$debugLabel] SRTP decryption error: $e');
-      }
-    });
+    // SRTP is now started automatically by RtcDtlsTransport after DTLS connects
+    // This method is kept for API compatibility
+    _dtlsTransport.startSrtp();
   }
 
   /// Set transport state
@@ -307,9 +270,11 @@ class MediaTransport {
     _setState(TransportState.closed);
 
     await _iceStateSubscription?.cancel();
-    await dtlsSocket?.close();
-    await _dtlsAdapter.close();
-    await iceConnection.close();
+    await _dtlsStateSubscription?.cancel();
+    await _rtpSubscription?.cancel();
+    await _rtcpSubscription?.cancel();
+
+    await _dtlsTransport.stop();
 
     await _stateController.close();
     await _rtpDataController.close();
@@ -402,23 +367,25 @@ class IceToDtlsAdapter implements dtls_ctx.DtlsTransport {
 
 /// Integrated transport layer
 /// Connects ICE → DTLS → SCTP for WebRTC data flow
+///
+/// Internally uses RtcIceGatherer, RtcIceTransport, and RtcDtlsTransport wrappers
+/// to align with werift-webrtc architecture.
 class IntegratedTransport {
-  /// ICE connection for network connectivity
-  final IceConnection iceConnection;
+  /// Debug label
+  final String debugLabel;
 
-  /// DTLS socket (client or server)
-  DtlsSocket? dtlsSocket;
+  // ============= Internal Transport Wrappers =============
 
-  /// DTLS role (client or server)
-  /// Can be set by peer connection based on SDP negotiation
-  DtlsRole dtlsRole;
+  /// ICE Gatherer (wraps IceConnection for candidate gathering)
+  late final RtcIceGatherer _iceGatherer;
 
-  /// Effective DTLS role (after auto-detection)
-  /// Used for DataChannel stream ID allocation per RFC 8832
-  DtlsRole? _effectiveDtlsRole;
+  /// ICE Transport (manages ICE connectivity state)
+  late final RtcIceTransport _iceTransport;
 
-  /// Server certificate (required if acting as DTLS server)
-  final CertificateKeyPair? serverCertificate;
+  /// DTLS Transport (manages DTLS handshake and SRTP)
+  late final rtc.RtcDtlsTransport _dtlsTransport;
+
+  // ============= SCTP/DataChannel Components =============
 
   /// SCTP association for reliable data transport (optional)
   SctpAssociation? sctpAssociation;
@@ -426,8 +393,11 @@ class IntegratedTransport {
   /// DataChannel manager
   dcm.DataChannelManager? dataChannelManager;
 
-  /// Debug label
-  final String debugLabel;
+  /// Effective DTLS role (after auto-detection)
+  /// Used for DataChannel stream ID allocation per RFC 8832
+  rtc.RtcDtlsRole? _effectiveDtlsRole;
+
+  // ============= State and Event Streams =============
 
   /// Current transport state
   TransportState _state = TransportState.new_;
@@ -450,36 +420,100 @@ class IntegratedTransport {
   /// Decrypted RTCP packet stream (matching werift DtlsTransport.onRtcp)
   final _decryptedRtcpController = StreamController<Uint8List>.broadcast();
 
-  /// SRTP session for decrypting incoming media packets
-  SrtpSession? _srtpSession;
-
-  /// Whether SRTP has been started
-  bool _srtpStarted = false;
-
-  /// ICE to DTLS adapter
-  IceToDtlsAdapter? _dtlsAdapter;
-
   /// Buffer for SCTP packets that arrive before SCTP association is ready
   final List<Uint8List> _sctpPacketBuffer = [];
 
   /// Pending data channels created before SCTP is ready
   final List<PendingDataChannelConfig> _pendingDataChannels = [];
 
+  /// Subscriptions
+  StreamSubscription<RtcIceConnectionState>? _iceStateSubscription;
+  StreamSubscription<RtpPacket>? _rtpSubscription;
+  StreamSubscription<dynamic>? _rtcpSubscription;
+  StreamSubscription<rtc.RtcDtlsState>? _dtlsStateSubscription;
+
+  /// Whether DTLS handshake has been started
+  bool _dtlsStarted = false;
+
   IntegratedTransport({
-    required this.iceConnection,
-    this.dtlsRole = DtlsRole.auto,
-    this.serverCertificate,
+    required IceConnection iceConnection,
+    DtlsRole dtlsRole = DtlsRole.auto,
+    CertificateKeyPair? serverCertificate,
     this.debugLabel = '',
   }) {
-    // Create ICE to DTLS adapter immediately
-    // This ensures we're ready to receive DTLS packets as soon as they arrive
-    _dtlsAdapter = IceToDtlsAdapter(iceConnection);
+    // Create transport wrapper chain: IceGatherer -> IceTransport -> DtlsTransport
+    _iceGatherer = RtcIceGatherer(iceConnection);
+    _iceTransport = RtcIceTransport(_iceGatherer);
 
-    // Listen to ICE state changes
-    iceConnection.onStateChanged.listen(_handleIceStateChange);
+    // Map DtlsRole to RtcDtlsRole
+    final rtcDtlsRole = switch (dtlsRole) {
+      DtlsRole.auto => rtc.RtcDtlsRole.auto,
+      DtlsRole.client => rtc.RtcDtlsRole.client,
+      DtlsRole.server => rtc.RtcDtlsRole.server,
+    };
+
+    _dtlsTransport = rtc.RtcDtlsTransport(
+      iceTransport: _iceTransport,
+      localCertificate: serverCertificate,
+      role: rtcDtlsRole,
+    );
+    _dtlsTransport.debugLabel = debugLabel;
+
+    // Set up SCTP data receiver on DTLS transport
+    _dtlsTransport.dataReceiver = _handleSctpData;
+
+    // Subscribe to ICE transport state changes
+    _iceStateSubscription =
+        _iceTransport.onStateChange.listen(_handleIceStateChange);
+
+    // Subscribe to DTLS transport state changes
+    _dtlsStateSubscription =
+        _dtlsTransport.onStateChange.listen(_handleDtlsStateChange);
+
+    // Forward decrypted RTP packets from DTLS transport
+    _rtpSubscription = _dtlsTransport.onRtp.listen((packet) {
+      if (!_decryptedRtpController.isClosed) {
+        _decryptedRtpController.add(packet);
+      }
+    });
+
+    // Forward decrypted RTCP packets from DTLS transport (serialize to bytes)
+    _rtcpSubscription = _dtlsTransport.onRtcp.listen((packet) {
+      if (!_decryptedRtcpController.isClosed) {
+        _decryptedRtcpController.add(packet.serialize());
+      }
+    });
 
     // Check current ICE state and handle it
-    _handleIceStateChange(iceConnection.state);
+    _handleIceStateChange(_mapIceState(iceConnection.state));
+  }
+
+  // ============= Public API (backwards compatible) =============
+
+  /// ICE connection for network connectivity
+  IceConnection get iceConnection => _iceTransport.connection;
+
+  /// DTLS socket (client or server)
+  DtlsSocket? get dtlsSocket => _dtlsTransport.dtls;
+
+  /// DTLS role getter (client or server)
+  DtlsRole get dtlsRole {
+    final role = _dtlsTransport.role;
+    return switch (role) {
+      rtc.RtcDtlsRole.auto => DtlsRole.auto,
+      rtc.RtcDtlsRole.client => DtlsRole.client,
+      rtc.RtcDtlsRole.server => DtlsRole.server,
+    };
+  }
+
+  /// DTLS role setter (must be set before connection is established)
+  set dtlsRole(DtlsRole value) {
+    final rtcRole = switch (value) {
+      DtlsRole.auto => rtc.RtcDtlsRole.auto,
+      DtlsRole.client => rtc.RtcDtlsRole.client,
+      DtlsRole.server => rtc.RtcDtlsRole.server,
+    };
+    _dtlsTransport.role = rtcRole;
   }
 
   /// Get current state
@@ -504,137 +538,103 @@ class IntegratedTransport {
   Stream<Uint8List> get onRtcp => _decryptedRtcpController.stream;
 
   /// Get the SRTP session (for encryption of outgoing packets)
-  SrtpSession? get srtpSession => _srtpSession;
+  SrtpSession? get srtpSession => _dtlsTransport.srtp;
 
-  /// Handle ICE state changes
-  void _handleIceStateChange(IceState iceState) async {
+  // ============= Internal State Handling =============
+
+  /// Handle SCTP data from DTLS transport
+  void _handleSctpData(Uint8List data) async {
+    if (sctpAssociation != null) {
+      await sctpAssociation!.handlePacket(data);
+    } else {
+      // SCTP not ready yet, buffer the packet
+      _sctpPacketBuffer.add(data);
+    }
+  }
+
+  /// Map internal IceState to RtcIceConnectionState
+  RtcIceConnectionState _mapIceState(IceState state) {
+    return switch (state) {
+      IceState.newState => RtcIceConnectionState.new_,
+      IceState.gathering => RtcIceConnectionState.checking,
+      IceState.checking => RtcIceConnectionState.checking,
+      IceState.connected => RtcIceConnectionState.connected,
+      IceState.completed => RtcIceConnectionState.completed,
+      IceState.disconnected => RtcIceConnectionState.disconnected,
+      IceState.failed => RtcIceConnectionState.failed,
+      IceState.closed => RtcIceConnectionState.closed,
+    };
+  }
+
+  /// Handle ICE transport state changes
+  void _handleIceStateChange(RtcIceConnectionState iceState) async {
+    _log.fine('[INTEGRATED:$debugLabel] ICE state: $iceState');
     switch (iceState) {
-      case IceState.newState:
+      case RtcIceConnectionState.new_:
         _setState(TransportState.new_);
         break;
-      case IceState.checking:
-      case IceState.gathering:
+      case RtcIceConnectionState.checking:
         // Don't regress from connected back to connecting
-        // This can happen with late ICE candidates (trickle ICE)
         if (_state != TransportState.connected) {
           _setState(TransportState.connecting);
         }
         break;
-      case IceState.connected:
-      case IceState.completed:
+      case RtcIceConnectionState.connected:
+      case RtcIceConnectionState.completed:
         // Start DTLS handshake when ICE is connected
+        _log.fine('[INTEGRATED:$debugLabel] Starting DTLS handshake');
         await _startDtlsHandshake();
         break;
-      case IceState.failed:
+      case RtcIceConnectionState.failed:
         _setState(TransportState.failed);
         break;
-      case IceState.disconnected:
+      case RtcIceConnectionState.disconnected:
         _setState(TransportState.disconnected);
         break;
-      case IceState.closed:
+      case RtcIceConnectionState.closed:
         _setState(TransportState.closed);
+        break;
+    }
+  }
+
+  /// Handle DTLS transport state changes
+  void _handleDtlsStateChange(rtc.RtcDtlsState dtlsState) async {
+    _log.fine('[INTEGRATED:$debugLabel] DTLS state: $dtlsState');
+    switch (dtlsState) {
+      case rtc.RtcDtlsState.connecting:
+        // Already in connecting state from ICE
+        break;
+      case rtc.RtcDtlsState.connected:
+        _log.fine('[$debugLabel] DTLS handshake complete');
+        _setState(TransportState.connected);
+        _effectiveDtlsRole = _dtlsTransport.effectiveRole;
+        // Start SCTP for data channels (asynchronously)
+        await _startSctp();
+        break;
+      case rtc.RtcDtlsState.failed:
+        _setState(TransportState.failed);
+        break;
+      case rtc.RtcDtlsState.closed:
+        _setState(TransportState.closed);
+        break;
+      case rtc.RtcDtlsState.new_:
         break;
     }
   }
 
   /// Start DTLS handshake after ICE connection is established
   Future<void> _startDtlsHandshake() async {
-    if (dtlsSocket != null) {
+    if (_dtlsStarted) {
       _log.fine('[$debugLabel] DTLS already started, skipping');
-      return; // Already started
+      return;
     }
+    _dtlsStarted = true;
 
     try {
-      // Determine DTLS role
-      DtlsRole effectiveRole = dtlsRole;
-      if (dtlsRole == DtlsRole.auto) {
-        // Convention: ICE controlling agent acts as DTLS client
-        effectiveRole =
-            iceConnection.iceControlling ? DtlsRole.client : DtlsRole.server;
-        _log.fine(
-            '[TRANSPORT:$debugLabel] DTLS role auto-detected: ${effectiveRole == DtlsRole.client ? "client" : "server"} (iceControlling=${iceConnection.iceControlling})');
-      } else {
-        _log.fine(
-            '[TRANSPORT:$debugLabel] DTLS role preset: ${effectiveRole == DtlsRole.client ? "client" : "server"}');
-      }
-
-      // Store effective role for DataChannel stream ID allocation per RFC 8832
-      _effectiveDtlsRole = effectiveRole;
-
-      // Create DTLS socket based on role
-      if (effectiveRole == DtlsRole.client) {
-        // For WebRTC, client also needs certificate for mutual authentication
-        CipherContext? clientCipherContext;
-        if (serverCertificate != null) {
-          clientCipherContext = CipherContext(isClient: true);
-          clientCipherContext.localCertificate = serverCertificate!.certificate;
-          clientCipherContext.localSigningKey = serverCertificate!.privateKey;
-          clientCipherContext.localFingerprint =
-              computeCertificateFingerprint(serverCertificate!.certificate);
-          _log.fine(
-              '[TRANSPORT:$debugLabel] DTLS client configured with certificate (fingerprint: ${clientCipherContext.localFingerprint})');
-        }
-        dtlsSocket = DtlsClient(
-          transport: _dtlsAdapter!,
-          cipherContext: clientCipherContext,
-          cipherSuites: [CipherSuite.tlsEcdheEcdsaWithAes128GcmSha256],
-          supportedCurves: [NamedCurve.x25519, NamedCurve.secp256r1],
-        );
-      } else {
-        // Server role requires certificate
-        if (serverCertificate == null) {
-          throw StateError('Server certificate required for DTLS server role');
-        }
-        dtlsSocket = DtlsServer(
-          transport: _dtlsAdapter!,
-          cipherSuites: [CipherSuite.tlsEcdheEcdsaWithAes128GcmSha256],
-          supportedCurves: [NamedCurve.x25519, NamedCurve.secp256r1],
-          certificate: serverCertificate!.certificate,
-          privateKey: serverCertificate!.privateKey,
-        );
-      }
-
-      // Listen for DTLS state changes
-      dtlsSocket!.onStateChange.listen((dtlsState) async {
-        if (dtlsState == DtlsSocketState.connected) {
-          // Set connected state immediately for media (RTP/RTCP) to work
-          // SCTP may establish later for data channels, but media shouldn't wait
-          _log.fine('[$debugLabel] DTLS handshake complete');
-          _setState(TransportState.connected);
-
-          // Start SRTP decryption (emits decrypted packets via onRtp/onRtcp)
-          startSrtp();
-
-          // Start SCTP for data channels (asynchronously)
-          await _startSctp();
-        } else if (dtlsState == DtlsSocketState.failed) {
-          _setState(TransportState.failed);
-        }
-      });
-
-      // Listen for SRTP packets from the ICE adapter (bypasses DTLS)
-      // These are encrypted with SRTP keys (exported from DTLS), not DTLS keys
-      _dtlsAdapter!.onSrtpData.listen((data) {
-        // Forward SRTP/SRTCP packets to media handlers
-        _rtpDataController.add(data);
-      });
-
-      // Listen for decrypted application data from DTLS
-      // After demux at ICE layer, only SCTP data comes through here
-      dtlsSocket!.onData.listen((data) async {
-        // All data from DTLS at this point should be SCTP (DataChannel)
-        // RTP/RTCP is now handled by the SRTP listener above
-        if (sctpAssociation != null) {
-          await sctpAssociation!.handlePacket(data);
-        } else {
-          // SCTP not ready yet, buffer the packet
-          _sctpPacketBuffer.add(data);
-        }
-      });
-
-      // Start handshake
-      await dtlsSocket!.connect();
+      // Start DTLS handshake (don't require remote fingerprints for backwards compat)
+      await _dtlsTransport.start(requireRemoteFingerprints: false);
     } catch (e) {
+      _log.fine('[$debugLabel] DTLS handshake failed: $e');
       _setState(TransportState.failed);
       rethrow;
     }
@@ -652,10 +652,9 @@ class IntegratedTransport {
         localPort: 5000, // Standard SCTP port for WebRTC
         remotePort: 5000,
         onSendPacket: (packet) async {
-          // Send SCTP packets through DTLS
-          if (dtlsSocket != null &&
-              dtlsSocket!.state == DtlsSocketState.connected) {
-            await dtlsSocket!.send(packet);
+          // Send SCTP packets through DTLS transport
+          if (_dtlsTransport.state == rtc.RtcDtlsState.connected) {
+            await _dtlsTransport.sendData(packet);
           }
         },
         onReceiveData: (streamId, data, ppid) {
@@ -683,7 +682,7 @@ class IntegratedTransport {
       // Per RFC 8832: DTLS server uses odd stream IDs (1, 3, 5, ...)
       dataChannelManager = dcm.DataChannelManager(
         association: sctpAssociation!,
-        isDtlsServer: _effectiveDtlsRole == DtlsRole.server,
+        isDtlsServer: _effectiveDtlsRole == rtc.RtcDtlsRole.server,
       );
 
       // Forward new DataChannels to stream
@@ -811,84 +810,28 @@ class IntegratedTransport {
         data: data,
         ppid: 51, // WebRTC String (PPID 51)
       );
-    } else if (dtlsSocket != null &&
-        dtlsSocket!.state == DtlsSocketState.connected) {
+    } else if (_dtlsTransport.state == rtc.RtcDtlsState.connected) {
       // Send directly via DTLS if SCTP not established
-      await dtlsSocket!.send(data);
+      await _dtlsTransport.sendData(data);
     } else {
       throw StateError('Transport not connected');
     }
   }
 
-  /// Start SRTP decryption after DTLS handshake completes.
-  /// This matches werift's DtlsTransport pattern where onRtp emits decrypted packets.
+  /// Start SRTP decryption (for backwards compat - now handled internally by RtcDtlsTransport)
   void startSrtp() {
-    if (_srtpStarted) return;
-    _srtpStarted = true;
-
-    if (dtlsSocket == null) {
-      _log.warning('[$debugLabel] startSrtp called but dtlsSocket is null');
-      return;
-    }
-
-    final srtpContext = dtlsSocket!.srtpContext;
-    if (srtpContext.localMasterKey == null ||
-        srtpContext.localMasterSalt == null ||
-        srtpContext.remoteMasterKey == null ||
-        srtpContext.remoteMasterSalt == null ||
-        srtpContext.profile == null) {
-      _log.warning(
-          '[$debugLabel] SRTP keys not available - skipping SRTP setup');
-      return;
-    }
-
-    // Create SRTP session from DTLS-exported keys
-    _srtpSession = SrtpSession(
-      profile: srtpContext.profile!,
-      localMasterKey: srtpContext.localMasterKey!,
-      localMasterSalt: srtpContext.localMasterSalt!,
-      remoteMasterKey: srtpContext.remoteMasterKey!,
-      remoteMasterSalt: srtpContext.remoteMasterSalt!,
-    );
-
-    _log.fine('[$debugLabel] SRTP session initialized');
-
-    // Subscribe to encrypted SRTP packets and decrypt them
-    _dtlsAdapter!.onSrtpData.listen((data) async {
-      if (_srtpSession == null) return;
-
-      try {
-        // Determine if this is RTP or RTCP based on payload type byte
-        // RTP: payload type is in second byte bits 0-6 (0-127)
-        // RTCP: payload type is in second byte (200-204 for SR, RR, SDES, BYE, APP)
-        final payloadType = data[1] & 0x7F;
-        final isRtcp = payloadType >= 72 && payloadType <= 76;
-        // Note: RTCP types are 200-204, but after masking with 0x7F they become 72-76
-
-        if (isRtcp) {
-          // Decrypt SRTCP and emit as raw bytes
-          final rtcpPacket = await _srtpSession!.decryptSrtcp(data);
-          if (!_decryptedRtcpController.isClosed) {
-            _decryptedRtcpController.add(rtcpPacket.serialize());
-          }
-        } else {
-          // Decrypt SRTP and emit as RtpPacket
-          final packet = await _srtpSession!.decryptSrtp(data);
-          if (!_decryptedRtpController.isClosed) {
-            _decryptedRtpController.add(packet);
-          }
-        }
-      } catch (e) {
-        _log.warning('[$debugLabel] SRTP decryption error: $e');
-      }
-    });
+    // SRTP is now started automatically by RtcDtlsTransport after DTLS connects
+    // This method is kept for API compatibility
+    _dtlsTransport.startSrtp();
   }
 
   /// Set transport state
   void _setState(TransportState newState) {
     if (_state != newState) {
       _state = newState;
-      _stateController.add(newState);
+      if (!_stateController.isClosed) {
+        _stateController.add(newState);
+      }
     }
   }
 
@@ -896,11 +839,14 @@ class IntegratedTransport {
   Future<void> close() async {
     _setState(TransportState.closed);
 
+    await _iceStateSubscription?.cancel();
+    await _dtlsStateSubscription?.cancel();
+    await _rtpSubscription?.cancel();
+    await _rtcpSubscription?.cancel();
+
     await dataChannelManager?.close();
     await sctpAssociation?.close();
-    await dtlsSocket?.close();
-    await _dtlsAdapter?.close();
-    await iceConnection.close();
+    await _dtlsTransport.stop();
 
     await _stateController.close();
     await _dataController.close();

@@ -50,6 +50,13 @@ dart test
 
 # Run a specific test file
 dart test test/webrtc_dart_test.dart
+
+# IMPORTANT: When running tests repeatedly during development, save output to file
+# to avoid running the full suite multiple times:
+dart test 2>&1 > /tmp/test_output.txt
+# Then grep from the file:
+grep -E "failed|passed" /tmp/test_output.txt
+tail -5 /tmp/test_output.txt
 ```
 
 ### Code Quality

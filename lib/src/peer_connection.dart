@@ -139,17 +139,8 @@ class RtcPeerConnection {
   /// Configuration (mutable via setConfiguration)
   RtcConfiguration _configuration;
 
-  /// Current signaling state
+  /// Current signaling state (owned by PeerConnection, not transport-level)
   SignalingState _signalingState = SignalingState.stable;
-
-  /// Current connection state
-  PeerConnectionState _connectionState = PeerConnectionState.new_;
-
-  /// Current ICE connection state
-  IceConnectionState _iceConnectionState = IceConnectionState.new_;
-
-  /// Current ICE gathering state
-  IceGatheringState _iceGatheringState = IceGatheringState.new_;
 
   /// Track if we've started ICE connectivity checks
   bool _iceConnectCalled = false;
@@ -298,6 +289,23 @@ class RtcPeerConnection {
     // Setup ICE state change listener
     _iceConnection.onStateChanged.listen(_handleIceStateChange);
 
+    // Forward SecureTransportManager state changes to public streams
+    _secureManager.onConnectionStateChange.listen((state) {
+      if (!_connectionStateController.isClosed) {
+        _connectionStateController.add(state);
+      }
+    });
+    _secureManager.onIceConnectionStateChange.listen((state) {
+      if (!_iceConnectionStateController.isClosed) {
+        _iceConnectionStateController.add(state);
+      }
+    });
+    _secureManager.onIceGatheringStateChange.listen((state) {
+      if (!_iceGatheringStateController.isClosed) {
+        _iceGatheringStateController.add(state);
+      }
+    });
+
     // Initialize asynchronously and store the future
     _initializationComplete = _initializeAsync();
   }
@@ -316,29 +324,29 @@ class RtcPeerConnection {
       debugLabel: _debugLabel,
     );
 
-    // Forward transport state changes to connection state
+    // Forward transport state changes to connection state via SecureTransportManager
     _transport!.onStateChange.listen((state) {
       switch (state) {
         case TransportState.new_:
           // Keep current state
           break;
         case TransportState.connecting:
-          _setConnectionState(PeerConnectionState.connecting);
+          _secureManager.setConnectionState(PeerConnectionState.connecting);
           break;
         case TransportState.connected:
           // Set up SRTP for all RTP sessions BEFORE notifying connected state
           // This ensures SRTP is ready when onConnectionStateChange fires
           _setupSrtpSessions();
-          _setConnectionState(PeerConnectionState.connected);
+          _secureManager.setConnectionState(PeerConnectionState.connected);
           break;
         case TransportState.disconnected:
-          _setConnectionState(PeerConnectionState.disconnected);
+          _secureManager.setConnectionState(PeerConnectionState.disconnected);
           break;
         case TransportState.failed:
-          _setConnectionState(PeerConnectionState.failed);
+          _secureManager.setConnectionState(PeerConnectionState.failed);
           break;
         case TransportState.closed:
-          _setConnectionState(PeerConnectionState.closed);
+          _secureManager.setConnectionState(PeerConnectionState.closed);
           break;
       }
     });
@@ -400,14 +408,14 @@ class RtcPeerConnection {
   /// Get signaling state
   SignalingState get signalingState => _signalingState;
 
-  /// Get connection state
-  PeerConnectionState get connectionState => _connectionState;
+  /// Get connection state (delegated to SecureTransportManager)
+  PeerConnectionState get connectionState => _secureManager.connectionState;
 
-  /// Get ICE connection state
-  IceConnectionState get iceConnectionState => _iceConnectionState;
+  /// Get ICE connection state (delegated to SecureTransportManager)
+  IceConnectionState get iceConnectionState => _secureManager.iceConnectionState;
 
-  /// Get ICE gathering state
-  IceGatheringState get iceGatheringState => _iceGatheringState;
+  /// Get ICE gathering state (delegated to SecureTransportManager)
+  IceGatheringState get iceGatheringState => _secureManager.iceGatheringState;
 
   /// Get local description
   SessionDescription? get localDescription => _localDescription;
@@ -490,7 +498,7 @@ class RtcPeerConnection {
       _needsIceRestart = false;
       await _iceConnection.restart();
       _iceConnectCalled = false;
-      _setIceGatheringState(IceGatheringState.new_);
+      _secureManager.setIceGatheringState(IceGatheringState.new_);
       _log.fine('[$_debugLabel] ICE restart: new credentials generated');
     }
 
@@ -578,11 +586,11 @@ class RtcPeerConnection {
 
     // Start ICE gathering on primary connection (but NOT for bundlePolicy:disable)
     // For bundlePolicy:disable, MediaTransports gather below
-    if (_iceGatheringState == IceGatheringState.new_ &&
+    if (iceGatheringState == IceGatheringState.new_ &&
         _configuration.bundlePolicy != BundlePolicy.disable) {
-      _setIceGatheringState(IceGatheringState.gathering);
+      _secureManager.setIceGatheringState(IceGatheringState.gathering);
       await _iceConnection.gatherCandidates();
-      _setIceGatheringState(IceGatheringState.complete);
+      _secureManager.setIceGatheringState(IceGatheringState.complete);
     }
 
     // For bundlePolicy:disable offerer case, create MediaTransports from local SDP
@@ -616,7 +624,7 @@ class RtcPeerConnection {
 
       // Start gathering on all MediaTransports for the offerer
       if (_mediaTransports.isNotEmpty) {
-        _setIceGatheringState(IceGatheringState.gathering);
+        _secureManager.setIceGatheringState(IceGatheringState.gathering);
         await Future.wait(_mediaTransports.values.map((transport) async {
           try {
             await transport.iceConnection.gatherCandidates();
@@ -625,7 +633,7 @@ class RtcPeerConnection {
                 '[$_debugLabel] Transport ${transport.id} gather error: $e');
           }
         }));
-        _setIceGatheringState(IceGatheringState.complete);
+        _secureManager.setIceGatheringState(IceGatheringState.complete);
       }
     }
 
@@ -635,7 +643,7 @@ class RtcPeerConnection {
         _remoteDescription != null &&
         _mediaTransports.isNotEmpty &&
         !_iceConnectCalled) {
-      _setConnectionState(PeerConnectionState.connecting);
+      _secureManager.setConnectionState(PeerConnectionState.connecting);
       _iceConnectCalled = true;
       _log.fine(
           '[$_debugLabel] Starting ${_mediaTransports.length} media transports (from setLocalDescription)');
@@ -789,7 +797,7 @@ class RtcPeerConnection {
               _log.fine('[$_debugLabel] Remote ICE restart detected');
               await _iceConnection.restart();
               _iceConnectCalled = false;
-              _setIceGatheringState(IceGatheringState.new_);
+              _secureManager.setIceGatheringState(IceGatheringState.new_);
             }
 
             _previousRemoteIceUfrag = iceUfrag;
@@ -847,7 +855,7 @@ class RtcPeerConnection {
     if (_localDescription != null &&
         _remoteDescription != null &&
         !_iceConnectCalled) {
-      _setConnectionState(PeerConnectionState.connecting);
+      _secureManager.setConnectionState(PeerConnectionState.connecting);
       _iceConnectCalled = true;
 
       if (_configuration.bundlePolicy == BundlePolicy.disable) {
@@ -1180,35 +1188,35 @@ class RtcPeerConnection {
     return channel;
   }
 
-  /// Handle ICE state change
+  /// Handle ICE state change - delegates to SecureTransportManager
   void _handleIceStateChange(IceState state) {
     switch (state) {
       case IceState.newState:
-        _setIceConnectionState(IceConnectionState.new_);
+        _secureManager.setIceConnectionState(IceConnectionState.new_);
         break;
       case IceState.gathering:
         // Gathering state is tracked separately
         break;
       case IceState.checking:
-        _setIceConnectionState(IceConnectionState.checking);
+        _secureManager.setIceConnectionState(IceConnectionState.checking);
         break;
       case IceState.connected:
-        _setIceConnectionState(IceConnectionState.connected);
+        _secureManager.setIceConnectionState(IceConnectionState.connected);
         // Connection state is now managed by transport
         break;
       case IceState.completed:
-        _setIceConnectionState(IceConnectionState.completed);
+        _secureManager.setIceConnectionState(IceConnectionState.completed);
         break;
       case IceState.failed:
-        _setIceConnectionState(IceConnectionState.failed);
+        _secureManager.setIceConnectionState(IceConnectionState.failed);
         // Connection state is now managed by transport
         break;
       case IceState.disconnected:
-        _setIceConnectionState(IceConnectionState.disconnected);
+        _secureManager.setIceConnectionState(IceConnectionState.disconnected);
         // Connection state is now managed by transport
         break;
       case IceState.closed:
-        _setIceConnectionState(IceConnectionState.closed);
+        _secureManager.setIceConnectionState(IceConnectionState.closed);
         break;
     }
   }
@@ -1218,29 +1226,10 @@ class RtcPeerConnection {
     _signalingState = state;
   }
 
-  /// Set connection state
-  void _setConnectionState(PeerConnectionState state) {
-    if (_connectionState != state) {
-      _connectionState = state;
-      _connectionStateController.add(state);
-    }
-  }
-
-  /// Set ICE connection state
-  void _setIceConnectionState(IceConnectionState state) {
-    if (_iceConnectionState != state) {
-      _iceConnectionState = state;
-      _iceConnectionStateController.add(state);
-    }
-  }
-
-  /// Set ICE gathering state
-  void _setIceGatheringState(IceGatheringState state) {
-    if (_iceGatheringState != state) {
-      _iceGatheringState = state;
-      _iceGatheringStateController.add(state);
-    }
-  }
+  // Note: Connection state, ICE connection state, and ICE gathering state are
+  // now managed by SecureTransportManager. Use _secureManager.setConnectionState(),
+  // _secureManager.setIceConnectionState(), and _secureManager.setIceGatheringState()
+  // respectively.
 
   // ========================================================================
   // ICE Restart API
@@ -1260,7 +1249,7 @@ class RtcPeerConnection {
   /// // Send offer to remote peer
   /// ```
   void restartIce() {
-    if (_connectionState == PeerConnectionState.closed) {
+    if (connectionState == PeerConnectionState.closed) {
       throw StateError('PeerConnection is closed');
     }
     _needsIceRestart = true;
@@ -1277,7 +1266,7 @@ class RtcPeerConnection {
   /// Add a track to be sent
   /// Returns the RtpSender for this track
   RtpSender addTrack(MediaStreamTrack track) {
-    if (_connectionState == PeerConnectionState.closed) {
+    if (connectionState == PeerConnectionState.closed) {
       throw StateError('PeerConnection is closed');
     }
 
@@ -1391,7 +1380,7 @@ class RtcPeerConnection {
         'got ${trackOrKind.runtimeType}',
       );
     }
-    if (_connectionState == PeerConnectionState.closed) {
+    if (connectionState == PeerConnectionState.closed) {
       throw StateError('PeerConnection is closed');
     }
 
@@ -1684,21 +1673,21 @@ class RtcPeerConnection {
 
     // Any failed = failed
     if (states.any((s) => s == TransportState.failed)) {
-      _setConnectionState(PeerConnectionState.failed);
+      _secureManager.setConnectionState(PeerConnectionState.failed);
       return;
     }
 
     // Any disconnected = disconnected (but only if none are connected)
     if (states.any((s) => s == TransportState.disconnected) &&
         !states.any((s) => s == TransportState.connected)) {
-      _setConnectionState(PeerConnectionState.disconnected);
+      _secureManager.setConnectionState(PeerConnectionState.disconnected);
       return;
     }
 
     // For bundlePolicy: disable, connected when ANY transport is connected
     // This allows video to flow even if audio transport is still connecting
     if (states.any((s) => s == TransportState.connected)) {
-      _setConnectionState(PeerConnectionState.connected);
+      _secureManager.setConnectionState(PeerConnectionState.connected);
       // Set up SRTP for all connected transports
       _setupSrtpSessionsForAllTransports();
       return;
@@ -1706,7 +1695,7 @@ class RtcPeerConnection {
 
     // Still connecting
     if (states.any((s) => s == TransportState.connecting)) {
-      _setConnectionState(PeerConnectionState.connecting);
+      _secureManager.setConnectionState(PeerConnectionState.connecting);
       return;
     }
   }
@@ -1844,7 +1833,7 @@ class RtcPeerConnection {
 
   /// Remove a track
   void removeTrack(RtpSender sender) {
-    if (_connectionState == PeerConnectionState.closed) {
+    if (connectionState == PeerConnectionState.closed) {
       throw StateError('PeerConnection is closed');
     }
     _transceiverManager.removeTrack(sender);
@@ -1939,12 +1928,12 @@ class RtcPeerConnection {
 
   /// Close the peer connection
   Future<void> close() async {
-    if (_connectionState == PeerConnectionState.closed) {
+    if (connectionState == PeerConnectionState.closed) {
       return;
     }
 
     _setSignalingState(SignalingState.closed);
-    _setConnectionState(PeerConnectionState.closed);
+    _secureManager.setConnectionState(PeerConnectionState.closed);
 
     // Stop all transceivers
     for (final transceiver in _transceivers) {
@@ -1960,6 +1949,9 @@ class RtcPeerConnection {
     // Close integrated transport (handles SCTP, DTLS, ICE)
     await _transport?.close();
 
+    // Close SecureTransportManager (handles state streams)
+    await _secureManager.close();
+
     await _iceCandidateController.close();
     await _connectionStateController.close();
     await _iceConnectionStateController.close();
@@ -1971,6 +1963,6 @@ class RtcPeerConnection {
 
   @override
   String toString() {
-    return 'RtcPeerConnection(state=$_connectionState, signaling=$_signalingState)';
+    return 'RtcPeerConnection(state=$connectionState, signaling=$_signalingState)';
   }
 }

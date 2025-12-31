@@ -1,10 +1,15 @@
+import 'dart:async';
+
 import 'package:logging/logging.dart';
 
 import 'package:webrtc_dart/src/dtls/socket.dart';
 import 'package:webrtc_dart/src/ice/ice_connection.dart';
 import 'package:webrtc_dart/src/rtp/rtp_session.dart';
 import 'package:webrtc_dart/src/srtp/srtp_session.dart';
+import 'package:webrtc_dart/src/transport/ice_gatherer.dart';
 import 'package:webrtc_dart/src/transport/transport.dart';
+import 'package:webrtc_dart/src/peer_connection.dart'
+    show PeerConnectionState, IceConnectionState, IceGatheringState;
 
 /// SecureTransportManager handles ICE/DTLS/SRTP transport lifecycle.
 ///
@@ -15,11 +20,60 @@ import 'package:webrtc_dart/src/transport/transport.dart';
 /// - Managing SRTP sessions (bundled and per-transport)
 /// - Aggregate connection state from multiple transports
 /// - ICE connection lookup by MID
-/// - Transport state callbacks
+/// - State aggregation and event emission
 ///
 /// Reference: werift-webrtc/packages/webrtc/src/secureTransportManager.ts
 class SecureTransportManager {
   final Logger _log = Logger('SecureTransportManager');
+
+  // ============================================================
+  // State Properties (matching werift SecureTransportManager)
+  // ============================================================
+
+  /// Aggregated connection state from all DTLS transports
+  PeerConnectionState _connectionState = PeerConnectionState.new_;
+
+  /// Aggregated ICE connection state from all ICE transports
+  IceConnectionState _iceConnectionState = IceConnectionState.new_;
+
+  /// Aggregated ICE gathering state from all ICE gatherers
+  IceGatheringState _iceGatheringState = IceGatheringState.new_;
+
+  /// Get current connection state
+  PeerConnectionState get connectionState => _connectionState;
+
+  /// Get current ICE connection state
+  IceConnectionState get iceConnectionState => _iceConnectionState;
+
+  /// Get current ICE gathering state
+  IceGatheringState get iceGatheringState => _iceGatheringState;
+
+  // ============================================================
+  // Event Streams (matching werift SecureTransportManager)
+  // ============================================================
+
+  final _connectionStateController =
+      StreamController<PeerConnectionState>.broadcast();
+  final _iceConnectionStateController =
+      StreamController<IceConnectionState>.broadcast();
+  final _iceGatheringStateController =
+      StreamController<IceGatheringState>.broadcast();
+
+  /// Stream of connection state changes
+  Stream<PeerConnectionState> get onConnectionStateChange =>
+      _connectionStateController.stream;
+
+  /// Stream of ICE connection state changes
+  Stream<IceConnectionState> get onIceConnectionStateChange =>
+      _iceConnectionStateController.stream;
+
+  /// Stream of ICE gathering state changes
+  Stream<IceGatheringState> get onIceGatheringStateChange =>
+      _iceGatheringStateController.stream;
+
+  // ============================================================
+  // SRTP Session Management (existing functionality)
+  // ============================================================
 
   /// Primary SRTP session for bundled media
   SrtpSession? _srtpSession;
@@ -194,9 +248,174 @@ class SecureTransportManager {
     );
   }
 
+  // ============================================================
+  // State Aggregation Methods (matching werift SecureTransportManager)
+  // ============================================================
+
+  /// Update ICE gathering state from multiple ICE transports.
+  /// Reference: werift SecureTransportManager.updateIceGatheringState
+  ///
+  /// [gatheringStates] - List of gathering states from all ICE transports
+  void updateIceGatheringState(List<IceGathererState> gatheringStates) {
+    if (gatheringStates.isEmpty) {
+      return;
+    }
+
+    IceGatheringState newState;
+
+    // All complete → complete
+    if (gatheringStates.every((s) => s == IceGathererState.complete)) {
+      newState = IceGatheringState.complete;
+    }
+    // Any gathering → gathering
+    else if (gatheringStates.any((s) => s == IceGathererState.gathering)) {
+      newState = IceGatheringState.gathering;
+    }
+    // Default → new
+    else {
+      newState = IceGatheringState.new_;
+    }
+
+    if (_iceGatheringState != newState) {
+      _log.fine('ICE gathering state: $_iceGatheringState -> $newState');
+      _iceGatheringState = newState;
+      if (!_iceGatheringStateController.isClosed) {
+        _iceGatheringStateController.add(newState);
+      }
+    }
+  }
+
+  /// Update ICE connection state from multiple ICE transports.
+  /// Reference: werift SecureTransportManager.updateIceConnectionState
+  /// https://w3c.github.io/webrtc-pc/#dom-rtciceconnectionstate
+  ///
+  /// [iceStates] - List of ICE connection states from all transports
+  void updateIceConnectionState(List<IceState> iceStates) {
+    if (iceStates.isEmpty) {
+      return;
+    }
+
+    IceConnectionState newState;
+
+    // Helper functions
+    bool allMatch(List<IceState> states) {
+      return iceStates.every((s) => states.contains(s));
+    }
+
+    bool anyMatch(List<IceState> states) {
+      return iceStates.any((s) => states.contains(s));
+    }
+
+    // Aggregation logic per W3C spec
+    if (_connectionState == PeerConnectionState.closed) {
+      newState = IceConnectionState.closed;
+    } else if (anyMatch([IceState.failed])) {
+      newState = IceConnectionState.failed;
+    } else if (anyMatch([IceState.disconnected])) {
+      newState = IceConnectionState.disconnected;
+    } else if (allMatch([IceState.newState, IceState.closed])) {
+      newState = IceConnectionState.new_;
+    } else if (anyMatch([IceState.newState, IceState.checking])) {
+      newState = IceConnectionState.checking;
+    } else if (allMatch([IceState.completed, IceState.closed])) {
+      newState = IceConnectionState.completed;
+    } else if (allMatch([IceState.connected, IceState.completed, IceState.closed])) {
+      newState = IceConnectionState.connected;
+    } else {
+      newState = IceConnectionState.new_;
+    }
+
+    if (_iceConnectionState != newState) {
+      _log.fine('ICE connection state: $_iceConnectionState -> $newState');
+      _iceConnectionState = newState;
+      if (!_iceConnectionStateController.isClosed) {
+        _iceConnectionStateController.add(newState);
+      }
+    }
+  }
+
+  /// Update connection state from multiple transport states.
+  /// Reference: werift SecureTransportManager.setConnectionState
+  ///
+  /// [transportStates] - List of transport states from all transports
+  void updateConnectionState(List<TransportState> transportStates) {
+    if (transportStates.isEmpty) {
+      return;
+    }
+
+    PeerConnectionState newState;
+
+    // Aggregation logic
+    if (transportStates.any((s) => s == TransportState.failed)) {
+      newState = PeerConnectionState.failed;
+    } else if (transportStates.any((s) => s == TransportState.disconnected)) {
+      newState = PeerConnectionState.disconnected;
+    } else if (transportStates.any((s) => s == TransportState.connected)) {
+      newState = PeerConnectionState.connected;
+    } else if (transportStates.any((s) => s == TransportState.connecting)) {
+      newState = PeerConnectionState.connecting;
+    } else if (transportStates.every((s) => s == TransportState.closed)) {
+      newState = PeerConnectionState.closed;
+    } else {
+      newState = PeerConnectionState.new_;
+    }
+
+    if (_connectionState != newState) {
+      _log.fine('Connection state: $_connectionState -> $newState');
+      _connectionState = newState;
+      if (!_connectionStateController.isClosed) {
+        _connectionStateController.add(newState);
+      }
+    }
+  }
+
+  /// Set connection state directly (e.g., when closing).
+  /// Reference: werift SecureTransportManager.setConnectionState
+  void setConnectionState(PeerConnectionState state) {
+    if (_connectionState != state) {
+      _log.fine('Connection state (direct): $_connectionState -> $state');
+      _connectionState = state;
+      if (!_connectionStateController.isClosed) {
+        _connectionStateController.add(state);
+      }
+    }
+  }
+
+  /// Set ICE connection state directly (for single transport case).
+  void setIceConnectionState(IceConnectionState state) {
+    if (_iceConnectionState != state) {
+      _log.fine('ICE connection state (direct): $_iceConnectionState -> $state');
+      _iceConnectionState = state;
+      if (!_iceConnectionStateController.isClosed) {
+        _iceConnectionStateController.add(state);
+      }
+    }
+  }
+
+  /// Set ICE gathering state directly (for single transport case).
+  void setIceGatheringState(IceGatheringState state) {
+    if (_iceGatheringState != state) {
+      _log.fine('ICE gathering state (direct): $_iceGatheringState -> $state');
+      _iceGatheringState = state;
+      if (!_iceGatheringStateController.isClosed) {
+        _iceGatheringStateController.add(state);
+      }
+    }
+  }
+
+  // ============================================================
+  // Cleanup
+  // ============================================================
+
   /// Close the manager and release resources.
-  void close() {
+  Future<void> close() async {
+    setConnectionState(PeerConnectionState.closed);
+
     _srtpSession = null;
     _srtpSessionsByMid.clear();
+
+    await _connectionStateController.close();
+    await _iceConnectionStateController.close();
+    await _iceGatheringStateController.close();
   }
 }

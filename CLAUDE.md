@@ -22,7 +22,11 @@ This is a pure Dart port of the [werift-webrtc](https://github.com/shinyoshiaki/
 All WebRTC features complete: ICE, DTLS, SRTP, SCTP, RTP/RTCP, DataChannels, Media.
 Codecs: VP8, VP9, H.264, AV1, Opus. Features: NACK, PLI/FIR, RTX, TWCC, Simulcast, getStats().
 
-**2537 tests passing, 0 analyzer issues**
+**2587 tests passing, 0 analyzer issues**
+
+### W3C API Compatibility (v0.23.0)
+Full W3C WebRTC API naming: RTCPeerConnection, RTCDataChannel, RTCIceCandidate, etc.
+Backward compatibility via deprecated typedefs for old names.
 
 ### Browser Interop Status
 - ✅ **Chrome**: DataChannel + Media working
@@ -31,7 +35,7 @@ Codecs: VP8, VP9, H.264, AV1, Opus. Features: NACK, PLI/FIR, RTX, TWCC, Simulcas
 
 Automated Playwright test suite in `interop/automated/`
 
-See **REFACTOR.md** for detailed werift comparison and implementation history.
+See **ROADMAP.md** for detailed feature status and future plans.
 
 ---
 

@@ -2,6 +2,72 @@
 
 All notable changes to this project will be documented in this file.
 
+## 0.23.0
+
+### Breaking Changes (with backward compatibility)
+
+- **W3C WebRTC API naming** - All core classes renamed to match W3C standard:
+  - `RtcPeerConnection` -> `RTCPeerConnection`
+  - `DataChannel` -> `RTCDataChannel`
+  - `RtpTransceiver` -> `RTCRtpTransceiver`
+  - `RtpSender` -> `RTCRtpSender`
+  - `RtpReceiver` -> `RTCRtpReceiver`
+  - `Candidate` -> `RTCIceCandidate`
+  - `SessionDescription` -> `RTCSessionDescription`
+
+- **Backward compatibility preserved** - Old names available via deprecated typedefs. Existing code continues to work with deprecation warnings.
+
+### Added
+
+- **RTCDTMFSender** - Full DTMF (Dual-Tone Multi-Frequency) support:
+  - `insertDTMF()` method with configurable duration and gap
+  - `toneBuffer` property for queued tones
+  - `ontonechange` event callback
+  - `canInsertDTMF` property
+  - Supports tones: 0-9, A-D, *, #
+  - RTP telephone-event payload (RFC 4733)
+
+- **W3C property aliases** - Standard naming alongside Dart conventions:
+  - `RTCDataChannel.id` (alias for `streamId`)
+  - `RTCDataChannel.readyState` (alias for `state`)
+  - `RTCIceCandidate.address` (alias for `host`)
+  - `RTCIceCandidate.protocol` (alias for `transport`)
+  - `RTCIceCandidate.usernameFragment` (alias for `ufrag`)
+  - `MediaStreamTrack.readyState` (alias for `state`)
+
+- **Missing W3C methods**:
+  - `RTCRtpSender.replaceTrack()` - Replace track without renegotiation
+  - `RTCRtpSender.getStats()` - Per-sender statistics
+  - `RTCRtpReceiver.getParameters()` - Receiver RTP parameters
+  - `RTCRtpReceiver.getStats()` - Per-receiver statistics
+  - `RTCRtpTransceiver.currentDirection` - Actual negotiated direction
+  - `RTCIceCandidate.toJSON()` - JSON serialization
+  - `RTCSessionDescription.toJSON()` - JSON serialization
+
+- **MediaStreamTrack constraints API**:
+  - `getSettings()` - Current track settings
+  - `getCapabilities()` - Device capabilities
+  - `getConstraints()` - Applied constraints
+  - `applyConstraints()` - Apply new constraints
+
+- **Transport properties**:
+  - `RTCRtpSender.transport` - DTLS transport reference
+  - `RTCRtpReceiver.transport` - DTLS transport reference
+
+### Changed
+
+- All examples updated to use W3C API names
+- All tests updated to use W3C API names (no deprecation warnings)
+- Documentation updated for W3C API focus
+- Merged W3C_COMPAT_PLAN.md and REFACTOR.md into ROADMAP.md
+
+### Tests
+
+- 2587 tests passing (up from 2537)
+- Added DTMF unit tests (12 tests)
+- Added browser interop tests for DTMF
+- All browser interop tests passing (Chrome, Firefox, Safari)
+
 ## 0.22.14
 
 ### Fixed

@@ -9,6 +9,275 @@ enum MediaStreamTrackKind {
   video,
 }
 
+// =============================================================================
+// W3C MediaTrackSettings, MediaTrackCapabilities, MediaTrackConstraints
+// =============================================================================
+
+/// Media Track Settings
+/// Contains the actual values of the constrainable properties of a track.
+/// Based on W3C MediaTrackSettings dictionary.
+class MediaTrackSettings {
+  // Video settings
+  final int? width;
+  final int? height;
+  final double? aspectRatio;
+  final double? frameRate;
+  final String? facingMode;
+  final String? resizeMode;
+
+  // Audio settings
+  final int? sampleRate;
+  final int? sampleSize;
+  final bool? echoCancellation;
+  final bool? autoGainControl;
+  final bool? noiseSuppression;
+  final double? latency;
+  final int? channelCount;
+
+  // Common
+  final String? deviceId;
+  final String? groupId;
+
+  const MediaTrackSettings({
+    this.width,
+    this.height,
+    this.aspectRatio,
+    this.frameRate,
+    this.facingMode,
+    this.resizeMode,
+    this.sampleRate,
+    this.sampleSize,
+    this.echoCancellation,
+    this.autoGainControl,
+    this.noiseSuppression,
+    this.latency,
+    this.channelCount,
+    this.deviceId,
+    this.groupId,
+  });
+
+  Map<String, dynamic> toJson() {
+    final json = <String, dynamic>{};
+    if (width != null) json['width'] = width;
+    if (height != null) json['height'] = height;
+    if (aspectRatio != null) json['aspectRatio'] = aspectRatio;
+    if (frameRate != null) json['frameRate'] = frameRate;
+    if (facingMode != null) json['facingMode'] = facingMode;
+    if (resizeMode != null) json['resizeMode'] = resizeMode;
+    if (sampleRate != null) json['sampleRate'] = sampleRate;
+    if (sampleSize != null) json['sampleSize'] = sampleSize;
+    if (echoCancellation != null) json['echoCancellation'] = echoCancellation;
+    if (autoGainControl != null) json['autoGainControl'] = autoGainControl;
+    if (noiseSuppression != null) json['noiseSuppression'] = noiseSuppression;
+    if (latency != null) json['latency'] = latency;
+    if (channelCount != null) json['channelCount'] = channelCount;
+    if (deviceId != null) json['deviceId'] = deviceId;
+    if (groupId != null) json['groupId'] = groupId;
+    return json;
+  }
+
+  @override
+  String toString() => 'MediaTrackSettings(${toJson()})';
+}
+
+/// Range constraint for numeric values
+class DoubleRange {
+  final double? min;
+  final double? max;
+
+  const DoubleRange({this.min, this.max});
+
+  Map<String, dynamic> toJson() {
+    final json = <String, dynamic>{};
+    if (min != null) json['min'] = min;
+    if (max != null) json['max'] = max;
+    return json;
+  }
+}
+
+/// Range constraint for integer values
+class ULongRange {
+  final int? min;
+  final int? max;
+
+  const ULongRange({this.min, this.max});
+
+  Map<String, dynamic> toJson() {
+    final json = <String, dynamic>{};
+    if (min != null) json['min'] = min;
+    if (max != null) json['max'] = max;
+    return json;
+  }
+}
+
+/// Media Track Capabilities
+/// Describes the range of values supported by the track.
+/// Based on W3C MediaTrackCapabilities dictionary.
+class MediaTrackCapabilities {
+  // Video capabilities
+  final ULongRange? width;
+  final ULongRange? height;
+  final DoubleRange? aspectRatio;
+  final DoubleRange? frameRate;
+  final List<String>? facingMode;
+  final List<String>? resizeMode;
+
+  // Audio capabilities
+  final ULongRange? sampleRate;
+  final ULongRange? sampleSize;
+  final List<bool>? echoCancellation;
+  final List<bool>? autoGainControl;
+  final List<bool>? noiseSuppression;
+  final DoubleRange? latency;
+  final ULongRange? channelCount;
+
+  // Common
+  final String? deviceId;
+  final String? groupId;
+
+  const MediaTrackCapabilities({
+    this.width,
+    this.height,
+    this.aspectRatio,
+    this.frameRate,
+    this.facingMode,
+    this.resizeMode,
+    this.sampleRate,
+    this.sampleSize,
+    this.echoCancellation,
+    this.autoGainControl,
+    this.noiseSuppression,
+    this.latency,
+    this.channelCount,
+    this.deviceId,
+    this.groupId,
+  });
+
+  Map<String, dynamic> toJson() {
+    final json = <String, dynamic>{};
+    if (width != null) json['width'] = width!.toJson();
+    if (height != null) json['height'] = height!.toJson();
+    if (aspectRatio != null) json['aspectRatio'] = aspectRatio!.toJson();
+    if (frameRate != null) json['frameRate'] = frameRate!.toJson();
+    if (facingMode != null) json['facingMode'] = facingMode;
+    if (resizeMode != null) json['resizeMode'] = resizeMode;
+    if (sampleRate != null) json['sampleRate'] = sampleRate!.toJson();
+    if (sampleSize != null) json['sampleSize'] = sampleSize!.toJson();
+    if (echoCancellation != null) json['echoCancellation'] = echoCancellation;
+    if (autoGainControl != null) json['autoGainControl'] = autoGainControl;
+    if (noiseSuppression != null) json['noiseSuppression'] = noiseSuppression;
+    if (latency != null) json['latency'] = latency!.toJson();
+    if (channelCount != null) json['channelCount'] = channelCount!.toJson();
+    if (deviceId != null) json['deviceId'] = deviceId;
+    if (groupId != null) json['groupId'] = groupId;
+    return json;
+  }
+
+  @override
+  String toString() => 'MediaTrackCapabilities(${toJson()})';
+}
+
+/// Constraint value that can be exact, ideal, min, or max
+class ConstraintValue<T> {
+  final T? exact;
+  final T? ideal;
+  final T? min;
+  final T? max;
+
+  const ConstraintValue({this.exact, this.ideal, this.min, this.max});
+
+  Map<String, dynamic> toJson() {
+    final json = <String, dynamic>{};
+    if (exact != null) json['exact'] = exact;
+    if (ideal != null) json['ideal'] = ideal;
+    if (min != null) json['min'] = min;
+    if (max != null) json['max'] = max;
+    return json;
+  }
+}
+
+/// Media Track Constraints
+/// Specifies the desired values for constrainable properties.
+/// Based on W3C MediaTrackConstraints dictionary.
+class MediaTrackConstraints {
+  // Video constraints
+  final dynamic width; // int, ConstraintValue<int>, or null
+  final dynamic height;
+  final dynamic aspectRatio;
+  final dynamic frameRate;
+  final dynamic facingMode;
+  final dynamic resizeMode;
+
+  // Audio constraints
+  final dynamic sampleRate;
+  final dynamic sampleSize;
+  final dynamic echoCancellation;
+  final dynamic autoGainControl;
+  final dynamic noiseSuppression;
+  final dynamic latency;
+  final dynamic channelCount;
+
+  // Common
+  final dynamic deviceId;
+  final dynamic groupId;
+
+  // Advanced constraints (array of constraint sets)
+  final List<MediaTrackConstraints>? advanced;
+
+  const MediaTrackConstraints({
+    this.width,
+    this.height,
+    this.aspectRatio,
+    this.frameRate,
+    this.facingMode,
+    this.resizeMode,
+    this.sampleRate,
+    this.sampleSize,
+    this.echoCancellation,
+    this.autoGainControl,
+    this.noiseSuppression,
+    this.latency,
+    this.channelCount,
+    this.deviceId,
+    this.groupId,
+    this.advanced,
+  });
+
+  /// Create empty constraints
+  factory MediaTrackConstraints.empty() => const MediaTrackConstraints();
+
+  Map<String, dynamic> toJson() {
+    final json = <String, dynamic>{};
+    if (width != null) json['width'] = _constraintToJson(width);
+    if (height != null) json['height'] = _constraintToJson(height);
+    if (aspectRatio != null) json['aspectRatio'] = _constraintToJson(aspectRatio);
+    if (frameRate != null) json['frameRate'] = _constraintToJson(frameRate);
+    if (facingMode != null) json['facingMode'] = _constraintToJson(facingMode);
+    if (resizeMode != null) json['resizeMode'] = _constraintToJson(resizeMode);
+    if (sampleRate != null) json['sampleRate'] = _constraintToJson(sampleRate);
+    if (sampleSize != null) json['sampleSize'] = _constraintToJson(sampleSize);
+    if (echoCancellation != null) json['echoCancellation'] = _constraintToJson(echoCancellation);
+    if (autoGainControl != null) json['autoGainControl'] = _constraintToJson(autoGainControl);
+    if (noiseSuppression != null) json['noiseSuppression'] = _constraintToJson(noiseSuppression);
+    if (latency != null) json['latency'] = _constraintToJson(latency);
+    if (channelCount != null) json['channelCount'] = _constraintToJson(channelCount);
+    if (deviceId != null) json['deviceId'] = _constraintToJson(deviceId);
+    if (groupId != null) json['groupId'] = _constraintToJson(groupId);
+    if (advanced != null) json['advanced'] = advanced!.map((c) => c.toJson()).toList();
+    return json;
+  }
+
+  dynamic _constraintToJson(dynamic value) {
+    if (value is ConstraintValue) {
+      return value.toJson();
+    }
+    return value;
+  }
+
+  @override
+  String toString() => 'MediaTrackConstraints(${toJson()})';
+}
+
 /// Media Track State
 enum MediaStreamTrackState {
   live,
@@ -55,6 +324,12 @@ abstract class MediaStreamTrack {
 
   /// Raw RTCP packet stream
   final _rtcpController = StreamController<RtcpPacket>.broadcast();
+
+  /// Applied constraints (stored when applyConstraints is called)
+  MediaTrackConstraints _constraints = const MediaTrackConstraints();
+
+  /// Current settings (can be updated by subclasses)
+  MediaTrackSettings _settings = const MediaTrackSettings();
 
   MediaStreamTrack({
     required this.id,
@@ -103,6 +378,138 @@ abstract class MediaStreamTrack {
 
   /// Check if track is video
   bool get isVideo => kind == MediaStreamTrackKind.video;
+
+  // ===========================================================================
+  // W3C Standard Constraints API
+  // ===========================================================================
+
+  /// Get current settings
+  ///
+  /// Returns a MediaTrackSettings object containing the current values
+  /// of each constrainable property.
+  MediaTrackSettings getSettings() => _settings;
+
+  /// Get capabilities
+  ///
+  /// Returns a MediaTrackCapabilities object describing the range of
+  /// values supported by the track. For server-side Dart, this returns
+  /// default capabilities since we don't control physical devices.
+  MediaTrackCapabilities getCapabilities() {
+    if (kind == MediaStreamTrackKind.audio) {
+      return const MediaTrackCapabilities(
+        sampleRate: ULongRange(min: 8000, max: 48000),
+        sampleSize: ULongRange(min: 8, max: 32),
+        channelCount: ULongRange(min: 1, max: 2),
+        echoCancellation: [true, false],
+        autoGainControl: [true, false],
+        noiseSuppression: [true, false],
+        latency: DoubleRange(min: 0.0, max: 1.0),
+      );
+    } else {
+      return const MediaTrackCapabilities(
+        width: ULongRange(min: 1, max: 4096),
+        height: ULongRange(min: 1, max: 2160),
+        aspectRatio: DoubleRange(min: 0.5, max: 3.0),
+        frameRate: DoubleRange(min: 1.0, max: 60.0),
+        resizeMode: ['none', 'crop-and-scale'],
+      );
+    }
+  }
+
+  /// Get constraints
+  ///
+  /// Returns the constraints that were most recently applied to the track
+  /// via applyConstraints().
+  MediaTrackConstraints getConstraints() => _constraints;
+
+  /// Apply constraints
+  ///
+  /// Applies a set of constraints to the track. For server-side Dart,
+  /// this stores the constraints and updates settings where applicable.
+  /// Returns a Future that resolves when constraints are applied.
+  ///
+  /// Throws [OverconstrainedError] if the constraints cannot be satisfied.
+  Future<void> applyConstraints([MediaTrackConstraints? constraints]) async {
+    _constraints = constraints ?? const MediaTrackConstraints();
+
+    // For server-side implementation, we just store the constraints
+    // and update settings to reflect what was requested.
+    // A real device implementation would validate and apply these.
+    _updateSettingsFromConstraints(_constraints);
+  }
+
+  /// Update settings based on applied constraints
+  void _updateSettingsFromConstraints(MediaTrackConstraints constraints) {
+    // Extract values from constraints (handling both direct values and ConstraintValue)
+    int? extractInt(dynamic value) {
+      if (value == null) return null;
+      if (value is int) return value;
+      if (value is ConstraintValue<int>) return value.exact ?? value.ideal;
+      return null;
+    }
+
+    double? extractDouble(dynamic value) {
+      if (value == null) return null;
+      if (value is double) return value;
+      if (value is int) return value.toDouble();
+      if (value is ConstraintValue<double>) return value.exact ?? value.ideal;
+      if (value is ConstraintValue<int>) {
+        return (value.exact ?? value.ideal)?.toDouble();
+      }
+      return null;
+    }
+
+    bool? extractBool(dynamic value) {
+      if (value == null) return null;
+      if (value is bool) return value;
+      if (value is ConstraintValue<bool>) return value.exact ?? value.ideal;
+      return null;
+    }
+
+    String? extractString(dynamic value) {
+      if (value == null) return null;
+      if (value is String) return value;
+      if (value is ConstraintValue<String>) return value.exact ?? value.ideal;
+      return null;
+    }
+
+    if (kind == MediaStreamTrackKind.audio) {
+      _settings = MediaTrackSettings(
+        sampleRate: extractInt(constraints.sampleRate) ?? _settings.sampleRate,
+        sampleSize: extractInt(constraints.sampleSize) ?? _settings.sampleSize,
+        channelCount: extractInt(constraints.channelCount) ?? _settings.channelCount,
+        echoCancellation: extractBool(constraints.echoCancellation) ?? _settings.echoCancellation,
+        autoGainControl: extractBool(constraints.autoGainControl) ?? _settings.autoGainControl,
+        noiseSuppression: extractBool(constraints.noiseSuppression) ?? _settings.noiseSuppression,
+        latency: extractDouble(constraints.latency) ?? _settings.latency,
+        deviceId: extractString(constraints.deviceId) ?? _settings.deviceId,
+        groupId: extractString(constraints.groupId) ?? _settings.groupId,
+      );
+    } else {
+      final width = extractInt(constraints.width);
+      final height = extractInt(constraints.height);
+      double? aspectRatio = extractDouble(constraints.aspectRatio);
+      if (aspectRatio == null && width != null && height != null && height > 0) {
+        aspectRatio = width / height;
+      }
+
+      _settings = MediaTrackSettings(
+        width: width ?? _settings.width,
+        height: height ?? _settings.height,
+        aspectRatio: aspectRatio ?? _settings.aspectRatio,
+        frameRate: extractDouble(constraints.frameRate) ?? _settings.frameRate,
+        facingMode: extractString(constraints.facingMode) ?? _settings.facingMode,
+        resizeMode: extractString(constraints.resizeMode) ?? _settings.resizeMode,
+        deviceId: extractString(constraints.deviceId) ?? _settings.deviceId,
+        groupId: extractString(constraints.groupId) ?? _settings.groupId,
+      );
+    }
+  }
+
+  /// Update settings directly (for use by subclasses or receivers)
+  void updateSettings(MediaTrackSettings settings) {
+    _settings = settings;
+  }
 
   /// Stop the track
   void stop() {

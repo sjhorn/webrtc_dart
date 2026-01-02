@@ -10,6 +10,7 @@ import 'package:webrtc_dart/src/nonstandard/media/track.dart' as nonstandard;
 import 'package:webrtc_dart/src/rtp/rtp_session.dart';
 import 'package:webrtc_dart/src/srtp/rtp_packet.dart';
 import 'package:webrtc_dart/src/stats/rtc_stats.dart';
+import 'package:webrtc_dart/src/transport/dtls_transport.dart';
 
 /// RTP Sender
 /// Sends RTP packets for an outgoing media track
@@ -68,6 +69,12 @@ class RTCRtpSender {
 
   /// Payload type for DTMF telephone-event (typically 101)
   int? dtmfPayloadType;
+
+  /// DTLS transport associated with this sender (set by PeerConnection)
+  ///
+  /// Exposes the transport that this sender uses for sending encrypted RTP.
+  /// This is null until the transport has been established.
+  RtcDtlsTransport? transport;
 
   RTCRtpSender({
     MediaStreamTrack? track,

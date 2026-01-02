@@ -11,6 +11,7 @@ import 'package:webrtc_dart/src/rtp/header_extension.dart';
 import 'package:webrtc_dart/src/rtp/rtp_session.dart';
 import 'package:webrtc_dart/src/srtp/rtp_packet.dart';
 import 'package:webrtc_dart/src/stats/rtc_stats.dart';
+import 'package:webrtc_dart/src/transport/dtls_transport.dart';
 
 /// RTP Receiver
 /// Receives RTP packets for an incoming media track
@@ -63,6 +64,12 @@ class RTCRtpReceiver {
 
   /// Callback to send RTCP packets (set by PeerConnection)
   Future<void> Function(Uint8List rtcpPacket)? onSendRtcp;
+
+  /// DTLS transport associated with this receiver (set by PeerConnection)
+  ///
+  /// Exposes the transport that this receiver uses for receiving encrypted RTP.
+  /// This is null until the transport has been established.
+  RtcDtlsTransport? transport;
 
   RTCRtpReceiver({
     required this.track,

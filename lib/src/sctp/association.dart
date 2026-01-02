@@ -508,9 +508,14 @@ class SctpAssociation {
     final streams = <int, int>{}; // streamId -> streamSeq
 
     // Dequeue abandoned chunks from front of sentQueue
-    while (_sentQueue.isNotEmpty && _sentQueue.first.abandoned) {
-      final chunk = _sentQueue.removeAt(0);
+    // Optimized: process in-place first, then batch remove with removeRange
+    var removeCount = 0;
+    for (var i = 0; i < _sentQueue.length; i++) {
+      final chunk = _sentQueue[i];
+      if (!chunk.abandoned) break;
+
       _advancedPeerAckTsn = chunk.tsn;
+      removeCount++;
       done++;
 
       // Decrement buffered amount for abandoned chunk
@@ -520,6 +525,9 @@ class SctpAssociation {
       if (!chunk.chunk.unordered) {
         streams[chunk.chunk.streamId] = chunk.chunk.streamSeq;
       }
+    }
+    if (removeCount > 0) {
+      _sentQueue.removeRange(0, removeCount);
     }
 
     if (done > 0) {
@@ -830,9 +838,14 @@ class SctpAssociation {
     var doneBytes = 0;
 
     // Handle acknowledged data (remove from sentQueue)
-    while (_sentQueue.isNotEmpty &&
-        uint32Gte(_lastSackedTsn!, _sentQueue.first.tsn)) {
-      final sChunk = _sentQueue.removeAt(0);
+    // Optimized: process in-place first, then batch remove with removeRange
+    // This changes O(n²) repeated removeAt(0) to O(n) single removeRange
+    var removeCount = 0;
+    for (var i = 0; i < _sentQueue.length; i++) {
+      final sChunk = _sentQueue[i];
+      if (!uint32Gte(_lastSackedTsn!, sChunk.tsn)) break;
+
+      removeCount++;
       done++;
       if (!sChunk.acked) {
         doneBytes += sChunk.bookSize;
@@ -847,8 +860,11 @@ class SctpAssociation {
         _updateRto(receivedTime - sChunk.sentTime!);
       }
     }
+    if (removeCount > 0) {
+      _sentQueue.removeRange(0, removeCount);
+    }
 
-    // Reset sentQueue to avoid performance issues (V8 array shift behavior)
+    // Reset sentQueue to avoid memory leaks from internal array slack
     if (_sentQueue.isEmpty) {
       _sentQueue = [];
     }

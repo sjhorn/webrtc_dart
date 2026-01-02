@@ -84,12 +84,20 @@ Run benchmarks: `dart run benchmark/micro/srtp_encrypt_bench.dart`
 - ✅ Cached cipher instance (reused across packets)
 - ✅ Pre-allocated nonce buffer (no per-packet allocation)
 - ✅ Cached SecretKey object
+- ✅ SCTP queue batch removal (230x faster at 5000 chunks)
+
+**SCTP Queue Optimization Results:**
+
+| Queue Size | Before (removeAt) | After (removeRange) | Speedup |
+|------------|-------------------|---------------------|---------|
+| 100 | 0.006 ms | 0.001 ms | 6x |
+| 1000 | 0.206 ms | 0.004 ms | 51x |
+| 5000 | 5.297 ms | 0.023 ms | **230x** |
 
 **Remaining Opportunities:**
 
 | Priority | Issue | Location |
 |----------|-------|----------|
-| Medium | SCTP queue O(n) operations | `association.dart` |
 | Low | Further buffer pooling | SRTP result assembly |
 
 **Note:** The remaining ~18x gap vs werift is due to Node.js using native OpenSSL

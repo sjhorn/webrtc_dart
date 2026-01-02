@@ -13,6 +13,7 @@ void main() async {
 
   final benchmarks = [
     'benchmark/micro/srtp_encrypt_bench.dart',
+    'benchmark/micro/sctp_queue_bench.dart',
   ];
 
   for (final benchmark in benchmarks) {

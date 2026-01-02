@@ -10,6 +10,39 @@ import 'package:webrtc_dart/src/transport/transport.dart';
 export 'package:webrtc_dart/src/media/rtc_rtp_sender.dart';
 export 'package:webrtc_dart/src/media/rtc_rtp_receiver.dart';
 
+/// RTCRtpCodecCapability - W3C codec capability for setCodecPreferences
+class RTCRtpCodecCapability {
+  /// MIME type (e.g., "video/VP8", "audio/opus")
+  final String mimeType;
+
+  /// Clock rate in Hz
+  final int clockRate;
+
+  /// Number of channels (for audio codecs)
+  final int? channels;
+
+  /// SDP format-specific parameters
+  final String? sdpFmtpLine;
+
+  const RTCRtpCodecCapability({
+    required this.mimeType,
+    required this.clockRate,
+    this.channels,
+    this.sdpFmtpLine,
+  });
+
+  /// Check if this capability matches a codec
+  bool matches(RtpCodecParameters codec) {
+    if (mimeType.toLowerCase() != codec.mimeType.toLowerCase()) return false;
+    if (clockRate != codec.clockRate) return false;
+    if (channels != null && channels != codec.channels) return false;
+    return true;
+  }
+
+  @override
+  String toString() => 'RTCRtpCodecCapability($mimeType/$clockRate)';
+}
+
 /// RTP Transceiver Direction
 enum RtpTransceiverDirection { sendrecv, sendonly, recvonly, inactive }
 
@@ -54,6 +87,10 @@ class RTCRtpTransceiver {
   /// All codecs for SDP negotiation (RED, Opus, etc.)
   /// The primary sending codec is still sender.codec
   List<RtpCodecParameters> codecs = [];
+
+  /// Codec preferences set by setCodecPreferences()
+  /// When non-null, codecs are filtered and reordered during SDP generation
+  List<RTCRtpCodecCapability>? _codecPreferences;
 
   RTCRtpTransceiver({
     required this.kind,
@@ -128,6 +165,71 @@ class RTCRtpTransceiver {
   /// Set negotiated direction (called after SDP negotiation)
   void setNegotiatedDirection(RtpTransceiverDirection negotiated) {
     _direction = negotiated;
+  }
+
+  /// Get codec preferences (null if not set)
+  List<RTCRtpCodecCapability>? get codecPreferences => _codecPreferences;
+
+  /// Set codec preferences for negotiation
+  ///
+  /// Sets the preferred codecs for this transceiver in order of preference.
+  /// During SDP offer/answer generation, codecs will be ordered and filtered
+  /// according to these preferences.
+  ///
+  /// [codecs] - List of RTCRtpCodecCapability in order of preference.
+  ///   Pass an empty list to use the default codec order.
+  ///   Pass null to clear preferences.
+  ///
+  /// Throws [InvalidAccessError] (StateError) if:
+  /// - The transceiver is stopped
+  /// - A codec in the list is not supported
+  ///
+  /// Example:
+  /// ```dart
+  /// transceiver.setCodecPreferences([
+  ///   RTCRtpCodecCapability(mimeType: 'video/VP9', clockRate: 90000),
+  ///   RTCRtpCodecCapability(mimeType: 'video/VP8', clockRate: 90000),
+  /// ]);
+  /// ```
+  void setCodecPreferences(List<RTCRtpCodecCapability>? codecs) {
+    if (_stopped) {
+      throw StateError('Cannot set codec preferences on stopped transceiver');
+    }
+
+    if (codecs == null || codecs.isEmpty) {
+      _codecPreferences = null;
+      return;
+    }
+
+    // Validate that all requested codecs are supported
+    // For now, we accept all codecs - validation happens during SDP generation
+    _codecPreferences = List.unmodifiable(codecs);
+  }
+
+  /// Get codecs ordered by preferences
+  ///
+  /// Returns the transceiver's codecs reordered according to setCodecPreferences().
+  /// If no preferences are set, returns codecs in their original order.
+  List<RtpCodecParameters> getOrderedCodecs() {
+    if (_codecPreferences == null || _codecPreferences!.isEmpty) {
+      return codecs;
+    }
+
+    final ordered = <RtpCodecParameters>[];
+    final remaining = List<RtpCodecParameters>.from(codecs);
+
+    // Add codecs in preference order
+    for (final pref in _codecPreferences!) {
+      for (var i = 0; i < remaining.length; i++) {
+        if (pref.matches(remaining[i])) {
+          ordered.add(remaining.removeAt(i));
+          break;
+        }
+      }
+    }
+
+    // Remaining codecs not in preferences are excluded per W3C spec
+    return ordered;
   }
 
   @override

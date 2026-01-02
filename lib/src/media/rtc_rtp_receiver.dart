@@ -4,11 +4,13 @@ import 'dart:typed_data';
 import 'package:webrtc_dart/src/codec/codec_parameters.dart';
 import 'package:webrtc_dart/src/codec/vp9.dart';
 import 'package:webrtc_dart/src/media/media_stream_track.dart';
+import 'package:webrtc_dart/src/media/parameters.dart';
 import 'package:webrtc_dart/src/media/receiver/receiver_twcc.dart';
 import 'package:webrtc_dart/src/media/svc_manager.dart';
 import 'package:webrtc_dart/src/rtp/header_extension.dart';
 import 'package:webrtc_dart/src/rtp/rtp_session.dart';
 import 'package:webrtc_dart/src/srtp/rtp_packet.dart';
+import 'package:webrtc_dart/src/stats/rtc_stats.dart';
 
 /// RTP Receiver
 /// Receives RTP packets for an incoming media track
@@ -73,6 +75,61 @@ class RTCRtpReceiver {
     // The RtpSession will need to be created with our handler, or we need
     // to expose a stream from RtpSession
     // For now, this is a placeholder - the actual wiring happens in PeerConnection
+  }
+
+  // ==========================================================================
+  // W3C Standard Methods
+  // ==========================================================================
+
+  /// Get current receive parameters
+  ///
+  /// Returns the parameters describing how the track's data is being decoded.
+  /// Based on W3C WebRTC RTCRtpReceiver.getParameters() specification.
+  RTCRtpReceiveParameters getParameters() {
+    return RTCRtpReceiveParameters(
+      codecs: [
+        RTCRtpCodecParameters(
+          payloadType: codec.payloadType ?? 96,
+          mimeType: codec.mimeType,
+          clockRate: codec.clockRate,
+          channels: codec.channels,
+          rtcpFeedback: codec.rtcpFeedback
+              .map((fb) => RTCRtcpFeedback(type: fb.type, parameter: fb.parameter))
+              .toList(),
+        ),
+      ],
+      headerExtensions: const [],
+      rtcp: RTCRtcpParameters(
+        mux: true,
+        ssrc: rtcpSsrc,
+      ),
+      encodings: _trackBySsrc.entries.map((entry) {
+        return RTCRtpCodingParameters(
+          ssrc: entry.key,
+          payloadType: codec.payloadType ?? 96,
+          rid: entry.value.rid,
+        );
+      }).toList(),
+    );
+  }
+
+  /// Get RTC statistics for this receiver
+  ///
+  /// Returns an RTCStatsReport containing statistics about the RTP stream
+  /// being received. This includes inbound-rtp stats with packet counts,
+  /// byte counts, jitter, and other reception metrics.
+  Future<RTCStatsReport> getStats() async {
+    final sessionStats = rtpSession.getStats();
+    final stats = <RTCStats>[];
+
+    // Filter for inbound RTP stats related to this receiver
+    for (final stat in sessionStats.values) {
+      if (stat.type == RTCStatsType.inboundRtp) {
+        stats.add(stat);
+      }
+    }
+
+    return RTCStatsReport(stats);
   }
 
   // ==========================================================================

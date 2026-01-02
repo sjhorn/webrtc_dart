@@ -8,6 +8,7 @@ import 'package:webrtc_dart/src/media/parameters.dart';
 import 'package:webrtc_dart/src/nonstandard/media/track.dart' as nonstandard;
 import 'package:webrtc_dart/src/rtp/rtp_session.dart';
 import 'package:webrtc_dart/src/srtp/rtp_packet.dart';
+import 'package:webrtc_dart/src/stats/rtc_stats.dart';
 
 /// RTP Sender
 /// Sends RTP packets for an outgoing media track
@@ -126,6 +127,25 @@ class RTCRtpSender {
         ),
       ],
     );
+  }
+
+  /// Get RTC statistics for this sender
+  ///
+  /// Returns an RTCStatsReport containing statistics about the RTP stream
+  /// being sent. This includes outbound-rtp stats with packet counts,
+  /// byte counts, and other transmission metrics.
+  Future<RTCStatsReport> getStats() async {
+    final sessionStats = rtpSession.getStats();
+    final stats = <RTCStats>[];
+
+    // Filter for outbound RTP stats related to this sender
+    for (final stat in sessionStats.values) {
+      if (stat.type == RTCStatsType.outboundRtp) {
+        stats.add(stat);
+      }
+    }
+
+    return RTCStatsReport(stats);
   }
 
   /// Set send parameters

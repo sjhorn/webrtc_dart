@@ -1,6 +1,6 @@
 # webrtc_dart Roadmap
 
-## Current Status (v0.23.0)
+## Current Status (v0.23.1)
 
 webrtc_dart is a **server-side** WebRTC library with complete transport implementation and W3C-compatible API naming.
 
@@ -87,7 +87,7 @@ Extracts codec frames from RTP - does NOT encode/decode:
 
 ## Backward Compatibility
 
-v0.23.0 maintains backward compatibility via deprecated typedefs:
+v0.23.1 maintains backward compatibility via deprecated typedefs:
 
 ```dart
 @Deprecated('Use RTCPeerConnection instead')

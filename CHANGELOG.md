@@ -2,6 +2,20 @@
 
 All notable changes to this project will be documented in this file.
 
+## 0.23.1
+
+### Changed
+
+- **Documentation clarity** - Clarified server-side WebRTC positioning:
+  - README: Explicitly positioned as server-side library (like Pion, aiortc, werift)
+  - Added comparison table: browser WebRTC vs server-side capabilities
+  - Removed misleading "W3C API compatibility" claims
+  - Clarified that media capture and codec encoding/decoding require external tools
+
+### Tests
+
+- 2587 tests passing
+
 ## 0.23.0
 
 ### Breaking Changes (with backward compatibility)

@@ -24,7 +24,7 @@ Codecs: VP8, VP9, H.264, AV1, Opus. Features: NACK, PLI/FIR, RTX, TWCC, Simulcas
 
 **2587 tests passing, 0 analyzer issues**
 
-### Server-Side WebRTC (v0.23.0)
+### Server-Side WebRTC (v0.23.1)
 
 This is a **server-side** WebRTC library like Pion (Go), aiortc (Python), werift (TS).
 - Complete transport layer: ICE, DTLS, SRTP, SCTP, RTP/RTCP

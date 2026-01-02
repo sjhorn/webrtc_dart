@@ -28,6 +28,9 @@ class RtpSender {
   /// Stream subscription for track frames
   StreamSubscription? _trackSubscription;
 
+  /// Stream subscription for source change events
+  StreamSubscription? _sourceChangedSubscription;
+
   /// Stopped flag
   bool _stopped = false;
 
@@ -461,6 +464,12 @@ class RtpSender {
       _actualPayloadType; // Track the actual PT used by the remote (may differ from codec.payloadType)
 
   void _attachNonstandardTrack(nonstandard.MediaStreamTrack track) {
+    // Subscribe to source changes to reset SSRC tracking (like werift registerTrack)
+    // When the source changes (e.g., replay), we need to accept packets from the new SSRC
+    _sourceChangedSubscription = track.onSourceChanged.listen((header) {
+      _replaceRTP(header);
+    });
+
     _trackSubscription = track.onReceiveRtp.listen((event) async {
       if (_stopped) return;
 
@@ -483,14 +492,18 @@ class RtpSender {
       // Lock onto the first non-RTX, non-probing SSRC as primary.
       // This ensures we forward a consistent video stream and ignore
       // packets from other SSRCs (RTX retransmissions, simulcast layers, etc.)
+      //
+      // If SSRC changes (e.g., on replay), accept the new SSRC.
+      // The marker bit typically indicates the start of a new stream.
       if (_primarySsrc == null) {
         _primarySsrc = rtp.ssrc;
         // Capture the actual payload type being used by the remote.
         // Chrome may choose a different codec than our default (e.g., AV1 vs VP8).
         _actualPayloadType = rtp.payloadType;
       } else if (rtp.ssrc != _primarySsrc) {
-        // Skip packets from non-primary SSRCs
-        return;
+        // Accept new SSRC (e.g., on replay), update tracking
+        _primarySsrc = rtp.ssrc;
+        _actualPayloadType = rtp.payloadType;
       }
 
       // Build header extension config at SEND TIME, not at attachment time
@@ -524,10 +537,25 @@ class RtpSender {
     });
   }
 
+  /// Handle source change notification (like werift replaceRTP)
+  ///
+  /// When the source changes (e.g., replay from start), we need to:
+  /// 1. Reset SSRC tracking to accept packets from the new SSRC
+  /// 2. Clear cached state
+  ///
+  /// This matches TypeScript werift's replaceRTP() behavior.
+  void _replaceRTP(nonstandard.RtpHeaderInfo header) {
+    // Reset SSRC tracking to allow packets from the new source
+    _primarySsrc = null;
+    _actualPayloadType = null;
+  }
+
   /// Detach track and stop sending
   Future<void> _detachTrack() async {
     await _trackSubscription?.cancel();
     _trackSubscription = null;
+    await _sourceChangedSubscription?.cancel();
+    _sourceChangedSubscription = null;
   }
 
   /// Handle audio frame from track

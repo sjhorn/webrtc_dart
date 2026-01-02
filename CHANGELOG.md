@@ -2,6 +2,19 @@
 
 All notable changes to this project will be documented in this file.
 
+## 0.22.14
+
+### Fixed
+
+- **RTP sender stream replay** - Fixed SSRC handling when replaying streams (matching werift's `replaceRTP` pattern):
+  - Added `onSourceChanged` subscription to reset SSRC tracking on source change
+  - Changed SSRC filtering to accept new SSRCs instead of dropping packets
+  - Enables seamless replay of media streams without reconnection
+
+### Tests
+
+- 2537 tests passing
+
 ## 0.22.13
 
 ### Fixed

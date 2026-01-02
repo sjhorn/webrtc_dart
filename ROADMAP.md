@@ -2,109 +2,101 @@
 
 ## Current Status (v0.23.0)
 
-webrtc_dart has achieved **100% feature parity** with werift-webrtc and **full W3C WebRTC API compatibility**.
+webrtc_dart is a **server-side** WebRTC library with complete transport implementation and W3C-compatible API naming.
 
-### Achievements
+### What We Are
+
+A server-side WebRTC library like [Pion](https://github.com/pion/webrtc) (Go), [aiortc](https://github.com/aiortc/aiortc) (Python), and [werift](https://github.com/shinyoshiaki/werift-webrtc) (TypeScript).
 
 | Category | Status |
 |----------|--------|
-| **W3C API Names** | RTCPeerConnection, RTCDataChannel, RTCIceCandidate, etc. |
+| **Transport Layer** | Complete (ICE, DTLS, SRTP, SCTP, RTP/RTCP) |
+| **API Naming** | W3C-compatible (RTCPeerConnection, etc.) |
 | **Werift Parity** | 100% feature complete |
-| **Browser Interop** | Chrome, Firefox, Safari all working |
+| **Browser Interop** | Chrome, Firefox, Safari working |
 | **Test Coverage** | 2587 tests passing |
 
-### W3C WebRTC API Compatibility
+### Server-Side vs Browser
 
-All standard interfaces implemented with W3C naming:
+| Feature | Browser | webrtc_dart |
+|---------|---------|-------------|
+| ICE/DTLS/SRTP transport | Yes | Yes |
+| DataChannels | Yes | Yes |
+| RTP packet handling | Limited | Full control |
+| Camera/mic capture | Yes | No (use FFmpeg) |
+| Video/audio encoding | Yes | No |
+| Video/audio decoding | Yes | Depacketization only |
 
-| Interface | Status |
-|-----------|--------|
-| `RTCPeerConnection` | Full API |
-| `RTCDataChannel` | Full API + `id`, `readyState` |
-| `RTCRtpTransceiver` | Full API + `currentDirection` |
-| `RTCRtpSender` | Full API + `dtmf`, `replaceTrack()` |
-| `RTCRtpReceiver` | Full API + `getParameters()` |
-| `RTCIceCandidate` | Full API + `toJSON()` |
-| `RTCSessionDescription` | Full API + `toJSON()` |
-| `RTCDTMFSender` | Full implementation |
-| `MediaStreamTrack` | Full API + constraints |
-
-### Protocol Support
+### Transport Layer - 100% Complete
 
 | Protocol | Coverage |
 |----------|----------|
-| **ICE** | Full RFC 8445 + consent freshness (RFC 7675) + TCP + mDNS |
-| **DTLS** | ECDHE-ECDSA/RSA with AES-GCM, AES-256, ChaCha20 |
-| **SRTP** | AES-CM-128, AES-GCM with replay protection |
-| **SCTP** | Partial reliability (RFC 3758), stream reconfig (RFC 6525) |
+| **ICE** | RFC 8445 + consent freshness + TCP + mDNS |
+| **DTLS** | ECDHE with AES-GCM, AES-256, ChaCha20 |
+| **SRTP** | AES-CM-128, AES-GCM, replay protection |
+| **SCTP** | Partial reliability (RFC 3758) |
 | **RTP/RTCP** | SR, RR, SDES, BYE, NACK, PLI, FIR, REMB, TWCC |
 
-### Codec Support
+### API Classes
 
-| Type | Codecs |
-|------|--------|
-| Video | VP8, VP9 (SVC), H.264, AV1 |
-| Audio | Opus, RED |
+| Interface | Notes |
+|-----------|-------|
+| `RTCPeerConnection` | Full transport API |
+| `RTCDataChannel` | Full API |
+| `RTCRtpTransceiver` | Full API |
+| `RTCRtpSender` | Includes DTMF |
+| `RTCRtpReceiver` | Raw RTP access |
+| `RTCIceCandidate` | Full API |
+| `RTCSessionDescription` | Full API |
+
+### Codec Depacketization
+
+Extracts codec frames from RTP - does NOT encode/decode:
+
+| Codec | Depacketize | Encode | Decode |
+|-------|:-----------:|:------:|:------:|
+| VP8 | ✅ | - | - |
+| VP9 | ✅ | - | - |
+| H.264 | ✅ | - | - |
+| AV1 | ✅ | - | - |
+| Opus | ✅ | - | - |
 
 ---
 
 ## Future Roadmap
 
-### Short-term Priorities
+### Short-term
 
-- **Performance optimization** - Reduce CPU usage for high-throughput scenarios
-- **Memory management** - Optimize buffer allocation patterns
-- **Documentation** - Expand API documentation and tutorials
+- Performance optimization for high-throughput
+- Memory management improvements
+- Expanded documentation
 
-### Medium-term Goals
+### Medium-term
 
-- **Insertable Streams** - RTCRtpScriptTransform for E2E encryption
-- **ICE-LITE** - Lightweight ICE for server-side deployments
-- **SVC extensions** - Enhanced VP9/AV1 spatial/temporal layer control
+- ICE-LITE for server deployments
+- Enhanced SVC layer control
+- Insertable Streams API
 
-### Long-term Vision
+### Long-term
 
-- **Flutter integration** - First-class platform channel bindings
-- **WebTransport** - HTTP/3 QUIC-based transport
-- **WHIP/WHEP** - WebRTC-HTTP ingestion/egress protocols
+- Flutter platform channel bindings
+- WebTransport (HTTP/3 QUIC)
+- WHIP/WHEP protocols
 
 ---
 
 ## Backward Compatibility
 
-v0.23.0 maintains full backward compatibility via deprecated typedefs:
+v0.23.0 maintains backward compatibility via deprecated typedefs:
 
 ```dart
-// Old names still work (with deprecation warnings)
 @Deprecated('Use RTCPeerConnection instead')
 typedef RtcPeerConnection = RTCPeerConnection;
-
-@Deprecated('Use RTCDataChannel instead')
-typedef DataChannel = RTCDataChannel;
 ```
-
-Users can migrate incrementally to W3C API names.
 
 ---
 
 ## Architecture
-
-### Package Structure
-
-```
-lib/src/
-  ice/          - ICE transport, candidate handling
-  dtls/         - DTLS handshake and record layer
-  srtp/         - SRTP/SRTCP encryption
-  rtp/          - RTP/RTCP stack
-  sctp/         - SCTP transport, data channels
-  sdp/          - SDP parsing and generation
-  media/        - Tracks, transceivers, DTMF
-  codec/        - VP8, VP9, H.264, AV1, Opus
-  stats/        - getStats() implementation
-```
-
-### Layered Design
 
 ```
 RTCPeerConnection API
@@ -126,6 +118,6 @@ RTCPeerConnection API
 
 ## References
 
-- [W3C WebRTC Specification](https://www.w3.org/TR/webrtc/)
 - [werift-webrtc](https://github.com/shinyoshiaki/werift-webrtc) - Original TypeScript implementation
-- [MDN WebRTC API](https://developer.mozilla.org/en-US/docs/Web/API/WebRTC_API)
+- [Pion](https://github.com/pion/webrtc) - Go WebRTC
+- [aiortc](https://github.com/aiortc/aiortc) - Python WebRTC

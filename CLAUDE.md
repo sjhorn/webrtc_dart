@@ -24,9 +24,13 @@ Codecs: VP8, VP9, H.264, AV1, Opus. Features: NACK, PLI/FIR, RTX, TWCC, Simulcas
 
 **2587 tests passing, 0 analyzer issues**
 
-### W3C API Compatibility (v0.23.0)
-Full W3C WebRTC API naming: RTCPeerConnection, RTCDataChannel, RTCIceCandidate, etc.
-Backward compatibility via deprecated typedefs for old names.
+### Server-Side WebRTC (v0.23.0)
+
+This is a **server-side** WebRTC library like Pion (Go), aiortc (Python), werift (TS).
+- Complete transport layer: ICE, DTLS, SRTP, SCTP, RTP/RTCP
+- W3C-compatible API naming: RTCPeerConnection, RTCDataChannel, etc.
+- Does NOT include: media capture (getUserMedia), codec encoding/decoding
+- For media: use external tools (FFmpeg, GStreamer) to pipe RTP
 
 ### Browser Interop Status
 - ✅ **Chrome**: DataChannel + Media working

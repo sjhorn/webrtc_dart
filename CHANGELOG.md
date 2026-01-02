@@ -68,6 +68,13 @@ All notable changes to this project will be documented in this file.
 - Added browser interop tests for DTMF
 - All browser interop tests passing (Chrome, Firefox, Safari)
 
+### Clarification
+
+webrtc_dart is a **server-side** WebRTC library. It provides W3C-compatible API
+naming (RTCPeerConnection, etc.) for the WebRTC transport layer. As with other
+server-side implementations (Pion, aiortc, werift), media capture (getUserMedia)
+and codec encoding/decoding require external tools like FFmpeg or GStreamer.
+
 ## 0.22.14
 
 ### Fixed

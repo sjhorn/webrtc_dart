@@ -67,7 +67,7 @@ Future<void> _handleOffer(HttpRequest request) async {
 
     print('[Server] Received offer from browser');
 
-    final pc = RtcPeerConnection(RtcConfiguration(
+    final pc = RTCPeerConnection(RtcConfiguration(
       iceServers: [
         IceServer(urls: ['stun:stun.l.google.com:19302'])
       ],
@@ -86,7 +86,7 @@ Future<void> _handleOffer(HttpRequest request) async {
 
     // Echo datachannel messages
     pc.onDataChannel.listen((dc) {
-      print('[Server] DataChannel: ${dc.label}');
+      print('[Server] RTCDataChannel: ${dc.label}');
       dc.onMessage.listen((msg) {
         print('[Server] DC message: ${String.fromCharCodes(msg)}');
         dc.send(msg); // Echo back
@@ -94,7 +94,7 @@ Future<void> _handleOffer(HttpRequest request) async {
     });
 
     // Set remote description (browser's offer)
-    await pc.setRemoteDescription(SessionDescription(
+    await pc.setRemoteDescription(RTCSessionDescription(
       type: offer['type'] as String,
       sdp: offer['sdp'] as String,
     ));
@@ -133,7 +133,7 @@ const _testPageHtml = '''
 </head>
 <body>
   <h1>WebRTC Interop Test</h1>
-  <button onclick="testDataChannel()">Test DataChannel</button>
+  <button onclick="testDataChannel()">Test RTCDataChannel</button>
   <button onclick="testMedia()">Test Media</button>
   <div id="log"></div>
 
@@ -146,14 +146,14 @@ const _testPageHtml = '''
     }
 
     async function testDataChannel() {
-      log('Starting DataChannel test...');
+      log('Starting RTCDataChannel test...');
       const pc = new RTCPeerConnection({
         iceServers: [{ urls: 'stun:stun.l.google.com:19302' }]
       });
 
       const dc = pc.createDataChannel('test');
       dc.onopen = () => {
-        log('DataChannel open, sending message');
+        log('RTCDataChannel open, sending message');
         dc.send('Hello from browser!');
       };
       dc.onmessage = (e) => log('Received: ' + e.data);

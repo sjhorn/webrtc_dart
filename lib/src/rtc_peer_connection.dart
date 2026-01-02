@@ -153,10 +153,10 @@ class RTCPeerConnection {
   String? _previousRemoteIcePwd;
 
   /// Local description
-  SessionDescription? _localDescription;
+  RTCSessionDescription? _localDescription;
 
   /// Remote description
-  SessionDescription? _remoteDescription;
+  RTCSessionDescription? _remoteDescription;
 
   /// ICE connection (primary, for bundled media)
   late final IceConnection _iceConnection;
@@ -167,7 +167,7 @@ class RTCPeerConnection {
   /// ICE controlling role (true if this peer created the offer)
   bool _iceControlling = false;
 
-  /// Integrated transport (ICE + DTLS + SCTP) - for bundled media and DataChannel
+  /// Integrated transport (ICE + DTLS + SCTP) - for bundled media and RTCDataChannel
   IntegratedTransport? _transport;
 
   /// Media transports (for bundlePolicy: disable, one per media line)
@@ -180,7 +180,7 @@ class RTCPeerConnection {
   CertificateKeyPair? _certificate;
 
   /// ICE candidate stream controller
-  final StreamController<Candidate> _iceCandidateController =
+  final StreamController<RTCIceCandidate> _iceCandidateController =
       StreamController.broadcast();
 
   /// Connection state change stream controller
@@ -195,11 +195,11 @@ class RTCPeerConnection {
   final StreamController<IceGatheringState> _iceGatheringStateController =
       StreamController.broadcast();
 
-  /// SCTP transport manager for DataChannel lifecycle
+  /// SCTP transport manager for RTCDataChannel lifecycle
   final SctpTransportManager _sctpManager = SctpTransportManager();
 
   /// Track event stream controller
-  final StreamController<RtpTransceiver> _trackController =
+  final StreamController<RTCRtpTransceiver> _trackController =
       StreamController.broadcast();
 
   /// Negotiation needed event stream controller
@@ -235,7 +235,7 @@ class RTCPeerConnection {
   final TransceiverManager _transceiverManager = TransceiverManager();
 
   /// List of RTP transceivers (delegating to TransceiverManager)
-  List<RtpTransceiver> get _transceivers => _transceiverManager.transceivers;
+  List<RTCRtpTransceiver> get _transceivers => _transceiverManager.transceivers;
 
   /// Established m-line order (MIDs) after first negotiation.
   /// Used to preserve m-line order in subsequent offers per RFC 3264.
@@ -257,7 +257,7 @@ class RTCPeerConnection {
   final Random _random = Random.secure();
 
   /// Next MID counter
-  /// Starts at 1 because MID 0 is reserved for DataChannel (SCTP)
+  /// Starts at 1 because MID 0 is reserved for RTCDataChannel (SCTP)
   int _nextMid = 1;
 
   /// Default extension ID for sdes:mid header extension
@@ -440,13 +440,13 @@ class RTCPeerConnection {
   IceGatheringState get iceGatheringState => _secureManager.iceGatheringState;
 
   /// Get local description
-  SessionDescription? get localDescription => _localDescription;
+  RTCSessionDescription? get localDescription => _localDescription;
 
   /// Get remote description
-  SessionDescription? get remoteDescription => _remoteDescription;
+  RTCSessionDescription? get remoteDescription => _remoteDescription;
 
   /// Stream of ICE candidates
-  Stream<Candidate> get onIceCandidate => _iceCandidateController.stream;
+  Stream<RTCIceCandidate> get onIceCandidate => _iceCandidateController.stream;
 
   /// Stream of connection state changes
   Stream<PeerConnectionState> get onConnectionStateChange =>
@@ -461,7 +461,7 @@ class RTCPeerConnection {
       _iceGatheringStateController.stream;
 
   /// Stream of data channels
-  Stream<DataChannel> get onDataChannel => _sctpManager.onDataChannel;
+  Stream<RTCDataChannel> get onDataChannel => _sctpManager.onDataChannel;
 
   /// Stream of negotiation needed events
   ///
@@ -590,7 +590,7 @@ class RTCPeerConnection {
   ///
   /// [options] - Optional configuration for the offer:
   ///   - iceRestart: If true, generates new ICE credentials for ICE restart
-  Future<SessionDescription> createOffer([RtcOfferOptions? options]) async {
+  Future<RTCSessionDescription> createOffer([RtcOfferOptions? options]) async {
     // Wait for async initialization (certificate generation) to complete
     await _initializationComplete;
 
@@ -654,7 +654,7 @@ class RTCPeerConnection {
   }
 
   /// Create an answer
-  Future<SessionDescription> createAnswer() async {
+  Future<RTCSessionDescription> createAnswer() async {
     // Wait for async initialization (certificate generation) to complete
     await _initializationComplete;
 
@@ -688,7 +688,7 @@ class RTCPeerConnection {
   }
 
   /// Set local description
-  Future<void> setLocalDescription(SessionDescription description) async {
+  Future<void> setLocalDescription(RTCSessionDescription description) async {
     // Validate state transition
     _sdpManager.validateSetLocalDescription(description.type, _signalingState);
 
@@ -781,7 +781,7 @@ class RTCPeerConnection {
   }
 
   /// Set remote description
-  Future<void> setRemoteDescription(SessionDescription description) async {
+  Future<void> setRemoteDescription(RTCSessionDescription description) async {
     // Validate state transition
     _sdpManager.validateSetRemoteDescription(description.type, _signalingState);
 
@@ -878,7 +878,7 @@ class RTCPeerConnection {
             if (attr.value != null) {
               try {
                 var candidate =
-                    await _resolveCandidate(Candidate.fromSdp(attr.value!));
+                    await _resolveCandidate(RTCIceCandidate.fromSdp(attr.value!));
                 if (candidate != null) {
                   await transport.iceConnection.addRemoteCandidate(candidate);
                 }
@@ -941,7 +941,7 @@ class RTCPeerConnection {
           if (attr.value != null) {
             try {
               var candidate =
-                  await _resolveCandidate(Candidate.fromSdp(attr.value!));
+                  await _resolveCandidate(RTCIceCandidate.fromSdp(attr.value!));
               if (candidate != null) {
                 await _iceConnection.addRemoteCandidate(candidate);
               }
@@ -990,7 +990,7 @@ class RTCPeerConnection {
   }
 
   /// Resolve mDNS candidate if needed
-  Future<Candidate?> _resolveCandidate(Candidate candidate) async {
+  Future<RTCIceCandidate?> _resolveCandidate(RTCIceCandidate candidate) async {
     if (!candidate.host.endsWith('.local')) {
       return candidate;
     }
@@ -1006,7 +1006,7 @@ class RTCPeerConnection {
       return null;
     }
     _log.fine('[$_debugLabel] Resolved ${candidate.host} to $resolvedIp');
-    return Candidate(
+    return RTCIceCandidate(
       foundation: candidate.foundation,
       component: candidate.component,
       transport: candidate.transport,
@@ -1033,7 +1033,7 @@ class RTCPeerConnection {
   /// pattern used by werift, where addTransceiver() is called BEFORE receiving the offer.
   Future<void> _processRemoteMediaDescriptions(SdpMessage sdpMessage) async {
     // Track which transceivers have been matched in this negotiation
-    final matchedTransceivers = <RtpTransceiver>{};
+    final matchedTransceivers = <RTCRtpTransceiver>{};
 
     for (final media in sdpMessage.mediaDescriptions) {
       // Skip non-audio/video media (e.g., application/datachannel)
@@ -1151,7 +1151,7 @@ class RTCPeerConnection {
       final ssrc = _random.nextInt(0xFFFFFFFF);
 
       // Create RTP session for this remote track
-      RtpTransceiver? transceiver;
+      RTCRtpTransceiver? transceiver;
       final rtpSession = _createRtpSession(
         mid: mid,
         ssrc: ssrc,
@@ -1213,7 +1213,7 @@ class RTCPeerConnection {
   }
 
   /// Add ICE candidate
-  Future<void> addIceCandidate(Candidate candidate) async {
+  Future<void> addIceCandidate(RTCIceCandidate candidate) async {
     // Resolve mDNS candidates (.local addresses) to real IPs using shared helper
     final resolvedCandidate = await _resolveCandidate(candidate);
     if (resolvedCandidate == null) return;
@@ -1253,9 +1253,9 @@ class RTCPeerConnection {
   }
 
   /// Create data channel
-  /// Returns a DataChannel or ProxyDataChannel (which has the same API).
-  /// If called before SCTP is ready, returns a ProxyDataChannel that will
-  /// be wired up to a real DataChannel once the connection is established.
+  /// Returns a RTCDataChannel or ProxyRTCDataChannel (which has the same API).
+  /// If called before SCTP is ready, returns a ProxyRTCDataChannel that will
+  /// be wired up to a real RTCDataChannel once the connection is established.
   dynamic createDataChannel(
     String label, {
     String protocol = '',
@@ -1370,11 +1370,11 @@ class RTCPeerConnection {
   // ========================================================================
 
   /// Stream of incoming tracks
-  Stream<RtpTransceiver> get onTrack => _trackController.stream;
+  Stream<RTCRtpTransceiver> get onTrack => _trackController.stream;
 
   /// Add a track to be sent
-  /// Returns the RtpSender for this track
-  RtpSender addTrack(MediaStreamTrack track) {
+  /// Returns the RTCRtpSender for this track
+  RTCRtpSender addTrack(MediaStreamTrack track) {
     if (connectionState == PeerConnectionState.closed) {
       throw StateError('PeerConnection is closed');
     }
@@ -1393,7 +1393,7 @@ class RTCPeerConnection {
     final ssrc = _generateSsrc();
 
     // Create RTP session with receiver callback
-    RtpTransceiver? transceiver;
+    RTCRtpTransceiver? transceiver;
     final rtpSession = _createRtpSession(
       mid: mid,
       ssrc: ssrc,
@@ -1464,7 +1464,7 @@ class RTCPeerConnection {
   /// final transceiver = pc.addTransceiver(track, direction: sendonly);
   /// ringCamera.onVideoRtp.listen((rtp) => track.writeRtp(rtp));
   /// ```
-  RtpTransceiver addTransceiver(
+  RTCRtpTransceiver addTransceiver(
     Object trackOrKind, {
     RtpCodecParameters? codec,
     RtpTransceiverDirection? direction,
@@ -1498,7 +1498,7 @@ class RTCPeerConnection {
     final ssrc = _generateSsrc();
 
     // Create RTP session with receiver callback
-    RtpTransceiver? transceiver;
+    RTCRtpTransceiver? transceiver;
     final rtpSession = _createRtpSession(
       mid: mid,
       ssrc: ssrc,
@@ -1578,7 +1578,7 @@ class RTCPeerConnection {
   /// final transceiver = pc.addTransceiver(track, direction: sendonly);
   /// ```
   @Deprecated('Use addTransceiver(track) instead - werift uses polymorphic API')
-  RtpTransceiver addTransceiverWithTrack(
+  RTCRtpTransceiver addTransceiverWithTrack(
     nonstandard.MediaStreamTrack track, {
     RtpCodecParameters? codec,
     RtpTransceiverDirection direction = RtpTransceiverDirection.sendonly,
@@ -1601,7 +1601,7 @@ class RTCPeerConnection {
   RtpSession _createRtpSession({
     required String mid,
     required int ssrc,
-    required RtpTransceiver? Function() getTransceiver,
+    required RTCRtpTransceiver? Function() getTransceiver,
   }) {
     final rtpSession = RtpSession(
       localSsrc: ssrc,
@@ -1940,7 +1940,7 @@ class RTCPeerConnection {
   }
 
   /// Remove a track
-  void removeTrack(RtpSender sender) {
+  void removeTrack(RTCRtpSender sender) {
     if (connectionState == PeerConnectionState.closed) {
       throw StateError('PeerConnection is closed');
     }
@@ -1948,17 +1948,17 @@ class RTCPeerConnection {
   }
 
   /// Get all transceivers
-  List<RtpTransceiver> getTransceivers() =>
+  List<RTCRtpTransceiver> getTransceivers() =>
       _transceiverManager.getTransceivers();
 
   /// Get all transceivers (getter form)
-  List<RtpTransceiver> get transceivers => _transceiverManager.transceivers;
+  List<RTCRtpTransceiver> get transceivers => _transceiverManager.transceivers;
 
   /// Get senders
-  List<RtpSender> getSenders() => _transceiverManager.getSenders();
+  List<RTCRtpSender> getSenders() => _transceiverManager.getSenders();
 
   /// Get receivers
-  List<RtpReceiver> getReceivers() => _transceiverManager.getReceivers();
+  List<RTCRtpReceiver> getReceivers() => _transceiverManager.getReceivers();
 
   /// Get RTC statistics
   /// Returns statistics about the peer connection
@@ -1986,7 +1986,7 @@ class RTCPeerConnection {
       ),
     );
 
-    // Add DataChannel stats from SCTP manager
+    // Add RTCDataChannel stats from SCTP manager
     stats.addAll(_sctpManager.getStats());
 
     // Track which MIDs have been processed

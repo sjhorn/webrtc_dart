@@ -9,7 +9,7 @@ library;
 import 'package:webrtc_dart/webrtc_dart.dart';
 
 void main() async {
-  final pc = RtcPeerConnection(RtcConfiguration(
+  final pc = RTCPeerConnection(RtcConfiguration(
     iceServers: [
       // STUN server
       IceServer(urls: ['stun:stun.l.google.com:19302']),

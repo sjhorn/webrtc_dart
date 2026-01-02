@@ -15,13 +15,13 @@ import 'package:webrtc_dart/webrtc_dart.dart';
 
 class SimulcastSfuServer {
   HttpServer? _server;
-  RtcPeerConnection? _pc;
+  RTCPeerConnection? _pc;
   final List<Map<String, dynamic>> _localCandidates = [];
 
   // Sender transceivers for each layer
-  RtpTransceiver? _highSender;
-  RtpTransceiver? _midSender;
-  RtpTransceiver? _lowSender;
+  RTCRtpTransceiver? _highSender;
+  RTCRtpTransceiver? _midSender;
+  RTCRtpTransceiver? _lowSender;
 
   // Track which layers we've received
   final Map<String, bool> _layersReceived = {};
@@ -119,7 +119,7 @@ class SimulcastSfuServer {
     _rtpPacketsForwarded = 0;
 
     // Create peer connection with VP8
-    _pc = RtcPeerConnection(
+    _pc = RTCPeerConnection(
       RtcConfiguration(
         iceServers: [
           IceServer(urls: ['stun:stun.l.google.com:19302'])
@@ -224,7 +224,7 @@ class SimulcastSfuServer {
     _layersReceived[rid] = true;
 
     // Route to appropriate sender using replaceTrack (werift pattern)
-    RtpTransceiver? targetSender;
+    RTCRtpTransceiver? targetSender;
     switch (rid) {
       case 'high':
         targetSender = _highSender;
@@ -293,7 +293,7 @@ class SimulcastSfuServer {
       }
     }
 
-    final answer = SessionDescription(type: 'answer', sdp: sdp);
+    final answer = RTCSessionDescription(type: 'answer', sdp: sdp);
     await _pc!.setRemoteDescription(answer);
     print('[SFU] Remote description set');
 
@@ -309,7 +309,7 @@ class SimulcastSfuServer {
 
     if (candidateStr != null && candidateStr.isNotEmpty) {
       try {
-        final candidate = Candidate.fromSdp(candidateStr);
+        final candidate = RTCIceCandidate.fromSdp(candidateStr);
         await _pc!.addIceCandidate(candidate);
         print('[SFU] Added ICE candidate: ${candidate.type}');
       } catch (e) {

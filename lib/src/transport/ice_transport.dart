@@ -84,13 +84,13 @@ class RtcIceTransport {
   final _stateController = StreamController<RtcIceConnectionState>.broadcast();
 
   /// Stream controller for ICE candidates (forwarded from gatherer)
-  final _candidateController = StreamController<Candidate?>.broadcast();
+  final _candidateController = StreamController<RTCIceCandidate?>.broadcast();
 
   /// Stream controller for negotiation needed events
   final _negotiationNeededController = StreamController<void>.broadcast();
 
   /// Subscription to gatherer's candidate stream
-  StreamSubscription<Candidate?>? _candidateSubscription;
+  StreamSubscription<RTCIceCandidate?>? _candidateSubscription;
 
   /// Subscription to connection's state stream
   StreamSubscription<IceState>? _connectionStateSubscription;
@@ -122,22 +122,22 @@ class RtcIceTransport {
   IceGathererState get gatheringState => gatherer.gatheringState;
 
   /// Local candidates (proxied from gatherer)
-  List<Candidate> get localCandidates => gatherer.localCandidates;
+  List<RTCIceCandidate> get localCandidates => gatherer.localCandidates;
 
   /// Local ICE parameters (proxied from gatherer)
   RtcIceParameters get localParameters => gatherer.localParameters;
 
   /// Remote candidates
-  List<Candidate> get remoteCandidates => connection.remoteCandidates;
+  List<RTCIceCandidate> get remoteCandidates => connection.remoteCandidates;
 
-  /// Candidate pairs (check list)
+  /// RTCIceCandidate pairs (check list)
   List<CandidatePair> get candidatePairs => connection.checkList;
 
   /// Stream of connection state changes
   Stream<RtcIceConnectionState> get onStateChange => _stateController.stream;
 
   /// Stream of ICE candidates (null indicates end-of-candidates)
-  Stream<Candidate?> get onIceCandidate => _candidateController.stream;
+  Stream<RTCIceCandidate?> get onIceCandidate => _candidateController.stream;
 
   /// Stream of negotiation needed events (fired on restart/renomination)
   Stream<void> get onNegotiationNeeded => _negotiationNeededController.stream;
@@ -148,7 +148,7 @@ class RtcIceTransport {
   /// Add a remote candidate
   ///
   /// [candidate] - The remote candidate to add, or null for end-of-candidates
-  Future<void> addRemoteCandidate(Candidate? candidate) async {
+  Future<void> addRemoteCandidate(RTCIceCandidate? candidate) async {
     if (!connection.remoteCandidatesEnd) {
       await connection.addRemoteCandidate(candidate);
     }

@@ -4,7 +4,7 @@
 // 1. Uses Open Relay Project's free TURN server
 // 2. Forces relay-only connections to verify TURN is working
 // 3. Exchanges ICE candidates incrementally with browser
-// 4. Establishes DataChannel connection through TURN relay
+// 4. Establishes RTCDataChannel connection through TURN relay
 //
 // Pattern: Dart is OFFERER, Browser is ANSWERER
 // Uses: iceTransportPolicy: relay to force TURN usage
@@ -101,7 +101,7 @@ Map<String, String> getTurnCredentials() {
 
 class IceTurnTrickleServer {
   HttpServer? _server;
-  RtcPeerConnection? _pc;
+  RTCPeerConnection? _pc;
   dynamic _dc;
   final List<Map<String, dynamic>> _localCandidates = [];
   Completer<void> _connectionCompleter = Completer();
@@ -244,7 +244,7 @@ class IceTurnTrickleServer {
           )),
     ];
 
-    _pc = RtcPeerConnection(RtcConfiguration(
+    _pc = RTCPeerConnection(RtcConfiguration(
       iceServers: iceServers,
       // Use 'all' policy - TURN is available but direct connectivity preferred
       // This tests that TURN allocation works; direct connectivity will be used if available
@@ -301,12 +301,12 @@ class IceTurnTrickleServer {
       return;
     }
 
-    // Create DataChannel before createOffer
+    // Create RTCDataChannel before createOffer
     _dc = _pc!.createDataChannel('turn-trickle-test');
-    print('[TURN+Trickle] Created DataChannel: turn-trickle-test');
+    print('[TURN+Trickle] Created RTCDataChannel: turn-trickle-test');
 
     _dc!.onStateChange.listen((state) {
-      print('[TURN+Trickle] DataChannel state: $state');
+      print('[TURN+Trickle] RTCDataChannel state: $state');
       if (state == DataChannelState.open && !_dcOpenCompleter.isCompleted) {
         _dcOpenCompleter.complete();
       }
@@ -339,7 +339,7 @@ class IceTurnTrickleServer {
     final body = await utf8.decodeStream(request);
     final data = jsonDecode(body) as Map<String, dynamic>;
 
-    final answer = SessionDescription(
+    final answer = RTCSessionDescription(
       type: data['type'] as String,
       sdp: data['sdp'] as String,
     );
@@ -376,7 +376,7 @@ class IceTurnTrickleServer {
     }
 
     try {
-      final candidate = Candidate.fromSdp(candidateStr);
+      final candidate = RTCIceCandidate.fromSdp(candidateStr);
       await _pc!.addIceCandidate(candidate);
       _candidatesReceived++;
 
@@ -403,7 +403,7 @@ class IceTurnTrickleServer {
   Future<void> _handlePing(HttpRequest request) async {
     if (_dc == null || _dc!.state != DataChannelState.open) {
       request.response.statusCode = 400;
-      request.response.write('DataChannel not open');
+      request.response.write('RTCDataChannel not open');
       return;
     }
 
@@ -443,7 +443,7 @@ class IceTurnTrickleServer {
 
     // Success requires:
     // 1. Connection established
-    // 2. DataChannel open
+    // 2. RTCDataChannel open
     // 3. TURN relay was used (at least one relay candidate)
     final success = _pc?.connectionState == PeerConnectionState.connected &&
         _dc?.state == DataChannelState.open &&
@@ -634,13 +634,13 @@ class IceTurnTrickleServer {
                         pc.connectionState === 'connected' ? 'success' : 'info');
                 };
 
-                // Handle incoming DataChannel
+                // Handle incoming RTCDataChannel
                 pc.ondatachannel = (e) => {
                     dc = e.channel;
-                    log('Received DataChannel: ' + dc.label, 'success');
+                    log('Received RTCDataChannel: ' + dc.label, 'success');
 
                     dc.onopen = () => {
-                        log('DataChannel open via TURN relay!', 'success');
+                        log('RTCDataChannel open via TURN relay!', 'success');
                     };
 
                     dc.onmessage = (e) => {
@@ -706,13 +706,13 @@ class IceTurnTrickleServer {
                 await waitForConnection();
                 log('Connection established via TURN relay!', 'success');
 
-                // Wait for DataChannel
-                setStatus('Waiting for DataChannel through TURN...');
+                // Wait for RTCDataChannel
+                setStatus('Waiting for RTCDataChannel through TURN...');
                 await waitForDataChannel();
-                log('DataChannel ready via TURN!', 'success');
+                log('RTCDataChannel ready via TURN!', 'success');
 
                 // Test messaging through TURN
-                setStatus('Testing DataChannel through TURN relay...');
+                setStatus('Testing RTCDataChannel through TURN relay...');
                 await new Promise(resolve => setTimeout(resolve, 500));
 
                 await fetch(serverBase + '/ping');
@@ -769,7 +769,7 @@ class IceTurnTrickleServer {
 
         async function waitForDataChannel() {
             return new Promise((resolve, reject) => {
-                const timeout = setTimeout(() => reject(new Error('DataChannel timeout')), 15000);
+                const timeout = setTimeout(() => reject(new Error('RTCDataChannel timeout')), 15000);
 
                 const check = () => {
                     if (dc && dc.readyState === 'open') {

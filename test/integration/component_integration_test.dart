@@ -9,8 +9,8 @@ import 'package:webrtc_dart/src/codec/codec_parameters.dart';
 void main() {
   group('Component Integration', () {
     test('SDP offer/answer exchange', () async {
-      final pc1 = RtcPeerConnection();
-      final pc2 = RtcPeerConnection();
+      final pc1 = RTCPeerConnection();
+      final pc2 = RTCPeerConnection();
 
       // Create offer
       final offer = await pc1.createOffer();
@@ -39,7 +39,7 @@ void main() {
     });
 
     test('SDP parsing contains correct attributes', () async {
-      final pc = RtcPeerConnection();
+      final pc = RTCPeerConnection();
       final offer = await pc.createOffer();
 
       final sdpMessage = offer.parse();
@@ -69,7 +69,7 @@ void main() {
     });
 
     test('ICE candidate has correct format', () {
-      final candidate = Candidate(
+      final candidate = RTCIceCandidate(
         foundation: 'foundation',
         component: 1,
         transport: 'udp',
@@ -112,7 +112,7 @@ void main() {
       await assoc1.close();
     });
 
-    test('DataChannel manager creates channels', () async {
+    test('RTCDataChannel manager creates channels', () async {
       var sentPackets = <Uint8List>[];
 
       final assoc = SctpAssociation(
@@ -149,11 +149,11 @@ void main() {
     });
 
     test('Complete offer/answer with ICE candidates', () async {
-      final pc1 = RtcPeerConnection();
-      final pc2 = RtcPeerConnection();
+      final pc1 = RTCPeerConnection();
+      final pc2 = RTCPeerConnection();
 
-      final pc1Candidates = <Candidate>[];
-      final pc2Candidates = <Candidate>[];
+      final pc1Candidates = <RTCIceCandidate>[];
+      final pc2Candidates = <RTCIceCandidate>[];
 
       // Collect ICE candidates
       pc1.onIceCandidate.listen(pc1Candidates.add);
@@ -189,14 +189,14 @@ void main() {
 
   group('Protocol Interoperability', () {
     test('SDP round-trip preserves structure', () async {
-      final pc = RtcPeerConnection();
+      final pc = RTCPeerConnection();
       final offer = await pc.createOffer();
 
       // Parse and re-serialize
       final parsed = offer.parse();
       final reserialized = parsed.serialize();
       final reparsed =
-          SessionDescription(type: 'offer', sdp: reserialized).parse();
+          RTCSessionDescription(type: 'offer', sdp: reserialized).parse();
 
       // Check key fields are preserved
       expect(reparsed.version, parsed.version);
@@ -211,7 +211,7 @@ void main() {
       final sdpLine =
           'foundation 1 udp 2130706431 192.168.1.1 50000 typ host generation 0 ufrag abcd';
 
-      final candidate = Candidate.fromSdp(sdpLine);
+      final candidate = RTCIceCandidate.fromSdp(sdpLine);
 
       expect(candidate.foundation, 'foundation');
       expect(candidate.component, 1);

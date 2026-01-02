@@ -9,24 +9,24 @@ import 'package:webrtc_dart/src/sctp/const.dart';
 
 final _log = WebRtcLogging.datachannel;
 
-/// DataChannel Manager
+/// RTCDataChannel Manager
 /// Manages multiple DataChannels over a single SCTP association
 class DataChannelManager {
   /// SCTP association
   final SctpAssociation _association;
 
-  /// Map of stream ID to DataChannel
-  final Map<int, DataChannel> _channels = {};
+  /// Map of stream ID to RTCDataChannel
+  final Map<int, RTCDataChannel> _channels = {};
 
   /// Next stream ID for outgoing channels
   /// Per RFC 8832: DTLS client uses even (0, 2, 4...), server uses odd (1, 3, 5...)
   int _nextStreamId;
 
   /// Stream controller for new channels
-  final StreamController<DataChannel> _channelController =
-      StreamController<DataChannel>.broadcast();
+  final StreamController<RTCDataChannel> _channelController =
+      StreamController<RTCDataChannel>.broadcast();
 
-  /// Create a DataChannel manager
+  /// Create a RTCDataChannel manager
   /// [isDtlsServer] determines stream ID allocation per RFC 8832:
   /// - DTLS client uses even stream IDs (0, 2, 4, ...)
   /// - DTLS server uses odd stream IDs (1, 3, 5, ...)
@@ -47,7 +47,7 @@ class DataChannelManager {
   }
 
   /// Handle buffered amount changes from SCTP association
-  /// Dispatches to the appropriate DataChannel based on streamId
+  /// Dispatches to the appropriate RTCDataChannel based on streamId
   void _handleBufferedAmountChange(int streamId, int bufferedAmount) {
     final channel = _channels[streamId];
     if (channel != null) {
@@ -67,10 +67,10 @@ class DataChannelManager {
   }
 
   /// Stream of new incoming DataChannels
-  Stream<DataChannel> get onDataChannel => _channelController.stream;
+  Stream<RTCDataChannel> get onDataChannel => _channelController.stream;
 
-  /// Create a new outbound DataChannel
-  DataChannel createDataChannel({
+  /// Create a new outbound RTCDataChannel
+  RTCDataChannel createDataChannel({
     required String label,
     String protocol = '',
     bool ordered = true,
@@ -104,7 +104,7 @@ class DataChannelManager {
     _nextStreamId += 2;
 
     // Create channel
-    final channel = DataChannel(
+    final channel = RTCDataChannel(
       label: label,
       protocol: protocol,
       streamId: streamId,
@@ -117,7 +117,7 @@ class DataChannelManager {
     // Register channel
     _channels[streamId] = channel;
 
-    _log.fine('Creating DataChannel: label=$label, streamId=$streamId');
+    _log.fine('Creating RTCDataChannel: label=$label, streamId=$streamId');
 
     // Open the channel (sends DCEP OPEN)
     _log.fine('Calling channel.open() for streamId=$streamId');
@@ -125,7 +125,7 @@ class DataChannelManager {
       _log.fine('channel.open() completed for streamId=$streamId');
     }).catchError((e) {
       // Handle error
-      _log.warning('Failed to open DataChannel: $e');
+      _log.warning('Failed to open RTCDataChannel: $e');
     });
 
     return channel;
@@ -142,7 +142,7 @@ class DataChannelManager {
         final message = parseDcepMessage(data);
         if (message is DcepOpenMessage) {
           // Create incoming channel
-          channel = DataChannel(
+          channel = RTCDataChannel(
             label: message.label,
             protocol: message.protocol,
             streamId: streamId,

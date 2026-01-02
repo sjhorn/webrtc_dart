@@ -122,8 +122,8 @@ void main() async {
   // Now create two peer connections and establish a connection
   print('\nSetting up WebRTC peer connections...');
 
-  final pcSender = RtcPeerConnection();
-  final pcReceiver = RtcPeerConnection();
+  final pcSender = RTCPeerConnection();
+  final pcReceiver = RTCPeerConnection();
 
   // Track when receiver gets the track
   pcReceiver.onTrack.listen((transceiver) {
@@ -141,8 +141,8 @@ void main() async {
   pcSender.addTrack(senderTrack);
 
   // Collect ICE candidates
-  final senderCandidates = <Candidate>[];
-  final receiverCandidates = <Candidate>[];
+  final senderCandidates = <RTCIceCandidate>[];
+  final receiverCandidates = <RTCIceCandidate>[];
 
   pcSender.onIceCandidate.listen((c) => senderCandidates.add(c));
   pcReceiver.onIceCandidate.listen((c) => receiverCandidates.add(c));

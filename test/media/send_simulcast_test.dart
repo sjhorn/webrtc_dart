@@ -124,7 +124,7 @@ void main() {
     });
   });
 
-  group('RtpSender simulcast', () {
+  group('RTCRtpSender simulcast', () {
     late RtpSession rtpSession;
 
     setUp(() {
@@ -136,7 +136,7 @@ void main() {
     });
 
     test('creates with default single encoding', () {
-      final sender = RtpSender(
+      final sender = RTCRtpSender(
         rtpSession: rtpSession,
         codec: createVp8Codec(payloadType: 96),
       );
@@ -148,7 +148,7 @@ void main() {
     });
 
     test('creates with multiple simulcast encodings', () {
-      final sender = RtpSender(
+      final sender = RTCRtpSender(
         rtpSession: rtpSession,
         codec: createVp8Codec(payloadType: 96),
         sendEncodings: [
@@ -175,7 +175,7 @@ void main() {
     });
 
     test('getParameters returns current encodings', () {
-      final sender = RtpSender(
+      final sender = RTCRtpSender(
         rtpSession: rtpSession,
         codec: createVp8Codec(payloadType: 96),
         sendEncodings: [
@@ -195,7 +195,7 @@ void main() {
     });
 
     test('setParameters updates mutable properties', () async {
-      final sender = RtpSender(
+      final sender = RTCRtpSender(
         rtpSession: rtpSession,
         codec: createVp8Codec(payloadType: 96),
         sendEncodings: [
@@ -219,7 +219,7 @@ void main() {
     });
 
     test('setParameters rejects invalid transaction ID', () async {
-      final sender = RtpSender(
+      final sender = RTCRtpSender(
         rtpSession: rtpSession,
         codec: createVp8Codec(payloadType: 96),
       );
@@ -239,7 +239,7 @@ void main() {
     });
 
     test('setParameters rejects changed encoding count', () async {
-      final sender = RtpSender(
+      final sender = RTCRtpSender(
         rtpSession: rtpSession,
         codec: createVp8Codec(payloadType: 96),
         sendEncodings: [
@@ -265,7 +265,7 @@ void main() {
     });
 
     test('setParameters rejects changed RID', () async {
-      final sender = RtpSender(
+      final sender = RTCRtpSender(
         rtpSession: rtpSession,
         codec: createVp8Codec(payloadType: 96),
         sendEncodings: [
@@ -291,7 +291,7 @@ void main() {
     });
 
     test('getEncodingByRid returns correct encoding', () {
-      final sender = RtpSender(
+      final sender = RTCRtpSender(
         rtpSession: rtpSession,
         codec: createVp8Codec(payloadType: 96),
         sendEncodings: [
@@ -310,7 +310,7 @@ void main() {
     });
 
     test('setEncodingActive toggles encoding', () {
-      final sender = RtpSender(
+      final sender = RTCRtpSender(
         rtpSession: rtpSession,
         codec: createVp8Codec(payloadType: 96),
         sendEncodings: [
@@ -328,7 +328,7 @@ void main() {
     });
 
     test('activeEncodings returns only active ones', () {
-      final sender = RtpSender(
+      final sender = RTCRtpSender(
         rtpSession: rtpSession,
         codec: createVp8Codec(payloadType: 96),
         sendEncodings: [
@@ -345,7 +345,7 @@ void main() {
     });
 
     test('each encoding gets unique SSRC', () {
-      final sender = RtpSender(
+      final sender = RTCRtpSender(
         rtpSession: rtpSession,
         codec: createVp8Codec(payloadType: 96),
         sendEncodings: [
@@ -367,7 +367,7 @@ void main() {
     });
 
     test('toString shows encoding info', () {
-      final sender = RtpSender(
+      final sender = RTCRtpSender(
         rtpSession: rtpSession,
         codec: createVp8Codec(payloadType: 96),
         sendEncodings: [
@@ -382,7 +382,7 @@ void main() {
     });
 
     test('selectLayer enables only one layer', () {
-      final sender = RtpSender(
+      final sender = RTCRtpSender(
         rtpSession: rtpSession,
         codec: createVp8Codec(payloadType: 96),
         sendEncodings: [
@@ -401,7 +401,7 @@ void main() {
     });
 
     test('selectLayer returns false for unknown RID', () {
-      final sender = RtpSender(
+      final sender = RTCRtpSender(
         rtpSession: rtpSession,
         codec: createVp8Codec(payloadType: 96),
         sendEncodings: [
@@ -414,7 +414,7 @@ void main() {
     });
 
     test('enableAllLayers enables all layers', () {
-      final sender = RtpSender(
+      final sender = RTCRtpSender(
         rtpSession: rtpSession,
         codec: createVp8Codec(payloadType: 96),
         sendEncodings: [
@@ -432,7 +432,7 @@ void main() {
     });
 
     test('disableAllLayers disables all layers', () {
-      final sender = RtpSender(
+      final sender = RTCRtpSender(
         rtpSession: rtpSession,
         codec: createVp8Codec(payloadType: 96),
         sendEncodings: [
@@ -450,7 +450,7 @@ void main() {
     });
 
     test('selectLayersByMaxBitrate enables appropriate layers', () {
-      final sender = RtpSender(
+      final sender = RTCRtpSender(
         rtpSession: rtpSession,
         codec: createVp8Codec(payloadType: 96),
         sendEncodings: [
@@ -473,7 +473,7 @@ void main() {
     });
 
     test('selectLayersByMaxBitrate handles null maxBitrate', () {
-      final sender = RtpSender(
+      final sender = RTCRtpSender(
         rtpSession: rtpSession,
         codec: createVp8Codec(payloadType: 96),
         sendEncodings: [
@@ -489,7 +489,7 @@ void main() {
     });
 
     test('selectLayersByMinScale enables lower resolution layers', () {
-      final sender = RtpSender(
+      final sender = RTCRtpSender(
         rtpSession: rtpSession,
         codec: createVp8Codec(payloadType: 96),
         sendEncodings: [
@@ -512,7 +512,7 @@ void main() {
     });
 
     test('selectLayersByMinScale handles null scaleResolutionDownBy', () {
-      final sender = RtpSender(
+      final sender = RTCRtpSender(
         rtpSession: rtpSession,
         codec: createVp8Codec(payloadType: 96),
         sendEncodings: [
@@ -530,7 +530,7 @@ void main() {
     });
 
     test('layerStates returns correct map', () {
-      final sender = RtpSender(
+      final sender = RTCRtpSender(
         rtpSession: rtpSession,
         codec: createVp8Codec(payloadType: 96),
         sendEncodings: [

@@ -1,10 +1,10 @@
-// DataChannel Answer Server for Automated Browser Testing
+// RTCDataChannel Answer Server for Automated Browser Testing
 //
 // This server tests Dart as the ANSWERER (browser is offerer):
 // 1. Serves static HTML for browser to create offer
-// 2. Browser creates PeerConnection + DataChannel, sends offer
+// 2. Browser creates PeerConnection + RTCDataChannel, sends offer
 // 3. Dart creates answer and sends it back
-// 4. DataChannel opens and they exchange ping/pong messages
+// 4. RTCDataChannel opens and they exchange ping/pong messages
 //
 // Pattern: Browser is OFFERER, Dart is ANSWERER
 // This is the opposite of most tests and may work better with Firefox
@@ -16,8 +16,8 @@ import 'package:webrtc_dart/webrtc_dart.dart';
 
 class DataChannelAnswerServer {
   HttpServer? _server;
-  RtcPeerConnection? _pc;
-  DataChannel? _dc;
+  RTCPeerConnection? _pc;
+  RTCDataChannel? _dc;
   final List<Map<String, dynamic>> _localCandidates = [];
   Completer<void> _connectionCompleter = Completer();
   DateTime? _startTime;
@@ -102,7 +102,7 @@ class DataChannelAnswerServer {
 
   Future<void> _handleStart(HttpRequest request) async {
     _currentBrowser = request.uri.queryParameters['browser'] ?? 'unknown';
-    print('[DC-Answer] Starting DataChannel answer test for: $_currentBrowser');
+    print('[DC-Answer] Starting RTCDataChannel answer test for: $_currentBrowser');
 
     // Reset state
     await _cleanup();
@@ -116,7 +116,7 @@ class DataChannelAnswerServer {
     _receivedMessages.clear();
 
     // Create peer connection (will wait for offer)
-    _pc = RtcPeerConnection(RtcConfiguration(
+    _pc = RTCPeerConnection(RtcConfiguration(
       iceServers: [
         IceServer(urls: ['stun:stun.l.google.com:19302'])
       ],
@@ -150,20 +150,20 @@ class DataChannelAnswerServer {
 
     // Handle incoming datachannel (created by browser)
     _pc!.onDataChannel.listen((channel) {
-      print('[DC-Answer] Received DataChannel: ${channel.label}');
+      print('[DC-Answer] Received RTCDataChannel: ${channel.label}');
       _dc = channel;
 
       // Check if already open
       if (channel.state == DataChannelState.open) {
         _dcOpened = true;
-        print('[DC-Answer] DataChannel already open!');
+        print('[DC-Answer] RTCDataChannel already open!');
       }
 
       channel.onStateChange.listen((state) {
-        print('[DC-Answer] DataChannel state: $state');
+        print('[DC-Answer] RTCDataChannel state: $state');
         if (state == DataChannelState.open) {
           _dcOpened = true;
-          print('[DC-Answer] DataChannel opened!');
+          print('[DC-Answer] RTCDataChannel opened!');
         }
       });
 
@@ -198,7 +198,7 @@ class DataChannelAnswerServer {
     final body = await utf8.decodeStream(request);
     final data = jsonDecode(body) as Map<String, dynamic>;
 
-    final offer = SessionDescription(
+    final offer = RTCSessionDescription(
       type: data['type'] as String,
       sdp: data['sdp'] as String,
     );
@@ -248,7 +248,7 @@ class DataChannelAnswerServer {
     }
 
     try {
-      final candidate = Candidate.fromSdp(candidateStr);
+      final candidate = RTCIceCandidate.fromSdp(candidateStr);
       await _pc!.addIceCandidate(candidate);
       print('[DC-Answer] Added ICE candidate: ${candidate.type}');
     } catch (e) {
@@ -320,7 +320,7 @@ class DataChannelAnswerServer {
 <!DOCTYPE html>
 <html>
 <head>
-    <title>WebRTC DataChannel Answer Test</title>
+    <title>WebRTC RTCDataChannel Answer Test</title>
     <style>
         body { font-family: monospace; padding: 20px; background: #1a1a1a; color: #eee; }
         #log { background: #0a0a0a; padding: 10px; height: 300px; overflow-y: auto; border: 1px solid #333; }
@@ -333,8 +333,8 @@ class DataChannelAnswerServer {
     </style>
 </head>
 <body>
-    <h1>WebRTC DataChannel Test <span class="pattern-badge">Browser=Offerer</span></h1>
-    <p>Browser creates offer with DataChannel, Dart creates answer.</p>
+    <h1>WebRTC RTCDataChannel Test <span class="pattern-badge">Browser=Offerer</span></h1>
+    <p>Browser creates offer with RTCDataChannel, Dart creates answer.</p>
     <p>This tests the Dart-as-Answerer pattern (opposite of most tests).</p>
     <div id="status">Status: Waiting to start...</div>
     <div id="log"></div>
@@ -362,7 +362,7 @@ class DataChannelAnswerServer {
             try {
                 const browser = detectBrowser();
                 log('Browser detected: ' + browser);
-                setStatus('Starting DataChannel answer test for ' + browser);
+                setStatus('Starting RTCDataChannel answer test for ' + browser);
 
                 // Start server-side peer
                 await fetch(serverBase + '/start?browser=' + browser);
@@ -373,12 +373,12 @@ class DataChannelAnswerServer {
                     iceServers: [{ urls: 'stun:stun.l.google.com:19302' }]
                 });
 
-                // Create DataChannel BEFORE creating offer
+                // Create RTCDataChannel BEFORE creating offer
                 dc = pc.createDataChannel('test-channel');
-                log('Created DataChannel: test-channel');
+                log('Created RTCDataChannel: test-channel');
 
                 dc.onopen = () => {
-                    log('DataChannel opened!', 'success');
+                    log('RTCDataChannel opened!', 'success');
                     // Send some ping messages
                     for (let i = 1; i <= 3; i++) {
                         setTimeout(() => {
@@ -395,7 +395,7 @@ class DataChannelAnswerServer {
                 };
 
                 dc.onerror = (e) => {
-                    log('DataChannel error: ' + e, 'error');
+                    log('RTCDataChannel error: ' + e, 'error');
                 };
 
                 // Set up ICE candidate handler
@@ -480,7 +480,7 @@ class DataChannelAnswerServer {
                 if (result.success) {
                     log('TEST PASSED! Sent=' + result.messagesSent +
                         ', Received=' + result.messagesReceived, 'success');
-                    setStatus('TEST PASSED - DataChannel ping/pong works (Dart as Answerer)');
+                    setStatus('TEST PASSED - RTCDataChannel ping/pong works (Dart as Answerer)');
                 } else {
                     log('TEST FAILED', 'error');
                     setStatus('TEST FAILED');

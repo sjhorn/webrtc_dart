@@ -146,12 +146,12 @@ abstract class IceConnection {
   IceState get state;
 
   /// Local candidates
-  List<Candidate> get localCandidates;
+  List<RTCIceCandidate> get localCandidates;
 
   /// Remote candidates
-  List<Candidate> get remoteCandidates;
+  List<RTCIceCandidate> get remoteCandidates;
 
-  /// Candidate pairs (check list)
+  /// RTCIceCandidate pairs (check list)
   List<CandidatePair> get checkList;
 
   /// Nominated pair (selected for data transmission)
@@ -170,7 +170,7 @@ abstract class IceConnection {
   Stream<IceState> get onStateChanged;
 
   /// Stream of discovered local candidates
-  Stream<Candidate> get onIceCandidate;
+  Stream<RTCIceCandidate> get onIceCandidate;
 
   /// Stream of incoming data
   Stream<Uint8List> get onData;
@@ -189,7 +189,7 @@ abstract class IceConnection {
   Future<void> connect();
 
   /// Add a remote candidate
-  Future<void> addRemoteCandidate(Candidate? candidate);
+  Future<void> addRemoteCandidate(RTCIceCandidate? candidate);
 
   /// Send data over the nominated pair
   Future<void> send(Uint8List data);
@@ -201,7 +201,7 @@ abstract class IceConnection {
   Future<void> restart();
 
   /// Get the default candidate (for SDP)
-  Candidate? getDefaultCandidate();
+  RTCIceCandidate? getDefaultCandidate();
 
   /// Update ICE options (for setConfiguration)
   ///
@@ -225,8 +225,8 @@ class IceConnectionImpl implements IceConnection {
   /// Random 64-bit number
   late final BigInt _tieBreaker;
 
-  final List<Candidate> _localCandidates = [];
-  final List<Candidate> _remoteCandidates = [];
+  final List<RTCIceCandidate> _localCandidates = [];
+  final List<RTCIceCandidate> _remoteCandidates = [];
   final List<CandidatePair> _checkList = [];
   CandidatePair? _nominated;
 
@@ -279,7 +279,7 @@ class IceConnectionImpl implements IceConnection {
   final String debugLabel;
 
   final _stateController = StreamController<IceState>.broadcast();
-  final _candidateController = StreamController<Candidate>.broadcast();
+  final _candidateController = StreamController<RTCIceCandidate>.broadcast();
   final _dataController = StreamController<Uint8List>.broadcast();
 
   IceConnectionImpl({
@@ -334,10 +334,10 @@ class IceConnectionImpl implements IceConnection {
   IceState get state => _state;
 
   @override
-  List<Candidate> get localCandidates => List.unmodifiable(_localCandidates);
+  List<RTCIceCandidate> get localCandidates => List.unmodifiable(_localCandidates);
 
   @override
-  List<Candidate> get remoteCandidates => List.unmodifiable(_remoteCandidates);
+  List<RTCIceCandidate> get remoteCandidates => List.unmodifiable(_remoteCandidates);
 
   @override
   List<CandidatePair> get checkList => List.unmodifiable(_checkList);
@@ -358,7 +358,7 @@ class IceConnectionImpl implements IceConnection {
   Stream<IceState> get onStateChanged => _stateController.stream;
 
   @override
-  Stream<Candidate> get onIceCandidate => _candidateController.stream;
+  Stream<RTCIceCandidate> get onIceCandidate => _candidateController.stream;
 
   @override
   Stream<Uint8List> get onData => _dataController.stream;
@@ -449,7 +449,7 @@ class IceConnectionImpl implements IceConnection {
               }
 
               final foundation = candidateFoundation('host', 'udp', address);
-              final candidate = Candidate(
+              final candidate = RTCIceCandidate(
                 foundation: foundation,
                 component: 1, // RTP component
                 transport: 'udp',
@@ -629,7 +629,7 @@ class IceConnectionImpl implements IceConnection {
             // Create server reflexive candidate
             final foundation =
                 candidateFoundation('srflx', 'udp', hostCandidate.host);
-            final srflxCandidate = Candidate(
+            final srflxCandidate = RTCIceCandidate(
               foundation: foundation,
               component: 1,
               transport: 'udp',
@@ -725,7 +725,7 @@ class IceConnectionImpl implements IceConnection {
 
       // Create relay candidate
       final foundation = candidateFoundation('relay', 'udp', relayHost);
-      final relayCandidate = Candidate(
+      final relayCandidate = RTCIceCandidate(
         foundation: foundation,
         component: 1,
         transport: 'udp',
@@ -780,7 +780,7 @@ class IceConnectionImpl implements IceConnection {
 
     for (final tcpHost in tcpHosts) {
       final foundation = candidateFoundation('host', 'tcp', tcpHost.address);
-      final candidate = Candidate(
+      final candidate = RTCIceCandidate(
         foundation: foundation,
         component: 1, // RTP component
         transport: 'tcp',
@@ -851,7 +851,7 @@ class IceConnectionImpl implements IceConnection {
   /// Generate a TCP active candidate to pair with a remote TCP passive candidate
   /// RFC 6544: Active candidates have port 9 (discard port) as a placeholder
   /// since the actual port is only known after connection establishment.
-  Future<void> _generateTcpActiveCandidate(Candidate remotePassive) async {
+  Future<void> _generateTcpActiveCandidate(RTCIceCandidate remotePassive) async {
     // Determine which local IP to use based on the remote candidate's IP version
     final remoteIsV4 =
         InternetAddress(remotePassive.host).type == InternetAddressType.IPv4;
@@ -881,7 +881,7 @@ class IceConnectionImpl implements IceConnection {
     // Create TCP active candidate
     // RFC 6544: Active candidates use port 9 (discard) as placeholder
     final foundation = candidateFoundation('host', 'tcp', localHost);
-    final activeCandidate = Candidate(
+    final activeCandidate = RTCIceCandidate(
       foundation: foundation,
       component: 1,
       transport: 'tcp',
@@ -1378,7 +1378,7 @@ class IceConnectionImpl implements IceConnection {
         '[ICE] Creating peer reflexive candidate for $remoteHost:$remotePort');
 
     // Create peer reflexive remote candidate
-    final prflxCandidate = Candidate(
+    final prflxCandidate = RTCIceCandidate(
       foundation: 'prflx${_remoteCandidates.length}',
       component: 1,
       transport: 'UDP',
@@ -1813,7 +1813,7 @@ class IceConnectionImpl implements IceConnection {
   }
 
   @override
-  Future<void> addRemoteCandidate(Candidate? candidate) async {
+  Future<void> addRemoteCandidate(RTCIceCandidate? candidate) async {
     if (candidate == null) {
       _remoteCandidatesEnd = true;
       _log.fine(' Remote candidate end-of-candidates marker received');
@@ -1961,7 +1961,7 @@ class IceConnectionImpl implements IceConnection {
   }
 
   /// Send data through TURN relay
-  Future<void> _sendViaTurn(Candidate remoteCandidate, Uint8List data) async {
+  Future<void> _sendViaTurn(RTCIceCandidate remoteCandidate, Uint8List data) async {
     if (_turnClient == null) {
       throw StateError('TURN client not available');
     }
@@ -2250,7 +2250,7 @@ class IceConnectionImpl implements IceConnection {
   }
 
   @override
-  Candidate? getDefaultCandidate() {
+  RTCIceCandidate? getDefaultCandidate() {
     // Return the first host candidate, or first candidate if no host
     final hostCandidates = _localCandidates.where((c) => c.type == 'host');
     if (hostCandidates.isNotEmpty) {

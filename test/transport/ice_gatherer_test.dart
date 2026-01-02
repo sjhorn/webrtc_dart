@@ -129,7 +129,7 @@ void main() {
 
     test('gather() emits candidates', () async {
       final completer = Completer<void>();
-      final candidates = <Candidate?>[];
+      final candidates = <RTCIceCandidate?>[];
       gatherer.onIceCandidate.listen((c) {
         candidates.add(c);
         if (c == null) {
@@ -181,7 +181,7 @@ void main() {
 
     test('forwards candidates from connection', () async {
       final completer = Completer<void>();
-      final candidates = <Candidate?>[];
+      final candidates = <RTCIceCandidate?>[];
       gatherer.onIceCandidate.listen((c) {
         candidates.add(c);
         if (c == null) {

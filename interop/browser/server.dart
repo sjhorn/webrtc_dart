@@ -42,8 +42,8 @@ void main() async {
 }
 
 void handleWebSocket(WebSocket socket) async {
-  RtcPeerConnection? pc;
-  DataChannel? dataChannel;
+  RTCPeerConnection? pc;
+  RTCDataChannel? dataChannel;
 
   socket.listen((message) async {
     try {
@@ -54,7 +54,7 @@ void handleWebSocket(WebSocket socket) async {
 
       if (type == 'offer') {
         // Create peer connection
-        pc = RtcPeerConnection();
+        pc = RTCPeerConnection();
         print('[Dart] PeerConnection created');
 
         await Future.delayed(Duration(milliseconds: 200));
@@ -85,11 +85,11 @@ void handleWebSocket(WebSocket socket) async {
         });
 
         pc!.onDataChannel.listen((channel) {
-          print('[Dart] DataChannel received: ${channel.label}');
+          print('[Dart] RTCDataChannel received: ${channel.label}');
           dataChannel = channel;
 
           channel.onStateChange.listen((state) {
-            print('[Dart] DataChannel state: $state');
+            print('[Dart] RTCDataChannel state: $state');
             if (state == DataChannelState.open) {
               print('[Dart] Sending greeting...');
               channel.sendString('Hello from Dart!');
@@ -104,7 +104,7 @@ void handleWebSocket(WebSocket socket) async {
         });
 
         // Set remote description (offer)
-        final offer = SessionDescription(
+        final offer = RTCSessionDescription(
           type: 'offer',
           sdp: data['sdp'] as String,
         );
@@ -129,7 +129,7 @@ void handleWebSocket(WebSocket socket) async {
           if (sdp.startsWith('candidate:')) {
             sdp = sdp.substring('candidate:'.length);
           }
-          final candidate = Candidate.fromSdp(sdp);
+          final candidate = RTCIceCandidate.fromSdp(sdp);
           await pc!.addIceCandidate(candidate);
           print(
               '[Dart] Added remote ICE candidate: ${candidate.type} ${candidate.host}:${candidate.port}');
@@ -317,16 +317,16 @@ const autoSignalingHtml = '''
                 };
 
                 // Create data channel
-                log('Creating DataChannel "chat"...');
+                log('Creating RTCDataChannel "chat"...');
                 dc = pc.createDataChannel('chat', { ordered: true });
 
                 dc.onopen = () => {
-                    log('DataChannel OPEN!', 'success');
+                    log('RTCDataChannel OPEN!', 'success');
                     document.getElementById('sendBtn').disabled = false;
                 };
 
                 dc.onclose = () => {
-                    log('DataChannel closed');
+                    log('RTCDataChannel closed');
                     document.getElementById('sendBtn').disabled = true;
                 };
 
@@ -335,7 +335,7 @@ const autoSignalingHtml = '''
                 };
 
                 dc.onerror = (e) => {
-                    log('DataChannel error: ' + e.error, 'error');
+                    log('RTCDataChannel error: ' + e.error, 'error');
                 };
 
                 // Create offer
@@ -360,7 +360,7 @@ const autoSignalingHtml = '''
         function sendMessage() {
             const msg = document.getElementById('messageInput').value;
             if (!dc || dc.readyState !== 'open') {
-                log('DataChannel not open', 'error');
+                log('RTCDataChannel not open', 'error');
                 return;
             }
             dc.send(msg);

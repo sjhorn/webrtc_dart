@@ -21,68 +21,68 @@ import 'package:webrtc_dart/src/media/parameters.dart' show SimulcastDirection;
 /// Reference: werift-webrtc/packages/webrtc/src/transceiverManager.ts
 class TransceiverManager {
   /// List of all transceivers
-  final List<RtpTransceiver> _transceivers = [];
+  final List<RTCRtpTransceiver> _transceivers = [];
 
   /// Stream controller for track events
-  final StreamController<RtpTransceiver> _trackController =
-      StreamController<RtpTransceiver>.broadcast();
+  final StreamController<RTCRtpTransceiver> _trackController =
+      StreamController<RTCRtpTransceiver>.broadcast();
 
   /// Stream of track events (when remote track is received)
-  Stream<RtpTransceiver> get onTrack => _trackController.stream;
+  Stream<RTCRtpTransceiver> get onTrack => _trackController.stream;
 
   /// Get all transceivers (unmodifiable list)
-  List<RtpTransceiver> getTransceivers() {
+  List<RTCRtpTransceiver> getTransceivers() {
     return List.unmodifiable(_transceivers);
   }
 
   /// Get all transceivers as property
-  List<RtpTransceiver> get transceivers => List.unmodifiable(_transceivers);
+  List<RTCRtpTransceiver> get transceivers => List.unmodifiable(_transceivers);
 
   /// Get all senders
-  List<RtpSender> getSenders() {
+  List<RTCRtpSender> getSenders() {
     return _transceivers.map((t) => t.sender).toList();
   }
 
   /// Get all receivers
-  List<RtpReceiver> getReceivers() {
+  List<RTCRtpReceiver> getReceivers() {
     return _transceivers.map((t) => t.receiver).toList();
   }
 
   /// Get transceiver by MID
-  RtpTransceiver? getTransceiverByMid(String mid) {
+  RTCRtpTransceiver? getTransceiverByMid(String mid) {
     return _transceivers.where((t) => t.mid == mid).firstOrNull;
   }
 
   /// Get transceiver by m-line index
-  RtpTransceiver? getTransceiverByMLineIndex(int index) {
+  RTCRtpTransceiver? getTransceiverByMLineIndex(int index) {
     if (index < 0 || index >= _transceivers.length) return null;
     return _transceivers[index];
   }
 
   /// Add a transceiver to the list
-  void addTransceiver(RtpTransceiver transceiver) {
+  void addTransceiver(RTCRtpTransceiver transceiver) {
     _transceivers.add(transceiver);
   }
 
   /// Fire onTrack event for a transceiver
-  void fireOnTrack(RtpTransceiver transceiver) {
+  void fireOnTrack(RTCRtpTransceiver transceiver) {
     _trackController.add(transceiver);
   }
 
   /// Find transceiver matching criteria
-  RtpTransceiver? findTransceiver(bool Function(RtpTransceiver) predicate) {
+  RTCRtpTransceiver? findTransceiver(bool Function(RTCRtpTransceiver) predicate) {
     return _transceivers.where(predicate).firstOrNull;
   }
 
   /// Find all transceivers matching criteria
-  Iterable<RtpTransceiver> findAllTransceivers(
-      bool Function(RtpTransceiver) predicate) {
+  Iterable<RTCRtpTransceiver> findAllTransceivers(
+      bool Function(RTCRtpTransceiver) predicate) {
     return _transceivers.where(predicate);
   }
 
   /// Remove track from sender
   /// Note: Transceiver is not removed, just marked inactive
-  void removeTrack(RtpSender sender) {
+  void removeTrack(RTCRtpSender sender) {
     final transceiver = _transceivers.firstWhere(
       (t) => t.sender == sender,
       orElse: () => throw ArgumentError('Sender not found'),
@@ -108,7 +108,7 @@ class TransceiverManager {
   /// [media] - Remote SDP media description
   /// [router] - RTP router for header extension and simulcast registration
   void setRemoteRTP(
-    RtpTransceiver transceiver,
+    RTCRtpTransceiver transceiver,
     SdpMedia media,
     RtpRouter router,
   ) {

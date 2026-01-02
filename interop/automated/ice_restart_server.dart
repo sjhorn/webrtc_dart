@@ -1,7 +1,7 @@
 // ICE Restart Browser Test Server
 //
 // This server demonstrates ICE restart functionality:
-// 1. Establishes initial connection with DataChannel
+// 1. Establishes initial connection with RTCDataChannel
 // 2. Performs ICE restart (new credentials)
 // 3. Verifies connection maintained after restart
 //
@@ -14,8 +14,8 @@ import 'package:webrtc_dart/webrtc_dart.dart';
 
 class IceRestartServer {
   HttpServer? _server;
-  RtcPeerConnection? _pc;
-  dynamic _dc; // DataChannel or ProxyDataChannel
+  RTCPeerConnection? _pc;
+  dynamic _dc; // RTCDataChannel or ProxyDataChannel
   final List<Map<String, dynamic>> _localCandidates = [];
   Completer<void> _connectionCompleter = Completer();
   Completer<void> _dcOpenCompleter = Completer();
@@ -139,7 +139,7 @@ class IceRestartServer {
     _restartedIceUfrag = null;
 
     // Create peer connection
-    _pc = RtcPeerConnection(RtcConfiguration(
+    _pc = RTCPeerConnection(RtcConfiguration(
       iceServers: [
         IceServer(urls: ['stun:stun.l.google.com:19302'])
       ],
@@ -200,12 +200,12 @@ class IceRestartServer {
       return;
     }
 
-    // Create DataChannel before createOffer
+    // Create RTCDataChannel before createOffer
     _dc = _pc!.createDataChannel('restart-test');
-    print('[Restart] Created DataChannel: restart-test');
+    print('[Restart] Created RTCDataChannel: restart-test');
 
     _dc!.onStateChange.listen((state) {
-      print('[Restart] DataChannel state: $state');
+      print('[Restart] RTCDataChannel state: $state');
       if (state == DataChannelState.open && !_dcOpenCompleter.isCompleted) {
         _dcOpenCompleter.complete();
       }
@@ -243,7 +243,7 @@ class IceRestartServer {
     final body = await utf8.decodeStream(request);
     final data = jsonDecode(body) as Map<String, dynamic>;
 
-    final answer = SessionDescription(
+    final answer = RTCSessionDescription(
       type: data['type'] as String,
       sdp: data['sdp'] as String,
     );
@@ -280,7 +280,7 @@ class IceRestartServer {
     }
 
     try {
-      final candidate = Candidate.fromSdp(candidateStr);
+      final candidate = RTCIceCandidate.fromSdp(candidateStr);
       await _pc!.addIceCandidate(candidate);
       _candidatesReceived++;
       print(
@@ -355,7 +355,7 @@ class IceRestartServer {
     _restartInProgress = true;
     _restartCount++;
 
-    final offer = SessionDescription(
+    final offer = RTCSessionDescription(
       type: data['type'] as String,
       sdp: data['sdp'] as String,
     );
@@ -392,7 +392,7 @@ class IceRestartServer {
     final body = await utf8.decodeStream(request);
     final data = jsonDecode(body) as Map<String, dynamic>;
 
-    final answer = SessionDescription(
+    final answer = RTCSessionDescription(
       type: data['type'] as String,
       sdp: data['sdp'] as String,
     );
@@ -408,7 +408,7 @@ class IceRestartServer {
   Future<void> _handlePing(HttpRequest request) async {
     if (_dc == null || _dc!.state != DataChannelState.open) {
       request.response.statusCode = 400;
-      request.response.write('DataChannel not open');
+      request.response.write('RTCDataChannel not open');
       return;
     }
 
@@ -517,7 +517,7 @@ class IceRestartServer {
     </style>
 </head>
 <body>
-    <h1>ICE Restart Test <span class="badge">DataChannel</span></h1>
+    <h1>ICE Restart Test <span class="badge">RTCDataChannel</span></h1>
     <p>Tests ICE restart functionality - new credentials without dropping connection.</p>
     <div id="status">Status: Waiting to start...</div>
     <div class="stats">
@@ -603,10 +603,10 @@ class IceRestartServer {
 
                 pc.ondatachannel = (e) => {
                     dc = e.channel;
-                    log('Received DataChannel: ' + dc.label, 'success');
+                    log('Received RTCDataChannel: ' + dc.label, 'success');
 
                     dc.onopen = () => {
-                        log('DataChannel open!', 'success');
+                        log('RTCDataChannel open!', 'success');
                     };
 
                     dc.onmessage = (e) => {
@@ -647,9 +647,9 @@ class IceRestartServer {
                 await waitForConnection();
                 log('Initial connection established!', 'success');
 
-                // Wait for DataChannel
+                // Wait for RTCDataChannel
                 await waitForDataChannel();
-                log('DataChannel ready!', 'success');
+                log('RTCDataChannel ready!', 'success');
 
                 // Test initial connectivity
                 await fetch(serverBase + '/ping');
@@ -692,7 +692,7 @@ class IceRestartServer {
                 await waitForConnection();
                 log('Connection re-established after ICE restart!', 'success');
 
-                // Wait for DataChannel to be usable
+                // Wait for RTCDataChannel to be usable
                 await new Promise(resolve => setTimeout(resolve, 1000));
 
                 // Test connectivity after restart
@@ -765,7 +765,7 @@ class IceRestartServer {
 
         async function waitForDataChannel() {
             return new Promise((resolve, reject) => {
-                const timeout = setTimeout(() => reject(new Error('DataChannel timeout')), 10000);
+                const timeout = setTimeout(() => reject(new Error('RTCDataChannel timeout')), 10000);
                 const check = () => {
                     if (dc && dc.readyState === 'open') {
                         clearTimeout(timeout);

@@ -43,7 +43,7 @@ class SimulcastTwccServer {
 
     // Create PeerConnection with RID, abs-send-time, and TWCC header extensions
     // Plus VP8 codec with transport-cc feedback (like werift)
-    final pc = RtcPeerConnection(RtcConfiguration(
+    final pc = RTCPeerConnection(RtcConfiguration(
       iceServers: [
         IceServer(urls: ['stun:stun.l.google.com:19302'])
       ],
@@ -94,7 +94,7 @@ class SimulcastTwccServer {
     print('[Server] Added recvonly transceiver with simulcast (high, low)');
 
     // Create 2 sendonly transceivers for forwarding each layer (like werift)
-    final multiCast = <String, RtpTransceiver>{
+    final multiCast = <String, RTCRtpTransceiver>{
       'high': pc.addTransceiver(
         MediaStreamTrackKind.video,
         direction: RtpTransceiverDirection.sendonly,
@@ -183,7 +183,7 @@ class SimulcastTwccServer {
           if (msg['type'] == 'answer') {
             print('[Server] Received answer');
             await pc.setRemoteDescription(
-              SessionDescription(type: 'answer', sdp: msg['sdp'] as String),
+              RTCSessionDescription(type: 'answer', sdp: msg['sdp'] as String),
             );
             print('[Server] Remote description set');
           }

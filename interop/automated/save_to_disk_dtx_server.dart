@@ -18,7 +18,7 @@ import 'package:webrtc_dart/src/nonstandard/recorder/media_recorder.dart';
 
 class SaveToDiskDtxServer {
   HttpServer? _server;
-  RtcPeerConnection? _pc;
+  RTCPeerConnection? _pc;
   MediaRecorder? _recorder;
   final List<Map<String, dynamic>> _localCandidates = [];
   Completer<void> _connectionCompleter = Completer();
@@ -142,7 +142,7 @@ class SaveToDiskDtxServer {
     print('[SaveToDisk-DTX] DTX processor initialized (20ms @ 48kHz)');
 
     // Create peer connection with VP8 video and Opus audio (DTX enabled)
-    _pc = RtcPeerConnection(RtcConfiguration(
+    _pc = RTCPeerConnection(RtcConfiguration(
       iceServers: [
         IceServer(urls: ['stun:stun.l.google.com:19302'])
       ],
@@ -338,7 +338,7 @@ class SaveToDiskDtxServer {
       print('[SaveToDisk-DTX] Added usedtx=1 to SDP');
     }
 
-    final modifiedOffer = SessionDescription(type: offer.type, sdp: sdp);
+    final modifiedOffer = RTCSessionDescription(type: offer.type, sdp: sdp);
     await _pc!.setLocalDescription(modifiedOffer);
     print('[SaveToDisk-DTX] Created offer with DTX, local description set');
 
@@ -362,7 +362,7 @@ class SaveToDiskDtxServer {
     final body = await utf8.decodeStream(request);
     final data = jsonDecode(body) as Map<String, dynamic>;
 
-    final answer = SessionDescription(
+    final answer = RTCSessionDescription(
       type: data['type'] as String,
       sdp: data['sdp'] as String,
     );
@@ -408,7 +408,7 @@ class SaveToDiskDtxServer {
     }
 
     try {
-      final candidate = Candidate.fromSdp(candidateStr);
+      final candidate = RTCIceCandidate.fromSdp(candidateStr);
       await _pc!.addIceCandidate(candidate);
       print('[SaveToDisk-DTX] Added ICE candidate: ${candidate.type}');
     } catch (e) {

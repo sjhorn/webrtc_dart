@@ -55,7 +55,7 @@ class SendonlyServer {
     StreamSubscription? udpSub;
 
     // Create PeerConnection with VP8 codec (like werift)
-    final pc = RtcPeerConnection(
+    final pc = RTCPeerConnection(
       RtcConfiguration(
         codecs: RtcCodecs(
           audio: [], // No audio
@@ -136,7 +136,7 @@ class SendonlyServer {
           if (msg['type'] == 'answer') {
             print('[Server] Received answer');
             await pc.setRemoteDescription(
-              SessionDescription(type: 'answer', sdp: msg['sdp'] as String),
+              RTCSessionDescription(type: 'answer', sdp: msg['sdp'] as String),
             );
             print('[Server] Remote description set');
           }

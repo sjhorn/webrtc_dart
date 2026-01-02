@@ -45,7 +45,7 @@ void main() async {
   print('6. Receive H.264 video stream');
 
   // Create peer connection with Nest-compatible codecs
-  final pc = RtcPeerConnection(RtcConfiguration(
+  final pc = RTCPeerConnection(RtcConfiguration(
     iceServers: [
       IceServer(urls: ['stun:stun.l.google.com:19302'])
     ],

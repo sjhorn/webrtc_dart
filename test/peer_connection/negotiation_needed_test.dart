@@ -8,10 +8,10 @@ import 'package:webrtc_dart/src/nonstandard/media/track.dart' as nonstandard;
 
 void main() {
   group('onNegotiationNeeded', () {
-    late RtcPeerConnection pc;
+    late RTCPeerConnection pc;
 
     setUp(() async {
-      pc = RtcPeerConnection();
+      pc = RTCPeerConnection();
     });
 
     tearDown(() async {

@@ -16,12 +16,12 @@ void main() async {
   print('');
 
   // Create two peer connections
-  final pc1 = RtcPeerConnection();
-  final pc2 = RtcPeerConnection();
+  final pc1 = RTCPeerConnection();
+  final pc2 = RTCPeerConnection();
 
   // Track data channels
-  late DataChannel dc1;
-  late DataChannel dc2;
+  late RTCDataChannel dc1;
+  late RTCDataChannel dc2;
 
   final dc1Ready = Completer<void>();
   final dc2Ready = Completer<void>();
@@ -74,7 +74,7 @@ void main() async {
   });
 
   // Create datachannel on pc1
-  dc1 = pc1.createDataChannel('test') as DataChannel;
+  dc1 = pc1.createDataChannel('test') as RTCDataChannel;
   dc1.onStateChange.listen((state) {
     if (state == DataChannelState.open && !dc1Ready.isCompleted) {
       dc1Ready.complete();

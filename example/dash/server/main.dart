@@ -71,7 +71,7 @@ void _serveDashFiles(HttpServer server) {
 Future<void> _handleWebSocketConnection(WebSocket socket) async {
   print('[Client] Connected');
 
-  final pc = RtcPeerConnection();
+  final pc = RTCPeerConnection();
   // ignore: unused_local_variable
   var segmentIndex = 0;
 
@@ -121,7 +121,7 @@ Future<void> _handleWebSocketConnection(WebSocket socket) async {
   socket.listen((data) async {
     final msg = json.decode(data as String);
     if (msg['type'] == 'answer') {
-      await pc.setRemoteDescription(SessionDescription(
+      await pc.setRemoteDescription(RTCSessionDescription(
         type: 'answer',
         sdp: msg['sdp'] as String,
       ));

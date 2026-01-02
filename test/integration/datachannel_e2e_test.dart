@@ -7,9 +7,9 @@ import 'package:webrtc_dart/src/dtls/certificate/certificate_generator.dart';
 import 'package:webrtc_dart/src/datachannel/rtc_data_channel.dart';
 
 void main() {
-  group('DataChannel End-to-End', () {
+  group('RTCDataChannel End-to-End', () {
     test('exchange "hello world" messages between two peers', () async {
-      print('\n=== Starting DataChannel E2E Test ===\n');
+      print('\n=== Starting RTCDataChannel E2E Test ===\n');
 
       // Generate certificates for DTLS
       print('Generating certificates...');
@@ -33,8 +33,8 @@ void main() {
       );
 
       // Track ICE candidates
-      final ice1Candidates = <Candidate>[];
-      final ice2Candidates = <Candidate>[];
+      final ice1Candidates = <RTCIceCandidate>[];
+      final ice2Candidates = <RTCIceCandidate>[];
 
       ice1.onIceCandidate.listen(ice1Candidates.add);
       ice2.onIceCandidate.listen(ice2Candidates.add);
@@ -178,7 +178,7 @@ void main() {
         ordered: true,
       );
 
-      print('Peer 1 created DataChannel: "${channel1.label}"');
+      print('Peer 1 created RTCDataChannel: "${channel1.label}"');
 
       // Track channel state
       final channel1Open = Completer<void>();
@@ -191,10 +191,10 @@ void main() {
 
       // Wait for Peer 2 to receive the incoming channel
       print('Waiting for Peer 2 to receive channel...');
-      final channel2Completer = Completer<DataChannel>();
+      final channel2Completer = Completer<RTCDataChannel>();
 
       transport2.onDataChannel.listen((channel) {
-        print('Peer 2 received DataChannel: "${channel.label}"');
+        print('Peer 2 received RTCDataChannel: "${channel.label}"');
         if (!channel2Completer.isCompleted) {
           channel2Completer.complete(channel);
         }
@@ -205,7 +205,7 @@ void main() {
         Duration(seconds: 3),
         onTimeout: () {
           print('✗ Timeout waiting for channel 2');
-          throw TimeoutException('Did not receive incoming DataChannel');
+          throw TimeoutException('Did not receive incoming RTCDataChannel');
         },
       );
 

@@ -16,7 +16,7 @@ import 'package:webrtc_dart/src/nonstandard/media/track.dart' as nonstandard;
 
 class RedSendrecvServer {
   HttpServer? _server;
-  RtcPeerConnection? _pc;
+  RTCPeerConnection? _pc;
   nonstandard.MediaStreamTrack? _sendTrack;
   final List<Map<String, dynamic>> _localCandidates = [];
   final List<StreamSubscription> _subscriptions = [];
@@ -121,7 +121,7 @@ class RedSendrecvServer {
     _echoStarted = false;
 
     // Create peer connection - RED + Opus codecs will be used
-    _pc = RtcPeerConnection(RtcConfiguration(
+    _pc = RTCPeerConnection(RtcConfiguration(
       iceServers: [
         IceServer(urls: ['stun:stun.l.google.com:19302'])
       ],
@@ -239,7 +239,7 @@ class RedSendrecvServer {
     final body = await utf8.decodeStream(request);
     final data = jsonDecode(body) as Map<String, dynamic>;
 
-    final answer = SessionDescription(
+    final answer = RTCSessionDescription(
       type: data['type'] as String,
       sdp: data['sdp'] as String,
     );
@@ -283,7 +283,7 @@ class RedSendrecvServer {
     }
 
     try {
-      final candidate = Candidate.fromSdp(candidateStr);
+      final candidate = RTCIceCandidate.fromSdp(candidateStr);
       await _pc!.addIceCandidate(candidate);
       print('[RED-Sendrecv] Added ICE candidate: ${candidate.type}');
     } catch (e) {

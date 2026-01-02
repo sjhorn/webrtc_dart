@@ -52,10 +52,10 @@ class CandidatePair {
   final String id;
 
   /// Local candidate
-  final Candidate localCandidate;
+  final RTCIceCandidate localCandidate;
 
   /// Remote candidate
-  final Candidate remoteCandidate;
+  final RTCIceCandidate remoteCandidate;
 
   /// Whether this agent is controlling
   final bool iceControlling;
@@ -140,8 +140,8 @@ class CandidatePair {
 /// where G is the priority for the controlling agent's candidate
 /// and D is the priority for the controlled agent's candidate
 int candidatePairPriority(
-  Candidate local,
-  Candidate remote,
+  RTCIceCandidate local,
+  RTCIceCandidate remote,
   bool iceControlling,
 ) {
   final g = iceControlling ? local.priority : remote.priority;
@@ -170,7 +170,7 @@ List<CandidatePair> sortCandidatePairs(
 
 /// Validate remote candidate
 /// Check if the remote candidate is supported
-Candidate validateRemoteCandidate(Candidate candidate) {
+RTCIceCandidate validateRemoteCandidate(RTCIceCandidate candidate) {
   const supportedTypes = ['host', 'relay', 'srflx'];
 
   if (!supportedTypes.contains(candidate.type)) {

@@ -65,7 +65,7 @@ class PipelineRecordingServer {
     Timer? stopTimer;
 
     // Create PeerConnection with VP8 + Opus codecs (matches werift pipeline.ts)
-    final pc = RtcPeerConnection(
+    final pc = RTCPeerConnection(
       RtcConfiguration(
         codecs: RtcCodecs(
           video: [
@@ -240,7 +240,7 @@ class PipelineRecordingServer {
           if (msg['type'] == 'answer') {
             print('[Server] Received answer');
             await pc.setRemoteDescription(
-              SessionDescription(type: 'answer', sdp: msg['sdp'] as String),
+              RTCSessionDescription(type: 'answer', sdp: msg['sdp'] as String),
             );
             print('[Server] Remote description set');
           }

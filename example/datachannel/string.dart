@@ -1,7 +1,7 @@
-/// DataChannel String Messages Example
+/// RTCDataChannel String Messages Example
 ///
 /// This example demonstrates sending and receiving string messages
-/// over a DataChannel between two local peer connections.
+/// over a RTCDataChannel between two local peer connections.
 ///
 /// Usage: dart run examples/datachannel_string.dart
 library;
@@ -11,18 +11,18 @@ import 'dart:convert';
 import 'package:webrtc_dart/webrtc_dart.dart';
 
 void main() async {
-  print('DataChannel String Messages Example');
+  print('RTCDataChannel String Messages Example');
   print('=' * 50);
   print('');
 
   // Create two peer connections
-  final pc1 = RtcPeerConnection();
-  final pc2 = RtcPeerConnection();
+  final pc1 = RTCPeerConnection();
+  final pc2 = RTCPeerConnection();
 
   // Wait for transport initialization
   await Future.delayed(Duration(milliseconds: 500));
 
-  // Track data channels (dynamic - can be DataChannel or ProxyDataChannel)
+  // Track data channels (dynamic - can be RTCDataChannel or ProxyDataChannel)
   late dynamic dc1;
   late dynamic dc2;
 
@@ -46,7 +46,7 @@ void main() async {
   pc2.onDataChannel.listen((channel) {
     dc2 = channel;
     print(
-        '[PC2] DataChannel received: ${channel.label}, state: ${channel.state}, type: ${channel.runtimeType}');
+        '[PC2] RTCDataChannel received: ${channel.label}, state: ${channel.state}, type: ${channel.runtimeType}');
 
     // Set up message handler
     print('[PC2] Setting up message listener...');
@@ -65,7 +65,7 @@ void main() async {
       if (!dc2Ready.isCompleted) dc2Ready.complete();
     } else {
       channel.onStateChange.listen((state) {
-        print('[PC2] DataChannel state: $state');
+        print('[PC2] RTCDataChannel state: $state');
         if (state == DataChannelState.open && !dc2Ready.isCompleted) {
           dc2Ready.complete();
         }
@@ -75,10 +75,10 @@ void main() async {
 
   // Create datachannel on pc1 with protocol
   dc1 = pc1.createDataChannel('chat', protocol: 'text');
-  print('[PC1] Created DataChannel: ${dc1.label} (protocol: ${dc1.protocol})');
+  print('[PC1] Created RTCDataChannel: ${dc1.label} (protocol: ${dc1.protocol})');
 
   dc1.onStateChange.listen((state) {
-    print('[PC1] DataChannel state: $state');
+    print('[PC1] RTCDataChannel state: $state');
     if (state == DataChannelState.open && !dc1Ready.isCompleted) {
       dc1Ready.complete();
     }
@@ -103,7 +103,7 @@ void main() async {
   await pc1.setRemoteDescription(answer);
 
   // Wait for datachannels to be ready
-  print('Waiting for DataChannel connections...');
+  print('Waiting for RTCDataChannel connections...');
   await Future.wait([dc1Ready.future, dc2Ready.future])
       .timeout(Duration(seconds: 10));
 

@@ -16,7 +16,7 @@ import 'package:webrtc_dart/webrtc_dart.dart';
 
 class MediaAnswerServer {
   HttpServer? _server;
-  RtcPeerConnection? _pc;
+  RTCPeerConnection? _pc;
   final List<Map<String, dynamic>> _localCandidates = [];
   Completer<void> _connectionCompleter = Completer();
   DateTime? _startTime;
@@ -116,7 +116,7 @@ class MediaAnswerServer {
     _trackReceived = false;
 
     // Create peer connection (will wait for offer)
-    _pc = RtcPeerConnection(RtcConfiguration(
+    _pc = RTCPeerConnection(RtcConfiguration(
       iceServers: [
         IceServer(urls: ['stun:stun.l.google.com:19302'])
       ],
@@ -182,7 +182,7 @@ class MediaAnswerServer {
     final body = await utf8.decodeStream(request);
     final data = jsonDecode(body) as Map<String, dynamic>;
 
-    final offer = SessionDescription(
+    final offer = RTCSessionDescription(
       type: data['type'] as String,
       sdp: data['sdp'] as String,
     );
@@ -232,7 +232,7 @@ class MediaAnswerServer {
     }
 
     try {
-      final candidate = Candidate.fromSdp(candidateStr);
+      final candidate = RTCIceCandidate.fromSdp(candidateStr);
       await _pc!.addIceCandidate(candidate);
       print('[Media-Answer] Added ICE candidate: ${candidate.type}');
     } catch (e) {

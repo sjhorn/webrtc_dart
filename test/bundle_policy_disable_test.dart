@@ -13,7 +13,7 @@ void main() {
         () async {
       // Create two peer connections with bundlePolicy:disable
       // This creates separate transports for audio and video
-      final pcOffer = RtcPeerConnection(RtcConfiguration(
+      final pcOffer = RTCPeerConnection(RtcConfiguration(
         bundlePolicy: BundlePolicy.disable,
         codecs: RtcCodecs(
           audio: [
@@ -32,7 +32,7 @@ void main() {
         ),
       ));
 
-      final pcAnswer = RtcPeerConnection(RtcConfiguration(
+      final pcAnswer = RTCPeerConnection(RtcConfiguration(
         bundlePolicy: BundlePolicy.disable,
         codecs: RtcCodecs(
           audio: [
@@ -106,7 +106,7 @@ void main() {
     });
 
     test('verifies separate transports for audio and video', () async {
-      final pc = RtcPeerConnection(RtcConfiguration(
+      final pc = RTCPeerConnection(RtcConfiguration(
         bundlePolicy: BundlePolicy.disable,
       ));
 

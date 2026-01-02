@@ -1,5 +1,5 @@
 // Simplified Multi-Client Test - mimics ice_trickle structure exactly
-// to isolate the DataChannel issue
+// to isolate the RTCDataChannel issue
 
 import 'dart:async';
 import 'dart:convert';
@@ -10,8 +10,8 @@ import 'package:webrtc_dart/webrtc_dart.dart';
 class SimplifiedMultiClientServer {
   HttpServer? _server;
   // Use single global variables like ice_trickle
-  RtcPeerConnection? _pc;
-  dynamic _dc; // DataChannel or ProxyDataChannel
+  RTCPeerConnection? _pc;
+  dynamic _dc; // RTCDataChannel or ProxyDataChannel
   final List<Map<String, dynamic>> _localCandidates = [];
   String _currentBrowser = 'unknown';
 
@@ -105,7 +105,7 @@ class SimplifiedMultiClientServer {
     print('[Simple] Creating PeerConnection in /connect');
 
     // Create peer connection - same config as ice_trickle
-    _pc = RtcPeerConnection(RtcConfiguration(
+    _pc = RTCPeerConnection(RtcConfiguration(
       iceServers: [
         IceServer(urls: ['stun:stun.l.google.com:19302'])
       ],
@@ -140,12 +140,12 @@ class SimplifiedMultiClientServer {
       return;
     }
 
-    // Create DataChannel before createOffer - same as ice_trickle
+    // Create RTCDataChannel before createOffer - same as ice_trickle
     _dc = _pc!.createDataChannel('simple-test');
-    print('[Simple] Created DataChannel: simple-test');
+    print('[Simple] Created RTCDataChannel: simple-test');
 
     _dc!.onStateChange.listen((state) {
-      print('[Simple] DataChannel state: $state');
+      print('[Simple] RTCDataChannel state: $state');
     });
 
     _dc!.onMessage.listen((data) {
@@ -177,7 +177,7 @@ class SimplifiedMultiClientServer {
     final body = await utf8.decodeStream(request);
     final data = jsonDecode(body) as Map<String, dynamic>;
 
-    final answer = SessionDescription(
+    final answer = RTCSessionDescription(
       type: data['type'] as String,
       sdp: data['sdp'] as String,
     );
@@ -213,7 +213,7 @@ class SimplifiedMultiClientServer {
     }
 
     try {
-      final candidate = Candidate.fromSdp(candidateStr);
+      final candidate = RTCIceCandidate.fromSdp(candidateStr);
       await _pc!.addIceCandidate(candidate);
       print('[Simple] Added candidate: ${candidate.type}');
     } catch (e) {
@@ -328,10 +328,10 @@ class SimplifiedMultiClientServer {
 
                 pc.ondatachannel = (e) => {
                     dc = e.channel;
-                    log('Received DataChannel: ' + dc.label, 'success');
+                    log('Received RTCDataChannel: ' + dc.label, 'success');
 
                     dc.onopen = () => {
-                        log('DataChannel open!', 'success');
+                        log('RTCDataChannel open!', 'success');
                     };
 
                     dc.onmessage = (e) => {
@@ -379,10 +379,10 @@ class SimplifiedMultiClientServer {
                 await waitForConnection();
                 log('Connected!', 'success');
 
-                // Wait for DataChannel
-                log('Waiting for DataChannel...');
+                // Wait for RTCDataChannel
+                log('Waiting for RTCDataChannel...');
                 await waitForDataChannel();
-                log('DataChannel ready!', 'success');
+                log('RTCDataChannel ready!', 'success');
 
                 const resultResp = await fetch(serverBase + '/result');
                 const result = await resultResp.json();
@@ -423,7 +423,7 @@ class SimplifiedMultiClientServer {
 
         async function waitForDataChannel() {
             return new Promise((resolve, reject) => {
-                const timeout = setTimeout(() => reject(new Error('DataChannel timeout')), 15000);
+                const timeout = setTimeout(() => reject(new Error('RTCDataChannel timeout')), 15000);
                 const check = () => {
                     if (dc && dc.readyState === 'open') {
                         clearTimeout(timeout);
@@ -454,7 +454,7 @@ class SimplifiedMultiClientServer {
 }
 
 void main() async {
-  // Enable SCTP and DataChannel logging
+  // Enable SCTP and RTCDataChannel logging
   hierarchicalLoggingEnabled = true;
   WebRtcLogging.sctp.level = Level.FINE;
   WebRtcLogging.datachannel.level = Level.FINE;

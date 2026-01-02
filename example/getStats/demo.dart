@@ -13,8 +13,8 @@ Future<void> main() async {
   print('=== RTCPeerConnection.getStats() Demo ===\n');
 
   // Create peer connections
-  final pc1 = RtcPeerConnection();
-  final pc2 = RtcPeerConnection();
+  final pc1 = RTCPeerConnection();
+  final pc2 = RTCPeerConnection();
 
   try {
     // 1. Basic getStats() call on new connection
@@ -33,7 +33,7 @@ Future<void> main() async {
       'demo',
       maxRetransmits: 3,
     );
-    print('   DataChannel created: ${dataChannel.label}');
+    print('   RTCDataChannel created: ${dataChannel.label}');
 
     final dcStats = await pc1.getStats();
     print('   Number of stats objects: ${dcStats.length}');

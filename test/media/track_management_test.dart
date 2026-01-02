@@ -6,7 +6,7 @@ import 'package:webrtc_dart/src/rtp/rtp_session.dart';
 import 'package:webrtc_dart/src/codec/codec_parameters.dart';
 
 void main() {
-  group('RtpSender replaceTrack', () {
+  group('RTCRtpSender replaceTrack', () {
     late RtpSession rtpSession;
     late RtpCodecParameters codec;
 
@@ -25,7 +25,7 @@ void main() {
 
     test('replaceTrack with null removes track', () async {
       final track = AudioStreamTrack(id: 'audio1', label: 'Audio');
-      final sender = RtpSender(
+      final sender = RTCRtpSender(
         track: track,
         rtpSession: rtpSession,
         codec: codec,
@@ -41,7 +41,7 @@ void main() {
     test('replaceTrack with new track of same kind succeeds', () async {
       final track1 = AudioStreamTrack(id: 'audio1', label: 'Audio 1');
       final track2 = AudioStreamTrack(id: 'audio2', label: 'Audio 2');
-      final sender = RtpSender(
+      final sender = RTCRtpSender(
         track: track1,
         rtpSession: rtpSession,
         codec: codec,
@@ -55,7 +55,7 @@ void main() {
     test('replaceTrack with different kind throws', () async {
       final audioTrack = AudioStreamTrack(id: 'audio1', label: 'Audio');
       final videoTrack = VideoStreamTrack(id: 'video1', label: 'Video');
-      final sender = RtpSender(
+      final sender = RTCRtpSender(
         track: audioTrack,
         rtpSession: rtpSession,
         codec: codec,
@@ -72,7 +72,7 @@ void main() {
       final track2 = AudioStreamTrack(id: 'audio2', label: 'Audio 2');
       track2.stop(); // End the track
 
-      final sender = RtpSender(
+      final sender = RTCRtpSender(
         track: track1,
         rtpSession: rtpSession,
         codec: codec,
@@ -86,7 +86,7 @@ void main() {
 
     test('replaceTrack on stopped sender throws', () async {
       final track = AudioStreamTrack(id: 'audio1', label: 'Audio');
-      final sender = RtpSender(
+      final sender = RTCRtpSender(
         track: track,
         rtpSession: rtpSession,
         codec: codec,
@@ -101,7 +101,7 @@ void main() {
     });
 
     test('replaceTrack from null to track succeeds', () async {
-      final sender = RtpSender(
+      final sender = RTCRtpSender(
         track: null,
         rtpSession: rtpSession,
         codec: codec,
@@ -120,7 +120,7 @@ void main() {
       final track2 = AudioStreamTrack(id: 'audio2', label: 'Audio 2');
       final track3 = AudioStreamTrack(id: 'audio3', label: 'Audio 3');
 
-      final sender = RtpSender(
+      final sender = RTCRtpSender(
         track: track1,
         rtpSession: rtpSession,
         codec: codec,
@@ -137,7 +137,7 @@ void main() {
     });
   });
 
-  group('RtpSender video track', () {
+  group('RTCRtpSender video track', () {
     late RtpSession rtpSession;
     late RtpCodecParameters codec;
 
@@ -158,7 +158,7 @@ void main() {
       final track1 = VideoStreamTrack(id: 'video1', label: 'Video 1');
       final track2 = VideoStreamTrack(id: 'video2', label: 'Video 2');
 
-      final sender = RtpSender(
+      final sender = RTCRtpSender(
         track: track1,
         rtpSession: rtpSession,
         codec: codec,
@@ -169,7 +169,7 @@ void main() {
     });
   });
 
-  group('RtpReceiver', () {
+  group('RTCRtpReceiver', () {
     late RtpSession rtpSession;
     late RtpCodecParameters codec;
 
@@ -188,7 +188,7 @@ void main() {
 
     test('receiver creates track on construction', () {
       final track = AudioStreamTrack(id: 'audio1', label: 'Audio');
-      final receiver = RtpReceiver(
+      final receiver = RTCRtpReceiver(
         track: track,
         rtpSession: rtpSession,
         codec: codec,
@@ -199,7 +199,7 @@ void main() {
 
     test('receiver allTracks includes primary track', () {
       final track = AudioStreamTrack(id: 'audio1', label: 'Audio');
-      final receiver = RtpReceiver(
+      final receiver = RTCRtpReceiver(
         track: track,
         rtpSession: rtpSession,
         codec: codec,
@@ -213,7 +213,7 @@ void main() {
       final highTrack =
           VideoStreamTrack(id: 'video_high', label: 'High', rid: 'high');
 
-      final receiver = RtpReceiver(
+      final receiver = RTCRtpReceiver(
         track: primaryTrack,
         rtpSession: rtpSession,
         codec: createVp8Codec(payloadType: 96),
@@ -227,7 +227,7 @@ void main() {
 
     test('receiver associateSsrcWithTrack maps SSRC', () {
       final track = VideoStreamTrack(id: 'video1', label: 'Video');
-      final receiver = RtpReceiver(
+      final receiver = RTCRtpReceiver(
         track: track,
         rtpSession: rtpSession,
         codec: createVp8Codec(payloadType: 96),
@@ -245,7 +245,7 @@ void main() {
       final lowTrack =
           VideoStreamTrack(id: 'video_low', label: 'Low', rid: 'low');
 
-      final receiver = RtpReceiver(
+      final receiver = RTCRtpReceiver(
         track: primaryTrack,
         rtpSession: rtpSession,
         codec: createVp8Codec(payloadType: 96),
@@ -262,7 +262,7 @@ void main() {
     });
   });
 
-  group('RtpTransceiver', () {
+  group('RTCRtpTransceiver', () {
     test('transceiver has sender and receiver', () {
       final rtpSession = RtpSession(
         localSsrc: 12345,

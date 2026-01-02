@@ -9,8 +9,8 @@ void main() async {
   print('[Audio Test] Starting bidirectional audio test');
 
   // Create two peer connections
-  final pc1 = RtcPeerConnection();
-  final pc2 = RtcPeerConnection();
+  final pc1 = RTCPeerConnection();
+  final pc2 = RTCPeerConnection();
 
   // Track received audio frames
   int pc1ReceivedFrames = 0;

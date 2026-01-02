@@ -24,7 +24,7 @@ void main() async {
   print('- Experiment with ICE candidate trickling');
   print('- Debug SDP negotiation issues');
 
-  final peers = <String, RtcPeerConnection>{};
+  final peers = <String, RTCPeerConnection>{};
   final sockets = <String, WebSocket>{};
 
   await for (final request in server) {
@@ -36,7 +36,7 @@ void main() async {
       sockets[peerId] = socket;
 
       // Create peer connection for this client
-      final pc = RtcPeerConnection(RtcConfiguration(
+      final pc = RTCPeerConnection(RtcConfiguration(
         iceServers: [
           IceServer(urls: ['stun:stun.l.google.com:19302'])
         ],
@@ -87,7 +87,7 @@ void main() async {
 
 void _handleMessage(
   String peerId,
-  RtcPeerConnection pc,
+  RTCPeerConnection pc,
   WebSocket socket,
   dynamic data,
 ) async {
@@ -115,7 +115,7 @@ void _handleMessage(
 
       case 'offer':
         // Client sent us an offer
-        await pc.setRemoteDescription(SessionDescription(
+        await pc.setRemoteDescription(RTCSessionDescription(
           type: 'offer',
           sdp: msg['sdp'] as String,
         ));
@@ -130,7 +130,7 @@ void _handleMessage(
 
       case 'answer':
         // Client sent us an answer
-        await pc.setRemoteDescription(SessionDescription(
+        await pc.setRemoteDescription(RTCSessionDescription(
           type: 'answer',
           sdp: msg['sdp'] as String,
         ));

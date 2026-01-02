@@ -32,7 +32,7 @@ void main() {
       expect(connection.checkList, isEmpty);
 
       // Add a remote candidate
-      final remoteCandidate = Candidate(
+      final remoteCandidate = RTCIceCandidate(
         foundation: '1',
         component: 1,
         transport: 'udp',
@@ -70,7 +70,7 @@ void main() {
       await connection.gatherCandidates();
 
       // Add incompatible remote candidate (will fail connectivity check)
-      final remoteCandidate = Candidate(
+      final remoteCandidate = RTCIceCandidate(
         foundation: '1',
         component: 1,
         transport: 'udp',
@@ -109,7 +109,7 @@ void main() {
     });
 
     test('pair states transition correctly', () {
-      final localCandidate = Candidate(
+      final localCandidate = RTCIceCandidate(
         foundation: '1',
         component: 1,
         transport: 'udp',
@@ -119,7 +119,7 @@ void main() {
         type: 'host',
       );
 
-      final remoteCandidate = Candidate(
+      final remoteCandidate = RTCIceCandidate(
         foundation: '2',
         component: 1,
         transport: 'udp',
@@ -188,7 +188,7 @@ void main() {
       await connection.gatherCandidates();
 
       // Add remote candidate with different component
-      final remoteCandidate = Candidate(
+      final remoteCandidate = RTCIceCandidate(
         foundation: '1',
         component: 2, // Different component
         transport: 'udp',
@@ -220,7 +220,7 @@ void main() {
       }
 
       // Add IPv6 remote candidate
-      final remoteCandidate = Candidate(
+      final remoteCandidate = RTCIceCandidate(
         foundation: '1',
         component: 1,
         transport: 'udp',
@@ -244,7 +244,7 @@ void main() {
       await connection.gatherCandidates();
 
       // Add first remote candidate
-      await connection.addRemoteCandidate(Candidate(
+      await connection.addRemoteCandidate(RTCIceCandidate(
         foundation: '1',
         component: 1,
         transport: 'udp',
@@ -257,7 +257,7 @@ void main() {
       final pairsAfterFirst = connection.checkList.length;
 
       // Add second remote candidate
-      await connection.addRemoteCandidate(Candidate(
+      await connection.addRemoteCandidate(RTCIceCandidate(
         foundation: '2',
         component: 1,
         transport: 'udp',

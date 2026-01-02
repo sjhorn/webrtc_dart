@@ -15,7 +15,7 @@ import 'package:webrtc_dart/src/nonstandard/media/track.dart' as nonstandard;
 
 class ClientConnection {
   final String id;
-  final RtcPeerConnection pc;
+  final RTCPeerConnection pc;
   final nonstandard.MediaStreamTrack videoTrack;
   final List<Map<String, dynamic>> candidates = [];
   DateTime? connectedTime;
@@ -214,7 +214,7 @@ class MultiClientSendonlyServer {
     print('[MultiSendonly] New connection: $clientId');
 
     // Create peer connection for this client
-    final pc = RtcPeerConnection(RtcConfiguration(
+    final pc = RTCPeerConnection(RtcConfiguration(
       iceServers: [
         IceServer(urls: ['stun:stun.l.google.com:19302'])
       ],
@@ -309,7 +309,7 @@ class MultiClientSendonlyServer {
       return;
     }
 
-    final answer = SessionDescription(
+    final answer = RTCSessionDescription(
       type: data['type'] as String,
       sdp: data['sdp'] as String,
     );
@@ -347,7 +347,7 @@ class MultiClientSendonlyServer {
     }
 
     try {
-      final candidate = Candidate.fromSdp(candidateStr);
+      final candidate = RTCIceCandidate.fromSdp(candidateStr);
       await client.pc.addIceCandidate(candidate);
       print('[MultiSendonly] [$clientId] Added candidate: ${candidate.type}');
     } catch (e) {

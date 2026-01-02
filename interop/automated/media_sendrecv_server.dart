@@ -44,7 +44,7 @@ class MediaTestResult {
 
 class MediaSendrecvServer {
   HttpServer? _server;
-  RtcPeerConnection? _pc;
+  RTCPeerConnection? _pc;
   nonstandard.MediaStreamTrack? _sendTrack;
   final List<Map<String, dynamic>> _localCandidates = [];
   Completer<void> _connectionCompleter = Completer();
@@ -145,7 +145,7 @@ class MediaSendrecvServer {
     _echoStarted = false;
 
     // Create peer connection with STUN server
-    _pc = RtcPeerConnection(RtcConfiguration(
+    _pc = RTCPeerConnection(RtcConfiguration(
       iceServers: [
         IceServer(urls: ['stun:stun.l.google.com:19302'])
       ],
@@ -252,7 +252,7 @@ class MediaSendrecvServer {
     final body = await utf8.decodeStream(request);
     final data = jsonDecode(body) as Map<String, dynamic>;
 
-    final answer = SessionDescription(
+    final answer = RTCSessionDescription(
       type: data['type'] as String,
       sdp: data['sdp'] as String,
     );
@@ -290,7 +290,7 @@ class MediaSendrecvServer {
     }
 
     try {
-      final candidate = Candidate.fromSdp(candidateStr);
+      final candidate = RTCIceCandidate.fromSdp(candidateStr);
       await _pc!.addIceCandidate(candidate);
       print('[MediaServer] Added ICE candidate: ${candidate.type}');
     } catch (e) {

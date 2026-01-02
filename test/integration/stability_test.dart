@@ -15,16 +15,16 @@ void main() {
       print('\n=== Starting 20-Second Stability Test ===\n');
 
       // Create two peer connections
-      final pcOffer = RtcPeerConnection();
-      final pcAnswer = RtcPeerConnection();
+      final pcOffer = RTCPeerConnection();
+      final pcAnswer = RTCPeerConnection();
 
       // Wait for transport initialization (certificate generation)
       await Future.delayed(Duration(milliseconds: 500));
 
       // Track ICE candidates - MUST be set up before any SDP exchange
       // to avoid missing candidates that are emitted during setLocalDescription
-      final offerCandidates = <Candidate>[];
-      final answerCandidates = <Candidate>[];
+      final offerCandidates = <RTCIceCandidate>[];
+      final answerCandidates = <RTCIceCandidate>[];
 
       pcOffer.onIceCandidate.listen((candidate) {
         print(
@@ -39,7 +39,7 @@ void main() {
       });
 
       // Create data channel - can now be called before connection is established
-      // Returns a ProxyDataChannel that will be wired to real channel when SCTP is ready
+      // Returns a ProxyRTCDataChannel that will be wired to real channel when SCTP is ready
       final dc = pcOffer.createDataChannel('stability-test');
 
       // Track messages

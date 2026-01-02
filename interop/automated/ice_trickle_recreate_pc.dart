@@ -9,7 +9,7 @@ import 'package:webrtc_dart/webrtc_dart.dart';
 
 class IceTrickleRecreatePcServer {
   HttpServer? _server;
-  RtcPeerConnection? _pc;
+  RTCPeerConnection? _pc;
   dynamic _dc;
   final List<Map<String, dynamic>> _localCandidates = [];
   Completer<void> _dcOpenCompleter = Completer();
@@ -96,7 +96,7 @@ class IceTrickleRecreatePcServer {
     _dcOpenCompleter = Completer();
 
     // Create FIRST PC here (like ice_trickle_with_connect)
-    final firstPc = RtcPeerConnection(RtcConfiguration(
+    final firstPc = RTCPeerConnection(RtcConfiguration(
       iceServers: [
         IceServer(urls: ['stun:stun.l.google.com:19302'])
       ],
@@ -122,7 +122,7 @@ class IceTrickleRecreatePcServer {
     print('[Recreate] Creating SECOND PeerConnection in /connect');
 
     // Create peer connection HERE
-    _pc = RtcPeerConnection(RtcConfiguration(
+    _pc = RTCPeerConnection(RtcConfiguration(
       iceServers: [
         IceServer(urls: ['stun:stun.l.google.com:19302'])
       ],
@@ -164,12 +164,12 @@ class IceTrickleRecreatePcServer {
       return;
     }
 
-    // Create DataChannel before createOffer
+    // Create RTCDataChannel before createOffer
     _dc = _pc!.createDataChannel('recreate-test');
-    print('[Recreate] Created DataChannel: recreate-test');
+    print('[Recreate] Created RTCDataChannel: recreate-test');
 
     _dc!.onStateChange.listen((state) {
-      print('[Recreate] DataChannel state: $state');
+      print('[Recreate] RTCDataChannel state: $state');
       if (state == DataChannelState.open && !_dcOpenCompleter.isCompleted) {
         _dcOpenCompleter.complete();
       }
@@ -201,7 +201,7 @@ class IceTrickleRecreatePcServer {
     final body = await utf8.decodeStream(request);
     final data = jsonDecode(body) as Map<String, dynamic>;
 
-    final answer = SessionDescription(
+    final answer = RTCSessionDescription(
       type: data['type'] as String,
       sdp: data['sdp'] as String,
     );
@@ -237,7 +237,7 @@ class IceTrickleRecreatePcServer {
     }
 
     try {
-      final candidate = Candidate.fromSdp(candidateStr);
+      final candidate = RTCIceCandidate.fromSdp(candidateStr);
       await _pc!.addIceCandidate(candidate);
       print('[Recreate] Received candidate: ${candidate.type}');
     } catch (e) {
@@ -342,10 +342,10 @@ class IceTrickleRecreatePcServer {
 
                 pc.ondatachannel = (e) => {
                     dc = e.channel;
-                    log('Received DataChannel: ' + dc.label, 'success');
+                    log('Received RTCDataChannel: ' + dc.label, 'success');
 
                     dc.onopen = () => {
-                        log('DataChannel open!', 'success');
+                        log('RTCDataChannel open!', 'success');
                     };
 
                     dc.onmessage = (e) => {
@@ -391,9 +391,9 @@ class IceTrickleRecreatePcServer {
                 await waitForConnection();
                 log('Connected!', 'success');
 
-                log('Waiting for DataChannel...');
+                log('Waiting for RTCDataChannel...');
                 await waitForDataChannel();
-                log('DataChannel ready!', 'success');
+                log('RTCDataChannel ready!', 'success');
 
                 const resultResp = await fetch(serverBase + '/result');
                 const result = await resultResp.json();
@@ -434,7 +434,7 @@ class IceTrickleRecreatePcServer {
 
         async function waitForDataChannel() {
             return new Promise((resolve, reject) => {
-                const timeout = setTimeout(() => reject(new Error('DataChannel timeout')), 15000);
+                const timeout = setTimeout(() => reject(new Error('RTCDataChannel timeout')), 15000);
                 const check = () => {
                     if (dc && dc.readyState === 'open') {
                         clearTimeout(timeout);

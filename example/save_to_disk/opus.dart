@@ -52,7 +52,7 @@ class SaveToDiskOpusServer {
     Timer? stopTimer;
 
     // Create PeerConnection with default codecs (like werift)
-    final pc = RtcPeerConnection();
+    final pc = RTCPeerConnection();
 
     // Create MediaRecorder for audio only
     late MediaRecorder recorder;
@@ -177,7 +177,7 @@ class SaveToDiskOpusServer {
           if (msg['type'] == 'answer') {
             print('[Server] Received answer');
             await pc.setRemoteDescription(
-              SessionDescription(type: 'answer', sdp: msg['sdp'] as String),
+              RTCSessionDescription(type: 'answer', sdp: msg['sdp'] as String),
             );
             print('[Server] Remote description set');
           }

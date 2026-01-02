@@ -1,7 +1,7 @@
-/// ICE Trickle with DataChannel Example
+/// ICE Trickle with RTCDataChannel Example
 ///
 /// This example demonstrates ICE trickle (gradual candidate exchange)
-/// with a DataChannel connection. Uses HTTP-style endpoints for
+/// with a RTCDataChannel connection. Uses HTTP-style endpoints for
 /// offer/answer/candidate exchange.
 ///
 /// Usage: dart run example/ice/trickle/dc.dart
@@ -11,17 +11,17 @@ import 'dart:async';
 import 'package:webrtc_dart/webrtc_dart.dart';
 
 void main() async {
-  print('ICE Trickle with DataChannel Example');
+  print('ICE Trickle with RTCDataChannel Example');
   print('=' * 50);
 
   // Create peer connection
-  final pc = RtcPeerConnection();
+  final pc = RTCPeerConnection();
 
   // Wait for transport initialization
   await Future.delayed(Duration(milliseconds: 500));
 
   // Track ICE candidates for trickle
-  final candidates = <Candidate>[];
+  final candidates = <RTCIceCandidate>[];
 
   pc.onIceCandidate.listen((candidate) {
     print(

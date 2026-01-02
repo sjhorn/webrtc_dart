@@ -4,7 +4,7 @@
 // 1. Serves static files (HTML/JS) for browser
 // 2. Creates a PeerConnection and generates an offer
 // 3. Exchanges SDP via HTTP endpoints
-// 4. Tests DataChannel communication
+// 4. Tests RTCDataChannel communication
 
 import 'dart:async';
 import 'dart:convert';
@@ -43,8 +43,8 @@ class TestResult {
 
 class DartSignalingServer {
   HttpServer? _server;
-  RtcPeerConnection? _pc;
-  dynamic _channel; // Can be DataChannel or ProxyDataChannel
+  RTCPeerConnection? _pc;
+  dynamic _channel; // Can be RTCDataChannel or ProxyDataChannel
   final List<String> _receivedMessages = [];
   final List<Map<String, dynamic>> _localCandidates = [];
   int _messagesSent = 0;
@@ -147,7 +147,7 @@ class DartSignalingServer {
     _testCompleter = Completer();
 
     // Create peer connection with STUN server for Firefox compatibility
-    _pc = RtcPeerConnection(RtcConfiguration(
+    _pc = RTCPeerConnection(RtcConfiguration(
       iceServers: [
         IceServer(urls: ['stun:stun.l.google.com:19302'])
       ],
@@ -182,10 +182,10 @@ class DartSignalingServer {
       });
     });
 
-    // Dart is the ANSWERER - Browser creates DataChannel
-    // Listen for incoming DataChannel from browser
+    // Dart is the ANSWERER - Browser creates RTCDataChannel
+    // Listen for incoming RTCDataChannel from browser
     _pc!.onDataChannel.listen((channel) {
-      print('[Server] Received DataChannel: ${channel.label}');
+      print('[Server] Received RTCDataChannel: ${channel.label}');
       _channel = channel;
       _setupChannel(channel);
     });
@@ -196,9 +196,9 @@ class DartSignalingServer {
 
   void _setupChannel(dynamic channel) {
     channel.onStateChange.listen((state) {
-      print('[Server] DataChannel state: $state');
+      print('[Server] RTCDataChannel state: $state');
       if (state == DataChannelState.open) {
-        print('[Server] DataChannel OPEN!');
+        print('[Server] RTCDataChannel OPEN!');
         // Send greeting
         _sendMessage('Hello from Dart!');
       }
@@ -238,7 +238,7 @@ class DartSignalingServer {
     final body = await utf8.decodeStream(request);
     final data = jsonDecode(body) as Map<String, dynamic>;
 
-    final offer = SessionDescription(
+    final offer = RTCSessionDescription(
       type: data['type'] as String,
       sdp: data['sdp'] as String,
     );
@@ -288,7 +288,7 @@ class DartSignalingServer {
     }
 
     try {
-      final candidate = Candidate.fromSdp(candidateStr);
+      final candidate = RTCIceCandidate.fromSdp(candidateStr);
       await _pc!.addIceCandidate(candidate);
       print('[Server] Added ICE candidate: ${candidate.type}');
     } catch (e) {
@@ -431,12 +431,12 @@ class DartSignalingServer {
                         pc.connectionState === 'connected' ? 'success' : 'info');
                 };
 
-                // Browser is the OFFERER, so create DataChannel
+                // Browser is the OFFERER, so create RTCDataChannel
                 dc = pc.createDataChannel('test');
-                log('Created DataChannel: ' + dc.label);
+                log('Created RTCDataChannel: ' + dc.label);
 
                 dc.onopen = () => {
-                    log('DataChannel OPEN!', 'success');
+                    log('RTCDataChannel OPEN!', 'success');
                     setStatus('Connected! Exchanging messages...');
                     // Send test messages
                     for (let i = 1; i <= 3; i++) {
@@ -451,7 +451,7 @@ class DartSignalingServer {
                 };
 
                 dc.onerror = (e) => {
-                    log('DataChannel error: ' + e.error, 'error');
+                    log('RTCDataChannel error: ' + e.error, 'error');
                 };
 
                 // Create offer
@@ -515,10 +515,10 @@ class DartSignalingServer {
                 // Wait for connection
                 await waitForConnection();
 
-                // Wait for DTLS/SCTP/DataChannel setup and message exchange
-                log('Waiting for DataChannel to open...');
+                // Wait for DTLS/SCTP/RTCDataChannel setup and message exchange
+                log('Waiting for RTCDataChannel to open...');
                 await waitForDataChannel();
-                log('DataChannel is open!', 'success');
+                log('RTCDataChannel is open!', 'success');
 
                 // Give time for message exchange
                 await new Promise(resolve => setTimeout(resolve, 3000));
@@ -568,7 +568,7 @@ class DartSignalingServer {
 
         async function waitForDataChannel() {
             return new Promise((resolve, reject) => {
-                const timeout = setTimeout(() => reject(new Error('DataChannel timeout')), 30000);
+                const timeout = setTimeout(() => reject(new Error('RTCDataChannel timeout')), 30000);
 
                 const check = () => {
                     if (dc && dc.readyState === 'open') {

@@ -19,7 +19,7 @@ import 'package:webrtc_dart/src/nonstandard/recorder/media_recorder.dart';
 
 class RtxServer {
   HttpServer? _server;
-  RtcPeerConnection? _pc;
+  RTCPeerConnection? _pc;
   MediaRecorder? _recorder;
   final List<Map<String, dynamic>> _localCandidates = [];
   Completer<void> _connectionCompleter = Completer();
@@ -126,7 +126,7 @@ class RtxServer {
         './recording-rtx-${DateTime.now().millisecondsSinceEpoch}.webm';
 
     // Create peer connection with VP8 + RTX codecs
-    _pc = RtcPeerConnection(RtcConfiguration(
+    _pc = RTCPeerConnection(RtcConfiguration(
       iceServers: [
         IceServer(urls: ['stun:stun.l.google.com:19302'])
       ],
@@ -296,7 +296,7 @@ class RtxServer {
     final body = await utf8.decodeStream(request);
     final data = jsonDecode(body) as Map<String, dynamic>;
 
-    final answer = SessionDescription(
+    final answer = RTCSessionDescription(
       type: data['type'] as String,
       sdp: data['sdp'] as String,
     );
@@ -342,7 +342,7 @@ class RtxServer {
     }
 
     try {
-      final candidate = Candidate.fromSdp(candidateStr);
+      final candidate = RTCIceCandidate.fromSdp(candidateStr);
       await _pc!.addIceCandidate(candidate);
       print('[RTX] Added ICE candidate: ${candidate.type}');
     } catch (e) {

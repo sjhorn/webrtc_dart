@@ -25,7 +25,7 @@ void main() async {
   await signalsDirObj.create(recursive: true);
 
   // Create peer connection
-  final pc = RtcPeerConnection();
+  final pc = RTCPeerConnection();
   print('[Dart Offerer] PeerConnection created');
 
   // Wait for initialization
@@ -65,15 +65,15 @@ void main() async {
   });
 
   // Create datachannel before offer (offerer must create it)
-  print('[Dart Offerer] Creating DataChannel...');
+  print('[Dart Offerer] Creating RTCDataChannel...');
   final channel = pc.createDataChannel('chat');
-  print('[Dart Offerer] DataChannel created: ${channel.label}');
+  print('[Dart Offerer] RTCDataChannel created: ${channel.label}');
 
   // Setup channel handlers
   channel.onStateChange.listen((state) {
-    print('[Dart Offerer] DataChannel state: $state');
+    print('[Dart Offerer] RTCDataChannel state: $state');
     if (state == DataChannelState.open) {
-      print('[Dart Offerer] DataChannel opened!');
+      print('[Dart Offerer] RTCDataChannel opened!');
       print('[Dart Offerer] Sending initial message');
       channel.sendString('Hello from Dart!');
 
@@ -114,7 +114,7 @@ void main() async {
 
   // Also handle any incoming datachannels from JS side
   pc.onDataChannel.listen((incomingChannel) {
-    print('[Dart Offerer] Incoming DataChannel: ${incomingChannel.label}');
+    print('[Dart Offerer] Incoming RTCDataChannel: ${incomingChannel.label}');
   });
 
   // Create and write offer
@@ -138,7 +138,7 @@ void main() async {
   // Wait for answer file
   final answerData = await waitForFile(answerFile);
   final answerJson = jsonDecode(answerData) as Map<String, dynamic>;
-  final answer = SessionDescription(
+  final answer = RTCSessionDescription(
     type: answerJson['type'] as String,
     sdp: answerJson['sdp'] as String,
   );
@@ -197,7 +197,7 @@ Future<String> waitForFile(String filePath) async {
 }
 
 /// Poll for ICE candidates from a file and add them to the peer connection
-void pollForCandidates(RtcPeerConnection pc, String candidatesFile) {
+void pollForCandidates(RTCPeerConnection pc, String candidatesFile) {
   var lastSize = 0;
 
   Timer.periodic(Duration(milliseconds: 100), (timer) async {
@@ -227,8 +227,8 @@ void pollForCandidates(RtcPeerConnection pc, String candidatesFile) {
             candidateStr = candidateStr.substring('candidate:'.length);
           }
 
-          // Create Candidate object from SDP format
-          final candidate = Candidate.fromSdp(candidateStr);
+          // Create RTCIceCandidate object from SDP format
+          final candidate = RTCIceCandidate.fromSdp(candidateStr);
 
           await pc.addIceCandidate(candidate);
           print(

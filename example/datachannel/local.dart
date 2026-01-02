@@ -1,4 +1,4 @@
-/// Local DataChannel Example
+/// Local RTCDataChannel Example
 ///
 /// This example creates two peer connections locally and establishes
 /// a datachannel between them to exchange messages.
@@ -14,8 +14,8 @@ void main() async {
   print('Starting local datachannel example...\n');
 
   // Create two peer connections
-  final pcOffer = RtcPeerConnection();
-  final pcAnswer = RtcPeerConnection();
+  final pcOffer = RTCPeerConnection();
+  final pcAnswer = RTCPeerConnection();
 
   // Wait for transport initialization (certificate generation, etc.)
   print('Waiting for transport initialization...');
@@ -87,7 +87,7 @@ void main() async {
         '[Offer] Generated ICE candidate: ${candidate.type} at ${candidate.host}:${candidate.port}');
     print('[Offer] Adding candidate to Answer');
     await pcAnswer.addIceCandidate(candidate);
-    print('[Offer] Candidate added');
+    print('[Offer] RTCIceCandidate added');
   });
 
   pcAnswer.onIceCandidate.listen((candidate) async {
@@ -95,7 +95,7 @@ void main() async {
         '[Answer] Generated ICE candidate: ${candidate.type} at ${candidate.host}:${candidate.port}');
     print('[Answer] Adding candidate to Offer');
     await pcOffer.addIceCandidate(candidate);
-    print('[Answer] Candidate added');
+    print('[Answer] RTCIceCandidate added');
   });
 
   // Handle incoming datachannel on answering side
@@ -172,7 +172,7 @@ void main() async {
   // Now create datachannel (after transport is connected)
   print('Creating datachannel "chat"...');
   final dc = pcOffer.createDataChannel('chat');
-  print('DataChannel created: ${dc.label}\n');
+  print('RTCDataChannel created: ${dc.label}\n');
 
   dc.onStateChange.listen((state) {
     print('[Offer DC] State changed: $state');
@@ -190,8 +190,8 @@ void main() async {
     offerMessages.add(text);
   });
 
-  // Wait for DataChannel to open and exchange messages
-  print('Waiting for DataChannel messages...');
+  // Wait for RTCDataChannel to open and exchange messages
+  print('Waiting for RTCDataChannel messages...');
   await Future.delayed(Duration(seconds: 2));
 
   // Summary
@@ -217,7 +217,7 @@ void main() async {
   }
 
   if (offerMessages.isNotEmpty && answerMessages.isNotEmpty) {
-    print('\n✅ SUCCESS: DataChannel message exchange complete!');
+    print('\n✅ SUCCESS: RTCDataChannel message exchange complete!');
   } else {
     print('\n⚠️  WARNING: No messages were exchanged');
   }

@@ -62,10 +62,10 @@ class RtcIceGatherer {
 
   /// Stream controller for ICE candidates
   /// null indicates end-of-candidates
-  final _iceCandidateController = StreamController<Candidate?>.broadcast();
+  final _iceCandidateController = StreamController<RTCIceCandidate?>.broadcast();
 
   /// Subscription to connection's candidate stream
-  StreamSubscription<Candidate>? _candidateSubscription;
+  StreamSubscription<RTCIceCandidate>? _candidateSubscription;
 
   /// Creates an RTCIceGatherer wrapping the given ICE connection.
   ///
@@ -92,10 +92,10 @@ class RtcIceGatherer {
       _gatheringStateController.stream;
 
   /// Stream of ICE candidates (null indicates end-of-candidates)
-  Stream<Candidate?> get onIceCandidate => _iceCandidateController.stream;
+  Stream<RTCIceCandidate?> get onIceCandidate => _iceCandidateController.stream;
 
   /// Local candidates that have been gathered
-  List<Candidate> get localCandidates => connection.localCandidates;
+  List<RTCIceCandidate> get localCandidates => connection.localCandidates;
 
   /// Local ICE parameters (username fragment and password)
   RtcIceParameters get localParameters => RtcIceParameters(

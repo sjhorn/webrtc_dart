@@ -31,7 +31,7 @@ void main(List<String> args) async {
   print('Waiting for offer...\n');
 
   // Create peer connection
-  final pc = RtcPeerConnection();
+  final pc = RTCPeerConnection();
   print('Created PeerConnection');
 
   // Track connection state
@@ -49,7 +49,7 @@ void main(List<String> args) async {
   });
 
   // Collect ICE candidates
-  final candidates = <Candidate>[];
+  final candidates = <RTCIceCandidate>[];
   pc.onIceCandidate.listen((candidate) {
     print(
         '[PC] Generated ICE candidate: ${candidate.type} at ${candidate.host}:${candidate.port}');
@@ -86,14 +86,14 @@ void main(List<String> args) async {
 
     if (type == 'offer') {
       print('Received offer');
-      final offer = SessionDescription(type: 'offer', sdp: message['sdp']);
+      final offer = RTCSessionDescription(type: 'offer', sdp: message['sdp']);
       await pc.setRemoteDescription(offer);
       print('Remote description set');
 
       // Add remote ICE candidates
       if (message['candidates'] != null) {
         for (final candidateData in message['candidates']) {
-          final candidate = Candidate.fromSdp(candidateData['candidate']);
+          final candidate = RTCIceCandidate.fromSdp(candidateData['candidate']);
           await pc.addIceCandidate(candidate);
           print('Added remote ICE candidate');
         }

@@ -26,8 +26,8 @@ void main() {
       ice2.onData.listen(ice2Data.add);
 
       // Track ICE candidates
-      final ice1Candidates = <Candidate>[];
-      final ice2Candidates = <Candidate>[];
+      final ice1Candidates = <RTCIceCandidate>[];
+      final ice2Candidates = <RTCIceCandidate>[];
 
       ice1.onIceCandidate.listen(ice1Candidates.add);
       ice2.onIceCandidate.listen(ice2Candidates.add);
@@ -158,7 +158,7 @@ void main() {
         options: const IceOptions(),
       );
 
-      final candidates = <Candidate>[];
+      final candidates = <RTCIceCandidate>[];
       ice.onIceCandidate.listen(candidates.add);
 
       await ice.gatherCandidates();

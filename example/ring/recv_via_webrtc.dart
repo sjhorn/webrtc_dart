@@ -97,11 +97,11 @@ class RingTestState {
 
 class BrowserClient {
   final String id;
-  final RtcPeerConnection pc;
+  final RTCPeerConnection pc;
   final nonstandard.MediaStreamTrack videoTrack;
   final nonstandard.MediaStreamTrack audioTrack;
-  RtpTransceiver? videoTransceiver;
-  RtpTransceiver? audioTransceiver;
+  RTCRtpTransceiver? videoTransceiver;
+  RTCRtpTransceiver? audioTransceiver;
   bool connected = false;
   bool videoFlowing = false;
   bool audioFlowing = false;
@@ -290,7 +290,7 @@ class RingVideoServer {
     _log('[Browser:$clientId] WebSocket connected');
 
     // Create peer connection for browser client
-    final pc = RtcPeerConnection(
+    final pc = RTCPeerConnection(
       RtcConfiguration(
         codecs: RtcCodecs(
           audio: [
@@ -376,7 +376,7 @@ class RingVideoServer {
           final answer = jsonDecode(data as String) as Map<String, dynamic>;
           if (answer['type'] == 'answer') {
             await pc.setRemoteDescription(
-              SessionDescription(
+              RTCSessionDescription(
                 type: answer['type'] as String,
                 sdp: answer['sdp'] as String,
               ),

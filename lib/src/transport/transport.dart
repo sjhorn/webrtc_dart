@@ -386,16 +386,16 @@ class IntegratedTransport {
   /// DTLS Transport (manages DTLS handshake and SRTP)
   late final rtc.RtcDtlsTransport _dtlsTransport;
 
-  // ============= SCTP/DataChannel Components =============
+  // ============= SCTP/RTCDataChannel Components =============
 
   /// SCTP association for reliable data transport (optional)
   SctpAssociation? sctpAssociation;
 
-  /// DataChannel manager
+  /// RTCDataChannel manager
   dcm.DataChannelManager? dataChannelManager;
 
   /// Effective DTLS role (after auto-detection)
-  /// Used for DataChannel stream ID allocation per RFC 8832
+  /// Used for RTCDataChannel stream ID allocation per RFC 8832
   rtc.RtcDtlsRole? _effectiveDtlsRole;
 
   // ============= State and Event Streams =============
@@ -409,8 +409,8 @@ class IntegratedTransport {
   /// Data received stream (decrypted application data from DTLS)
   final _dataController = StreamController<Uint8List>.broadcast();
 
-  /// DataChannel stream
-  final _dataChannelController = StreamController<DataChannel>.broadcast();
+  /// RTCDataChannel stream
+  final _dataChannelController = StreamController<RTCDataChannel>.broadcast();
 
   /// RTP/RTCP data stream (encrypted SRTP - kept for backwards compat)
   final _rtpDataController = StreamController<Uint8List>.broadcast();
@@ -527,7 +527,7 @@ class IntegratedTransport {
   Stream<Uint8List> get onData => _dataController.stream;
 
   /// Stream of new incoming DataChannels
-  Stream<DataChannel> get onDataChannel => _dataChannelController.stream;
+  Stream<RTCDataChannel> get onDataChannel => _dataChannelController.stream;
 
   /// Stream of RTP/RTCP packets (encrypted SRTP - for backwards compat)
   Stream<Uint8List> get onRtpData => _rtpDataController.stream;
@@ -659,11 +659,11 @@ class IntegratedTransport {
           }
         },
         onReceiveData: (streamId, data, ppid) {
-          // Route to DataChannel manager if available
+          // Route to RTCDataChannel manager if available
           if (dataChannelManager != null) {
             dataChannelManager!.handleIncomingData(streamId, data, ppid);
           } else {
-            // No DataChannel manager, deliver raw data
+            // No RTCDataChannel manager, deliver raw data
             _dataController.add(data);
           }
         },
@@ -679,7 +679,7 @@ class IntegratedTransport {
         }
       });
 
-      // Create DataChannel manager with proper stream ID allocation
+      // Create RTCDataChannel manager with proper stream ID allocation
       // Per RFC 8832: DTLS server uses odd stream IDs (1, 3, 5, ...)
       dataChannelManager = dcm.DataChannelManager(
         association: sctpAssociation!,
@@ -729,7 +729,7 @@ class IntegratedTransport {
     }
 
     for (final config in _pendingDataChannels) {
-      _log.fine('[$debugLabel] Creating real DataChannel: ${config.label}');
+      _log.fine('[$debugLabel] Creating real RTCDataChannel: ${config.label}');
       // Create the real channel now that SCTP is ready
       final realChannel = dataChannelManager!.createDataChannel(
         label: config.label,
@@ -747,10 +747,10 @@ class IntegratedTransport {
     _pendingDataChannels.clear();
   }
 
-  /// Create a new DataChannel
-  /// If SCTP is not yet ready, returns a ProxyDataChannel that will be
+  /// Create a new RTCDataChannel
+  /// If SCTP is not yet ready, returns a ProxyRTCDataChannel that will be
   /// initialized once the connection is established.
-  /// Returns DataChannel for type compatibility (ProxyDataChannel has same API)
+  /// Returns RTCDataChannel for type compatibility (ProxyRTCDataChannel has same API)
   dynamic createDataChannel({
     required String label,
     String protocol = '',
@@ -774,7 +774,7 @@ class IntegratedTransport {
     }
 
     // SCTP not ready yet - create proxy channel that will be wired up later
-    final proxy = ProxyDataChannel(
+    final proxy = ProxyRTCDataChannel(
       label: label,
       protocol: protocol,
       ordered: ordered,

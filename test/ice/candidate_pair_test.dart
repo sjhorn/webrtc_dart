@@ -4,11 +4,11 @@ import 'package:webrtc_dart/src/ice/candidate_pair.dart';
 
 void main() {
   group('CandidatePair', () {
-    late Candidate localCandidate;
-    late Candidate remoteCandidate;
+    late RTCIceCandidate localCandidate;
+    late RTCIceCandidate remoteCandidate;
 
     setUp(() {
-      localCandidate = Candidate(
+      localCandidate = RTCIceCandidate(
         foundation: '1',
         component: 1,
         transport: 'udp',
@@ -18,7 +18,7 @@ void main() {
         type: 'host',
       );
 
-      remoteCandidate = Candidate(
+      remoteCandidate = RTCIceCandidate(
         foundation: '2',
         component: 1,
         transport: 'udp',
@@ -155,7 +155,7 @@ void main() {
 
   group('candidatePairPriority', () {
     test('computes priority for controlling agent', () {
-      final local = Candidate(
+      final local = RTCIceCandidate(
         foundation: '1',
         component: 1,
         transport: 'udp',
@@ -165,7 +165,7 @@ void main() {
         type: 'host',
       );
 
-      final remote = Candidate(
+      final remote = RTCIceCandidate(
         foundation: '2',
         component: 1,
         transport: 'udp',
@@ -180,7 +180,7 @@ void main() {
     });
 
     test('computes priority for controlled agent', () {
-      final local = Candidate(
+      final local = RTCIceCandidate(
         foundation: '1',
         component: 1,
         transport: 'udp',
@@ -190,7 +190,7 @@ void main() {
         type: 'srflx',
       );
 
-      final remote = Candidate(
+      final remote = RTCIceCandidate(
         foundation: '2',
         component: 1,
         transport: 'udp',
@@ -205,7 +205,7 @@ void main() {
     });
 
     test('different roles produce different priorities', () {
-      final local = Candidate(
+      final local = RTCIceCandidate(
         foundation: '1',
         component: 1,
         transport: 'udp',
@@ -215,7 +215,7 @@ void main() {
         type: 'host',
       );
 
-      final remote = Candidate(
+      final remote = RTCIceCandidate(
         foundation: '2',
         component: 1,
         transport: 'udp',
@@ -232,7 +232,7 @@ void main() {
     });
 
     test('higher priority candidates produce higher pair priorities', () {
-      final highPriorityLocal = Candidate(
+      final highPriorityLocal = RTCIceCandidate(
         foundation: '1',
         component: 1,
         transport: 'udp',
@@ -242,7 +242,7 @@ void main() {
         type: 'host',
       );
 
-      final lowPriorityLocal = Candidate(
+      final lowPriorityLocal = RTCIceCandidate(
         foundation: '2',
         component: 1,
         transport: 'udp',
@@ -252,7 +252,7 @@ void main() {
         type: 'srflx',
       );
 
-      final remote = Candidate(
+      final remote = RTCIceCandidate(
         foundation: '3',
         component: 1,
         transport: 'udp',
@@ -272,7 +272,7 @@ void main() {
 
   group('sortCandidatePairs', () {
     test('sorts pairs by priority (highest first)', () {
-      final local1 = Candidate(
+      final local1 = RTCIceCandidate(
         foundation: '1',
         component: 1,
         transport: 'udp',
@@ -282,7 +282,7 @@ void main() {
         type: 'host',
       );
 
-      final local2 = Candidate(
+      final local2 = RTCIceCandidate(
         foundation: '2',
         component: 1,
         transport: 'udp',
@@ -292,7 +292,7 @@ void main() {
         type: 'srflx',
       );
 
-      final remote = Candidate(
+      final remote = RTCIceCandidate(
         foundation: '3',
         component: 1,
         transport: 'udp',
@@ -330,7 +330,7 @@ void main() {
     test('handles single pair', () {
       final pair = CandidatePair(
         id: 'pair1',
-        localCandidate: Candidate(
+        localCandidate: RTCIceCandidate(
           foundation: '1',
           component: 1,
           transport: 'udp',
@@ -339,7 +339,7 @@ void main() {
           port: 1234,
           type: 'host',
         ),
-        remoteCandidate: Candidate(
+        remoteCandidate: RTCIceCandidate(
           foundation: '2',
           component: 1,
           transport: 'udp',
@@ -359,7 +359,7 @@ void main() {
 
   group('validateRemoteCandidate', () {
     test('accepts host candidate', () {
-      final candidate = Candidate(
+      final candidate = RTCIceCandidate(
         foundation: '1',
         component: 1,
         transport: 'udp',
@@ -373,7 +373,7 @@ void main() {
     });
 
     test('accepts srflx candidate', () {
-      final candidate = Candidate(
+      final candidate = RTCIceCandidate(
         foundation: '1',
         component: 1,
         transport: 'udp',
@@ -387,7 +387,7 @@ void main() {
     });
 
     test('accepts relay candidate', () {
-      final candidate = Candidate(
+      final candidate = RTCIceCandidate(
         foundation: '1',
         component: 1,
         transport: 'udp',
@@ -401,7 +401,7 @@ void main() {
     });
 
     test('rejects prflx candidate', () {
-      final candidate = Candidate(
+      final candidate = RTCIceCandidate(
         foundation: '1',
         component: 1,
         transport: 'udp',
@@ -415,7 +415,7 @@ void main() {
     });
 
     test('rejects unknown candidate type', () {
-      final candidate = Candidate(
+      final candidate = RTCIceCandidate(
         foundation: '1',
         component: 1,
         transport: 'udp',

@@ -43,12 +43,12 @@ void main() async {
     iceTransportPolicy: IceTransportPolicy.relay,
   );
 
-  final pc1 = RtcPeerConnection(config);
-  final pc2 = RtcPeerConnection(config);
+  final pc1 = RTCPeerConnection(config);
+  final pc2 = RTCPeerConnection(config);
 
   // Track candidates
-  final candidatesFromPc1 = <Candidate>[];
-  final candidatesFromPc2 = <Candidate>[];
+  final candidatesFromPc1 = <RTCIceCandidate>[];
+  final candidatesFromPc2 = <RTCIceCandidate>[];
 
   // Track connection ready
   final connected = Completer<void>();
@@ -89,20 +89,20 @@ void main() async {
   pc1.onIceCandidate.listen((candidate) {
     candidatesFromPc1.add(candidate);
     print(
-        '[PC1] Candidate: ${candidate.type} (${candidate.host}:${candidate.port})');
+        '[PC1] RTCIceCandidate: ${candidate.type} (${candidate.host}:${candidate.port})');
     pc2.addIceCandidate(candidate);
   });
 
   pc2.onIceCandidate.listen((candidate) {
     candidatesFromPc2.add(candidate);
     print(
-        '[PC2] Candidate: ${candidate.type} (${candidate.host}:${candidate.port})');
+        '[PC2] RTCIceCandidate: ${candidate.type} (${candidate.host}:${candidate.port})');
     pc1.addIceCandidate(candidate);
   });
 
   // Create a data channel for testing
-  late DataChannel dc1;
-  late DataChannel dc2;
+  late RTCDataChannel dc1;
+  late RTCDataChannel dc2;
   final dcReady = Completer<void>();
 
   pc2.onDataChannel.listen((channel) {
@@ -118,7 +118,7 @@ void main() async {
     }
   });
 
-  dc1 = pc1.createDataChannel('turn-test') as DataChannel;
+  dc1 = pc1.createDataChannel('turn-test') as RTCDataChannel;
   dc1.onStateChange.listen((state) {
     print('[DC] State: $state');
   });
@@ -172,7 +172,7 @@ void main() async {
 
   // Show candidate summary
   print('');
-  print('--- Candidate Summary ---');
+  print('--- RTCIceCandidate Summary ---');
   print('PC1 candidates: ${candidatesFromPc1.length}');
   for (final c in candidatesFromPc1) {
     print('  - ${c.type}: ${c.host}:${c.port}');

@@ -129,9 +129,9 @@ void main() {
     });
   });
 
-  group('RtcPeerConnection restartIce', () {
+  group('RTCPeerConnection restartIce', () {
     test('restartIce sets needsRestart flag', () async {
-      final pc = RtcPeerConnection();
+      final pc = RTCPeerConnection();
 
       // Wait for initialization
       await Future.delayed(Duration(milliseconds: 100));
@@ -144,7 +144,7 @@ void main() {
     });
 
     test('restartIce throws if connection is closed', () async {
-      final pc = RtcPeerConnection();
+      final pc = RTCPeerConnection();
 
       await Future.delayed(Duration(milliseconds: 100));
       await pc.close();
@@ -167,7 +167,7 @@ void main() {
 
   group('createOffer with iceRestart', () {
     test('createOffer with iceRestart generates new credentials', () async {
-      final pc = RtcPeerConnection();
+      final pc = RTCPeerConnection();
 
       // Wait for initialization
       await Future.delayed(Duration(milliseconds: 100));
@@ -196,7 +196,7 @@ void main() {
     });
 
     test('createOffer after restartIce generates new credentials', () async {
-      final pc = RtcPeerConnection();
+      final pc = RTCPeerConnection();
 
       // Wait for initialization
       await Future.delayed(Duration(milliseconds: 100));
@@ -228,7 +228,7 @@ void main() {
 
     test('multiple createOffer without iceRestart keeps same credentials',
         () async {
-      final pc = RtcPeerConnection();
+      final pc = RTCPeerConnection();
 
       // Wait for initialization
       await Future.delayed(Duration(milliseconds: 100));
@@ -256,7 +256,7 @@ void main() {
 
   group('Remote ICE restart detection', () {
     test('detects remote ICE restart when credentials change', () async {
-      final pc = RtcPeerConnection();
+      final pc = RTCPeerConnection();
 
       // Wait for initialization
       await Future.delayed(Duration(milliseconds: 100));
@@ -278,7 +278,7 @@ a=sctp-port:5000
 ''';
 
       await pc.setRemoteDescription(
-          SessionDescription(type: 'offer', sdp: remoteSdp1));
+          RTCSessionDescription(type: 'offer', sdp: remoteSdp1));
 
       // Create and set local answer
       final answer1 = await pc.createAnswer();
@@ -302,7 +302,7 @@ a=sctp-port:5000
 
       // This should detect the remote ICE restart
       await pc.setRemoteDescription(
-          SessionDescription(type: 'offer', sdp: remoteSdp2));
+          RTCSessionDescription(type: 'offer', sdp: remoteSdp2));
 
       // The local ICE connection should have been restarted
       // (Generation incremented, new credentials)
@@ -313,7 +313,7 @@ a=sctp-port:5000
     });
 
     test('same credentials do not trigger ICE restart', () async {
-      final pc = RtcPeerConnection();
+      final pc = RTCPeerConnection();
 
       // Wait for initialization
       await Future.delayed(Duration(milliseconds: 100));
@@ -335,14 +335,14 @@ a=sctp-port:5000
 ''';
 
       await pc.setRemoteDescription(
-          SessionDescription(type: 'offer', sdp: remoteSdp));
+          RTCSessionDescription(type: 'offer', sdp: remoteSdp));
 
       final answer = await pc.createAnswer();
       await pc.setLocalDescription(answer);
 
       // Set same remote description again (no credential change)
       await pc.setRemoteDescription(
-          SessionDescription(type: 'offer', sdp: remoteSdp));
+          RTCSessionDescription(type: 'offer', sdp: remoteSdp));
 
       // No ICE restart should occur - test passes if no exceptions
 

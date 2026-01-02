@@ -18,7 +18,7 @@ import 'package:webrtc_dart/webrtc_dart.dart';
 
 class SaveToDiskGstServer {
   HttpServer? _server;
-  RtcPeerConnection? _pc;
+  RTCPeerConnection? _pc;
   final List<Map<String, dynamic>> _localCandidates = [];
   Completer<void> _connectionCompleter = Completer();
   DateTime? _startTime;
@@ -174,7 +174,7 @@ class SaveToDiskGstServer {
     await Future.delayed(Duration(milliseconds: 500));
 
     // Create peer connection with VP8 codec
-    _pc = RtcPeerConnection(RtcConfiguration(
+    _pc = RTCPeerConnection(RtcConfiguration(
       iceServers: [
         IceServer(urls: ['stun:stun.l.google.com:19302'])
       ],
@@ -322,7 +322,7 @@ class SaveToDiskGstServer {
     final body = await utf8.decodeStream(request);
     final data = jsonDecode(body) as Map<String, dynamic>;
 
-    final answer = SessionDescription(
+    final answer = RTCSessionDescription(
       type: data['type'] as String,
       sdp: data['sdp'] as String,
     );
@@ -359,7 +359,7 @@ class SaveToDiskGstServer {
     }
 
     try {
-      final candidate = Candidate.fromSdp(candidateStr);
+      final candidate = RTCIceCandidate.fromSdp(candidateStr);
       await _pc!.addIceCandidate(candidate);
       print('[SaveToDisk-GST] Added ICE candidate: ${candidate.type}');
     } catch (e) {

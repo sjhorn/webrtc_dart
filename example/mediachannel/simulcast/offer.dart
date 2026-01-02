@@ -43,7 +43,7 @@ class SimulcastServer {
 
     // Create PeerConnection with RID header extensions (like werift)
     // useSdesRTPStreamId() and useRepairedRtpStreamId()
-    final pc = RtcPeerConnection(RtcConfiguration(
+    final pc = RTCPeerConnection(RtcConfiguration(
       codecs: RtcCodecs(
         video: [
           RtpCodecParameters(
@@ -91,7 +91,7 @@ class SimulcastServer {
         '[Server] Added recvonly transceiver with simulcast (high, middle, low)');
 
     // Create 3 sendonly transceivers for forwarding each layer (like werift)
-    final multiCast = <String, RtpTransceiver>{
+    final multiCast = <String, RTCRtpTransceiver>{
       'high': pc.addTransceiver(
         MediaStreamTrackKind.video,
         direction: RtpTransceiverDirection.sendonly,
@@ -193,7 +193,7 @@ class SimulcastServer {
             }
 
             await pc.setRemoteDescription(
-              SessionDescription(type: 'answer', sdp: answerSdp),
+              RTCSessionDescription(type: 'answer', sdp: answerSdp),
             );
             print('[Server] Remote description set');
           }

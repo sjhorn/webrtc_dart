@@ -22,7 +22,7 @@ void main() async {
   wsServer.transform(WebSocketTransformer()).listen((WebSocket socket) async {
     print('[WS] Client connected');
 
-    final pc = RtcPeerConnection(RtcConfiguration(
+    final pc = RTCPeerConnection(RtcConfiguration(
       iceServers: [
         IceServer(urls: ['stun:stun.l.google.com:19302'])
       ],
@@ -42,7 +42,7 @@ void main() async {
       final msg = jsonDecode(data as String);
 
       if (msg['type'] == 'offer') {
-        final offer = SessionDescription(type: 'offer', sdp: msg['sdp']);
+        final offer = RTCSessionDescription(type: 'offer', sdp: msg['sdp']);
         await pc.setRemoteDescription(offer);
         print('[SDP] Remote description set');
 
@@ -60,7 +60,7 @@ void main() async {
         }));
         print('[SDP] Answer sent');
       } else if (msg['candidate'] != null) {
-        final candidate = Candidate.fromSdp(msg['candidate']);
+        final candidate = RTCIceCandidate.fromSdp(msg['candidate']);
         await pc.addIceCandidate(candidate);
       }
     }, onDone: () {

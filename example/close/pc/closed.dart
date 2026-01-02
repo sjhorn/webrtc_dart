@@ -16,13 +16,13 @@ void main() async {
   print('');
 
   // Create two peer connections
-  final pc1 = RtcPeerConnection();
-  final pc2 = RtcPeerConnection();
+  final pc1 = RTCPeerConnection();
+  final pc2 = RTCPeerConnection();
 
   // Wait for transport initialization
   await Future.delayed(Duration(milliseconds: 500));
 
-  // Track data channels (dynamic - can be DataChannel or ProxyDataChannel)
+  // Track data channels (dynamic - can be RTCDataChannel or ProxyDataChannel)
   late dynamic dc1;
   late dynamic dc2;
 
@@ -58,7 +58,7 @@ void main() async {
   // Handle incoming datachannel on pc2
   pc2.onDataChannel.listen((channel) {
     dc2 = channel;
-    print('[DC2] Received DataChannel: ${channel.label}');
+    print('[DC2] Received RTCDataChannel: ${channel.label}');
 
     channel.onStateChange.listen((state) {
       print('[DC2] State changed: $state');
@@ -84,7 +84,7 @@ void main() async {
 
   // Create datachannel on pc1
   dc1 = pc1.createDataChannel('test');
-  print('[DC1] Created DataChannel: ${dc1.label}');
+  print('[DC1] Created RTCDataChannel: ${dc1.label}');
 
   dc1.onStateChange.listen((state) {
     print('[DC1] State changed: $state');

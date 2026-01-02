@@ -44,7 +44,7 @@ final Map<String, List<RtpPacket>> keyframeCache = {};
 
 /// Pending subscriptions waiting for tracks to be received
 /// Key: media ID, Value: list of (client, transceiver) pairs
-final Map<String, List<(ClientSession, RtpTransceiver)>> pendingSubscriptions =
+final Map<String, List<(ClientSession, RTCRtpTransceiver)>> pendingSubscriptions =
     {};
 
 /// All connected clients for broadcast notifications
@@ -52,7 +52,7 @@ final List<ClientSession> clients = [];
 
 class ClientSession {
   final WebSocket socket;
-  RtcPeerConnection? pc;
+  RTCPeerConnection? pc;
 
   ClientSession(this.socket);
 
@@ -106,7 +106,7 @@ class PubSubServer {
     print('[Server] Client connected (${clients.length} total)');
 
     // Create PeerConnection for this client
-    client.pc = RtcPeerConnection(
+    client.pc = RTCPeerConnection(
       RtcConfiguration(
         iceServers: [
           IceServer(urls: ['stun:stun.l.google.com:19302'])
@@ -438,7 +438,7 @@ class PubSubServer {
   ) async {
     final sdp = payload['sdp'] as String;
     await client.pc!.setRemoteDescription(
-      SessionDescription(type: 'answer', sdp: sdp),
+      RTCSessionDescription(type: 'answer', sdp: sdp),
     );
   }
 

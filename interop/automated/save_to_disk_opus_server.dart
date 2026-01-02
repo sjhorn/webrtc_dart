@@ -17,7 +17,7 @@ import 'package:webrtc_dart/src/nonstandard/recorder/media_recorder.dart';
 
 class SaveToDiskOpusServer {
   HttpServer? _server;
-  RtcPeerConnection? _pc;
+  RTCPeerConnection? _pc;
   MediaRecorder? _recorder;
   final List<Map<String, dynamic>> _localCandidates = [];
   Completer<void> _connectionCompleter = Completer();
@@ -120,7 +120,7 @@ class SaveToDiskOpusServer {
         './recording-opus-${DateTime.now().millisecondsSinceEpoch}.webm';
 
     // Create peer connection - Opus is the default audio codec
-    _pc = RtcPeerConnection(RtcConfiguration(
+    _pc = RTCPeerConnection(RtcConfiguration(
       iceServers: [
         IceServer(urls: ['stun:stun.l.google.com:19302'])
       ],
@@ -251,7 +251,7 @@ class SaveToDiskOpusServer {
     final body = await utf8.decodeStream(request);
     final data = jsonDecode(body) as Map<String, dynamic>;
 
-    final answer = SessionDescription(
+    final answer = RTCSessionDescription(
       type: data['type'] as String,
       sdp: data['sdp'] as String,
     );
@@ -288,7 +288,7 @@ class SaveToDiskOpusServer {
     }
 
     try {
-      final candidate = Candidate.fromSdp(candidateStr);
+      final candidate = RTCIceCandidate.fromSdp(candidateStr);
       await _pc!.addIceCandidate(candidate);
       print('[SaveToDisk-Opus] Added ICE candidate: ${candidate.type}');
     } catch (e) {

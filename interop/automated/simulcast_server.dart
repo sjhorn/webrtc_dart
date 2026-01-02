@@ -18,8 +18,8 @@ import 'package:webrtc_dart/src/nonstandard/recorder/media_recorder.dart';
 
 class SimulcastServer {
   HttpServer? _server;
-  RtcPeerConnection? _pc;
-  RtpTransceiver? _transceiver;
+  RTCPeerConnection? _pc;
+  RTCRtpTransceiver? _transceiver;
   MediaRecorder? _recorder;
   final List<Map<String, dynamic>> _localCandidates = [];
   Completer<void> _connectionCompleter = Completer();
@@ -128,7 +128,7 @@ class SimulcastServer {
         './recording-simulcast-${DateTime.now().millisecondsSinceEpoch}.webm';
 
     // Create peer connection with simulcast support
-    _pc = RtcPeerConnection(RtcConfiguration(
+    _pc = RTCPeerConnection(RtcConfiguration(
       iceServers: [
         IceServer(urls: ['stun:stun.l.google.com:19302'])
       ],
@@ -338,7 +338,7 @@ class SimulcastServer {
     final body = await utf8.decodeStream(request);
     final data = jsonDecode(body) as Map<String, dynamic>;
 
-    final answer = SessionDescription(
+    final answer = RTCSessionDescription(
       type: data['type'] as String,
       sdp: data['sdp'] as String,
     );
@@ -383,7 +383,7 @@ class SimulcastServer {
     }
 
     try {
-      final candidate = Candidate.fromSdp(candidateStr);
+      final candidate = RTCIceCandidate.fromSdp(candidateStr);
       await _pc!.addIceCandidate(candidate);
       print('[Simulcast] Added ICE candidate: ${candidate.type}');
     } catch (e) {

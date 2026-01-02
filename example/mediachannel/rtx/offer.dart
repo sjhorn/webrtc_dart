@@ -16,8 +16,8 @@ void main() async {
   print('');
 
   // Create two peer connections
-  final sender = RtcPeerConnection();
-  final receiver = RtcPeerConnection();
+  final sender = RTCPeerConnection();
+  final receiver = RTCPeerConnection();
 
   // Track connection ready
   final connected = Completer<void>();

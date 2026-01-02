@@ -1,7 +1,7 @@
 /// Close PeerConnection - Closing State Example
 ///
 /// This example demonstrates closing a PeerConnection while
-/// a DataChannel is active. Shows how PC close affects DC.
+/// a RTCDataChannel is active. Shows how PC close affects DC.
 ///
 /// Usage: dart run example/close/pc/closing.dart
 library;
@@ -14,8 +14,8 @@ void main() async {
   print('=' * 50);
 
   // Create two peer connections
-  final pc1 = RtcPeerConnection();
-  final pc2 = RtcPeerConnection();
+  final pc1 = RTCPeerConnection();
+  final pc2 = RTCPeerConnection();
 
   // Wait for transport initialization
   await Future.delayed(Duration(milliseconds: 500));

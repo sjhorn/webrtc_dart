@@ -23,11 +23,11 @@ import 'package:webrtc_dart/webrtc_dart.dart';
 
 class SimulcastSelectServer {
   HttpServer? _server;
-  RtcPeerConnection? _pc;
+  RTCPeerConnection? _pc;
   final List<Map<String, dynamic>> _localCandidates = [];
 
   // Single sender transceiver for the selected layer
-  RtpTransceiver? _outputSender;
+  RTCRtpTransceiver? _outputSender;
 
   // All received simulcast layer tracks
   final Map<String, MediaStreamTrack> _layerTracks = {};
@@ -209,7 +209,7 @@ class SimulcastSelectServer {
     _forwardedPackets = 0;
     _selectedLayer = 'mid';
 
-    _pc = RtcPeerConnection(
+    _pc = RTCPeerConnection(
       RtcConfiguration(
         iceServers: [
           IceServer(urls: ['stun:stun.l.google.com:19302'])
@@ -360,7 +360,7 @@ class SimulcastSelectServer {
     final body = await utf8.decodeStream(request);
     final data = jsonDecode(body) as Map<String, dynamic>;
     final answer =
-        SessionDescription(type: 'answer', sdp: data['sdp'] as String);
+        RTCSessionDescription(type: 'answer', sdp: data['sdp'] as String);
 
     await _pc!.setRemoteDescription(answer);
     print('[Select] Remote description set');
@@ -377,7 +377,7 @@ class SimulcastSelectServer {
 
     if (candidateStr != null && candidateStr.isNotEmpty) {
       try {
-        final candidate = Candidate.fromSdp(candidateStr);
+        final candidate = RTCIceCandidate.fromSdp(candidateStr);
         await _pc!.addIceCandidate(candidate);
       } catch (e) {
         print('[Select] Failed to add candidate: $e');

@@ -26,7 +26,7 @@ void main() async {
   wsServer.transform(WebSocketTransformer()).listen((WebSocket socket) async {
     print('[WS] Client connected');
 
-    final pc = RtcPeerConnection(RtcConfiguration(
+    final pc = RTCPeerConnection(RtcConfiguration(
       codecs: RtcCodecs(
         audio: [
           // RED codec wraps Opus for redundancy
@@ -74,7 +74,7 @@ void main() async {
     // Handle answer from browser
     socket.listen((data) async {
       final msg = jsonDecode(data as String);
-      final answer = SessionDescription(type: 'answer', sdp: msg['sdp']);
+      final answer = RTCSessionDescription(type: 'answer', sdp: msg['sdp']);
       await pc.setRemoteDescription(answer);
       print('[SDP] Remote description set');
     });

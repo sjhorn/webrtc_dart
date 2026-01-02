@@ -43,7 +43,7 @@ class MediaTestResult {
 
 class MediaSendonlyServer {
   HttpServer? _server;
-  RtcPeerConnection? _pc;
+  RTCPeerConnection? _pc;
   nonstandard.MediaStreamTrack? _videoTrack;
   RawDatagramSocket? _udpSocket;
   Process? _ffmpegProcess;
@@ -144,7 +144,7 @@ class MediaSendonlyServer {
     _stopped = false;
 
     // Create peer connection with STUN server
-    _pc = RtcPeerConnection(RtcConfiguration(
+    _pc = RTCPeerConnection(RtcConfiguration(
       iceServers: [
         IceServer(urls: ['stun:stun.l.google.com:19302'])
       ],
@@ -289,7 +289,7 @@ class MediaSendonlyServer {
     final body = await utf8.decodeStream(request);
     final data = jsonDecode(body) as Map<String, dynamic>;
 
-    final answer = SessionDescription(
+    final answer = RTCSessionDescription(
       type: data['type'] as String,
       sdp: data['sdp'] as String,
     );
@@ -327,7 +327,7 @@ class MediaSendonlyServer {
     }
 
     try {
-      final candidate = Candidate.fromSdp(candidateStr);
+      final candidate = RTCIceCandidate.fromSdp(candidateStr);
       await _pc!.addIceCandidate(candidate);
       print('[MediaServer] Added ICE candidate: ${candidate.type}');
     } catch (e) {

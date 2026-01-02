@@ -38,7 +38,7 @@ void main() {
         await connection.gatherCandidates();
 
         // Add a remote candidate
-        final remoteCandidate = Candidate(
+        final remoteCandidate = RTCIceCandidate(
           foundation: 'test',
           component: 1,
           transport: 'UDP',
@@ -65,7 +65,7 @@ void main() {
         expect(connection.checkList, isEmpty);
 
         // Add remote candidate - this creates pairs in checkList
-        final remoteCandidate = Candidate(
+        final remoteCandidate = RTCIceCandidate(
           foundation: 'test',
           component: 1,
           transport: 'UDP',
@@ -86,7 +86,7 @@ void main() {
         await connection.gatherCandidates();
 
         // Add remote candidate
-        final remoteCandidate = Candidate(
+        final remoteCandidate = RTCIceCandidate(
           foundation: 'test',
           component: 1,
           transport: 'UDP',
@@ -111,7 +111,7 @@ void main() {
 
         // Add multiple remote candidates
         for (var i = 0; i < 3; i++) {
-          final candidate = Candidate(
+          final candidate = RTCIceCandidate(
             foundation: 'test$i',
             component: 1,
             transport: 'UDP',
@@ -143,7 +143,7 @@ void main() {
         expect(connection.checkList, isEmpty);
 
         // Simulate trickle ICE - add candidate after gathering
-        final remoteCandidate = Candidate(
+        final remoteCandidate = RTCIceCandidate(
           foundation: 'trickle',
           component: 1,
           transport: 'UDP',

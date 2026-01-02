@@ -13,7 +13,7 @@ import 'dart:io';
 import 'package:webrtc_dart/webrtc_dart.dart';
 import 'package:webrtc_dart/src/nonstandard/media/track.dart' as nonstandard;
 
-final _clients = <String, RtcPeerConnection>{};
+final _clients = <String, RTCPeerConnection>{};
 var _clientCounter = 0;
 
 void main() async {
@@ -28,7 +28,7 @@ void main() async {
     final clientId = 'client_${++_clientCounter}';
     print('[$clientId] Connected');
 
-    final pc = RtcPeerConnection(RtcConfiguration(
+    final pc = RTCPeerConnection(RtcConfiguration(
       iceServers: [
         IceServer(urls: ['stun:stun.l.google.com:19302'])
       ],
@@ -71,11 +71,11 @@ void main() async {
       (data) async {
         final msg = jsonDecode(data as String);
         if (msg['type'] == 'answer') {
-          final answer = SessionDescription(type: 'answer', sdp: msg['sdp']);
+          final answer = RTCSessionDescription(type: 'answer', sdp: msg['sdp']);
           await pc.setRemoteDescription(answer);
           print('[$clientId] Remote description set');
         } else if (msg['candidate'] != null) {
-          final candidate = Candidate.fromSdp(msg['candidate']);
+          final candidate = RTCIceCandidate.fromSdp(msg['candidate']);
           await pc.addIceCandidate(candidate);
         }
       },

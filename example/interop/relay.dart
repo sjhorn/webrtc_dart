@@ -15,7 +15,7 @@ import 'package:webrtc_dart/webrtc_dart.dart';
 class Peer {
   final String id;
   final WebSocket socket;
-  final RtcPeerConnection pc;
+  final RTCPeerConnection pc;
   MediaStreamTrack? videoTrack;
   MediaStreamTrack? audioTrack;
 
@@ -53,7 +53,7 @@ Future<void> _handleConnection(WebSocket socket) async {
   final peerId = 'peer_${++_peerCounter}';
   print('[$peerId] Connected');
 
-  final pc = RtcPeerConnection(RtcConfiguration(
+  final pc = RTCPeerConnection(RtcConfiguration(
     iceServers: [
       IceServer(urls: ['stun:stun.l.google.com:19302'])
     ],
@@ -92,7 +92,7 @@ Future<void> _handleConnection(WebSocket socket) async {
 
     if (msg['type'] == 'offer') {
       print('[$peerId] Received offer');
-      final offer = SessionDescription(type: 'offer', sdp: msg['sdp']);
+      final offer = RTCSessionDescription(type: 'offer', sdp: msg['sdp']);
       await pc.setRemoteDescription(offer);
 
       // Add transceivers for receiving and sending
@@ -113,7 +113,7 @@ Future<void> _handleConnection(WebSocket socket) async {
       }));
       print('[$peerId] Sent answer');
     } else if (msg['type'] == 'candidate' && msg['candidate'] != null) {
-      final candidate = Candidate.fromSdp(msg['candidate']);
+      final candidate = RTCIceCandidate.fromSdp(msg['candidate']);
       await pc.addIceCandidate(candidate);
     }
   }, onDone: () {

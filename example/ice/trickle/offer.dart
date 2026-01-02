@@ -16,16 +16,16 @@ void main() async {
   print('');
 
   // Create two peer connections
-  final pc1 = RtcPeerConnection();
-  final pc2 = RtcPeerConnection();
+  final pc1 = RTCPeerConnection();
+  final pc2 = RTCPeerConnection();
 
   // Track candidates
-  final candidatesFromPc1 = <Candidate>[];
-  final candidatesFromPc2 = <Candidate>[];
+  final candidatesFromPc1 = <RTCIceCandidate>[];
+  final candidatesFromPc2 = <RTCIceCandidate>[];
 
   // Track data channels
-  late DataChannel dc1;
-  late DataChannel dc2;
+  late RTCDataChannel dc1;
+  late RTCDataChannel dc2;
 
   final dc1Ready = Completer<void>();
   final dc2Ready = Completer<void>();
@@ -99,7 +99,7 @@ void main() async {
   });
 
   // Create datachannel on pc1
-  dc1 = pc1.createDataChannel('trickle-test') as DataChannel;
+  dc1 = pc1.createDataChannel('trickle-test') as RTCDataChannel;
   dc1.onStateChange.listen((state) {
     if (state == DataChannelState.open && !dc1Ready.isCompleted) {
       dc1Ready.complete();
@@ -142,12 +142,12 @@ void main() async {
 
   // Wait for DataChannels to be ready
   print('');
-  print('Waiting for DataChannel connection...');
+  print('Waiting for RTCDataChannel connection...');
   await Future.wait([dc1Ready.future, dc2Ready.future])
       .timeout(Duration(seconds: 10));
 
   print('');
-  print('DataChannel connected!');
+  print('RTCDataChannel connected!');
 
   // Verify connectivity
   final responseCompleter = Completer<void>();
@@ -187,7 +187,7 @@ void main() async {
           candidatesFromPc2.where((c) => c.type == 'relay').length;
 
   print('');
-  print('Candidate types:');
+  print('RTCIceCandidate types:');
   print('  Host: $hostCandidates');
   print('  Server Reflexive: $srflxCandidates');
   print('  Relay: $relayCandidates');

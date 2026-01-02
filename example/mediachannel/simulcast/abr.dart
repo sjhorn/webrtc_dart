@@ -97,7 +97,7 @@ void main() async {
   wsServer.transform(WebSocketTransformer()).listen((WebSocket socket) async {
     print('[WS] Client connected');
 
-    final pc = RtcPeerConnection(RtcConfiguration(
+    final pc = RTCPeerConnection(RtcConfiguration(
       iceServers: [
         IceServer(urls: ['stun:stun.l.google.com:19302'])
       ],
@@ -126,7 +126,7 @@ void main() async {
     // Wait for offer from browser
     socket.listen((data) async {
       final msg = jsonDecode(data as String);
-      final offer = SessionDescription(type: 'offer', sdp: msg['sdp']);
+      final offer = RTCSessionDescription(type: 'offer', sdp: msg['sdp']);
       await pc.setRemoteDescription(offer);
 
       final answer = await pc.createAnswer();

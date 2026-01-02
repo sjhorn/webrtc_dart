@@ -6,7 +6,7 @@ import 'package:webrtc_dart/src/media/rtc_rtp_sender.dart';
 import 'package:webrtc_dart/src/rtp/rtp_session.dart';
 import 'package:webrtc_dart/src/transport/transport.dart';
 
-// Re-export RtpSender and RtpReceiver for convenience
+// Re-export RTCRtpSender and RTCRtpReceiver for convenience
 export 'package:webrtc_dart/src/media/rtc_rtp_sender.dart';
 export 'package:webrtc_dart/src/media/rtc_rtp_receiver.dart';
 
@@ -48,7 +48,7 @@ enum RtpTransceiverDirection { sendrecv, sendonly, recvonly, inactive }
 
 /// RTP Transceiver
 /// Manages sending and receiving RTP for a media track
-/// Combines RtpSender and RtpReceiver
+/// Combines RTCRtpSender and RTCRtpReceiver
 class RTCRtpTransceiver {
   /// Media type (audio or video)
   final MediaStreamTrackKind kind;
@@ -59,10 +59,10 @@ class RTCRtpTransceiver {
   String? _mid;
 
   /// RTP sender
-  final RtpSender sender;
+  final RTCRtpSender sender;
 
   /// RTP receiver
-  final RtpReceiver receiver;
+  final RTCRtpReceiver receiver;
 
   /// Current direction
   RtpTransceiverDirection _direction;
@@ -234,12 +234,12 @@ class RTCRtpTransceiver {
 
   @override
   String toString() {
-    return 'RtpTransceiver(mid=$mid, kind=$kind, direction=$direction)';
+    return 'RTCRtpTransceiver(mid=$mid, kind=$kind, direction=$direction)';
   }
 }
 
 /// Create audio transceiver
-RtpTransceiver createAudioTransceiver({
+RTCRtpTransceiver createAudioTransceiver({
   required String mid,
   required RtpSession rtpSession,
   MediaStreamTrack? sendTrack,
@@ -249,7 +249,7 @@ RtpTransceiver createAudioTransceiver({
 }) {
   final effectiveCodec = codec ?? createOpusCodec(payloadType: 111);
 
-  final sender = RtpSender(
+  final sender = RTCRtpSender(
     track: sendTrack,
     rtpSession: rtpSession,
     codec: effectiveCodec,
@@ -263,7 +263,7 @@ RtpTransceiver createAudioTransceiver({
     label: 'Audio Receiver',
   );
 
-  final receiver = RtpReceiver(
+  final receiver = RTCRtpReceiver(
     track: receiveTrack,
     rtpSession: rtpSession,
     codec: effectiveCodec,
@@ -296,7 +296,7 @@ RtpTransceiver createAudioTransceiver({
 ///   ],
 /// );
 /// ```
-RtpTransceiver createVideoTransceiver({
+RTCRtpTransceiver createVideoTransceiver({
   required String mid,
   required RtpSession rtpSession,
   MediaStreamTrack? sendTrack,
@@ -306,7 +306,7 @@ RtpTransceiver createVideoTransceiver({
 }) {
   final effectiveCodec = codec ?? createVp8Codec(payloadType: 96);
 
-  final sender = RtpSender(
+  final sender = RTCRtpSender(
     track: sendTrack,
     rtpSession: rtpSession,
     codec: effectiveCodec,
@@ -320,7 +320,7 @@ RtpTransceiver createVideoTransceiver({
     label: 'Video Receiver',
   );
 
-  final receiver = RtpReceiver(
+  final receiver = RTCRtpReceiver(
     track: receiveTrack,
     rtpSession: rtpSession,
     codec: effectiveCodec,

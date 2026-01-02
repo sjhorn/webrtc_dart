@@ -64,10 +64,10 @@ class CustomPeerConnection implements ring.BasicPeerConnection {
       _onConnectionStateController.stream;
 
   /// The underlying webrtc_dart peer connection
-  late final RtcPeerConnection _pc;
+  late final RTCPeerConnection _pc;
 
   /// Video transceiver (stored for PLI requests)
-  RtpTransceiver? _videoTransceiver;
+  RTCRtpTransceiver? _videoTransceiver;
 
   /// Video media SSRC (Ring's video stream SSRC, captured from first RTP packet)
   int? _videoMediaSsrc;
@@ -90,7 +90,7 @@ class CustomPeerConnection implements ring.BasicPeerConnection {
     //   iceTransportPolicy: "all",
     //   bundlePolicy: "disable",
     // });
-    _pc = RtcPeerConnection(
+    _pc = RTCPeerConnection(
       RtcConfiguration(
         iceServers:
             ringIceServers.map((server) => IceServer(urls: [server])).toList(),
@@ -281,7 +281,7 @@ class CustomPeerConnection implements ring.BasicPeerConnection {
     ring.SessionDescription offer,
   ) async {
     await _pc.setRemoteDescription(
-      SessionDescription(type: 'offer', sdp: offer.sdp),
+      RTCSessionDescription(type: 'offer', sdp: offer.sdp),
     );
     final answer = await _pc.createAnswer();
     await _pc.setLocalDescription(answer);
@@ -294,7 +294,7 @@ class CustomPeerConnection implements ring.BasicPeerConnection {
   @override
   Future<void> acceptAnswer(ring.SessionDescription answer) async {
     await _pc.setRemoteDescription(
-      SessionDescription(type: 'answer', sdp: answer.sdp),
+      RTCSessionDescription(type: 'answer', sdp: answer.sdp),
     );
   }
 
@@ -303,7 +303,7 @@ class CustomPeerConnection implements ring.BasicPeerConnection {
   // }
   @override
   Future<void> addIceCandidate(ring.RTCIceCandidate candidate) async {
-    final parsedCandidate = Candidate.fromSdp(candidate.candidate);
+    final parsedCandidate = RTCIceCandidate.fromSdp(candidate.candidate);
     await _pc.addIceCandidate(parsedCandidate);
   }
 

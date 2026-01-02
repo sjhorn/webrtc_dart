@@ -41,7 +41,7 @@ class SimulcastMultipleServer {
     print('[Server] Client connected');
 
     // Create PeerConnection with RID header extensions and VP8 codec (like werift)
-    final pc = RtcPeerConnection(RtcConfiguration(
+    final pc = RTCPeerConnection(RtcConfiguration(
       codecs: RtcCodecs(
         video: [
           RtpCodecParameters(
@@ -161,7 +161,7 @@ class SimulcastMultipleServer {
           if (msg['type'] == 'answer') {
             print('[Server] Received answer');
             await pc.setRemoteDescription(
-              SessionDescription(type: 'answer', sdp: msg['sdp'] as String),
+              RTCSessionDescription(type: 'answer', sdp: msg['sdp'] as String),
             );
             print('[Server] Remote description set');
           }

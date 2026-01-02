@@ -9,7 +9,7 @@ library;
 import 'package:webrtc_dart/webrtc_dart.dart';
 
 void main() async {
-  final pc = RtcPeerConnection();
+  final pc = RTCPeerConnection();
 
   // ... after connection is established and network changes ...
 

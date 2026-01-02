@@ -19,12 +19,12 @@ import 'package:webrtc_dart/webrtc_dart.dart';
 
 class SimulcastSfuServer {
   HttpServer? _server;
-  RtcPeerConnection? _pc;
+  RTCPeerConnection? _pc;
   final List<Map<String, dynamic>> _localCandidates = [];
 
   // Sender transceivers for each simulcast layer (SFU fanout)
   // In a real SFU, each would forward to different viewers
-  final Map<String, RtpTransceiver> _senders = {};
+  final Map<String, RTCRtpTransceiver> _senders = {};
 
   // Stats
   final Map<String, int> _packetCounts = {};
@@ -180,7 +180,7 @@ class SimulcastSfuServer {
     _senders.clear();
     _packetCounts.clear();
 
-    _pc = RtcPeerConnection(
+    _pc = RTCPeerConnection(
       RtcConfiguration(
         iceServers: [
           IceServer(urls: ['stun:stun.l.google.com:19302'])
@@ -302,7 +302,7 @@ class SimulcastSfuServer {
     final body = await utf8.decodeStream(request);
     final data = jsonDecode(body) as Map<String, dynamic>;
     final answer =
-        SessionDescription(type: 'answer', sdp: data['sdp'] as String);
+        RTCSessionDescription(type: 'answer', sdp: data['sdp'] as String);
 
     await _pc!.setRemoteDescription(answer);
     print('[SFU] Remote description set');
@@ -319,7 +319,7 @@ class SimulcastSfuServer {
 
     if (candidateStr != null && candidateStr.isNotEmpty) {
       try {
-        final candidate = Candidate.fromSdp(candidateStr);
+        final candidate = RTCIceCandidate.fromSdp(candidateStr);
         await _pc!.addIceCandidate(candidate);
       } catch (e) {
         print('[SFU] Failed to add candidate: $e');

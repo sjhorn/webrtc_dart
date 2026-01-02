@@ -15,7 +15,7 @@ import 'package:webrtc_dart/src/nonstandard/media/track.dart' as nonstandard;
 
 class ClientConnection {
   final String id;
-  final RtcPeerConnection pc;
+  final RTCPeerConnection pc;
   final nonstandard.MediaStreamTrack sendTrack;
   final List<Map<String, dynamic>> candidates = [];
   DateTime? connectedTime;
@@ -132,7 +132,7 @@ class MultiClientSendrecvServer {
     print('[MultiSendrecv] New connection: $clientId');
 
     // Create peer connection for this client
-    final pc = RtcPeerConnection(RtcConfiguration(
+    final pc = RTCPeerConnection(RtcConfiguration(
       iceServers: [
         IceServer(urls: ['stun:stun.l.google.com:19302'])
       ],
@@ -241,7 +241,7 @@ class MultiClientSendrecvServer {
       return;
     }
 
-    final answer = SessionDescription(
+    final answer = RTCSessionDescription(
       type: data['type'] as String,
       sdp: data['sdp'] as String,
     );
@@ -279,7 +279,7 @@ class MultiClientSendrecvServer {
     }
 
     try {
-      final candidate = Candidate.fromSdp(candidateStr);
+      final candidate = RTCIceCandidate.fromSdp(candidateStr);
       await client.pc.addIceCandidate(candidate);
       print('[MultiSendrecv] [$clientId] Added candidate: ${candidate.type}');
     } catch (e) {
@@ -609,7 +609,7 @@ class MultiClientSendrecvServer {
                         }
                     }
                 } catch (e) {
-                    console.log('[' + clientId + '] Candidate fetch error: ' + e.message);
+                    console.log('[' + clientId + '] RTCIceCandidate fetch error: ' + e.message);
                 }
             }
             return conn;

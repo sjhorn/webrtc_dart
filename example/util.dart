@@ -17,9 +17,9 @@ Future<HttpServer> createSignalingServer(int port) async {
   return server;
 }
 
-/// Waits for a DataChannel to reach the open state.
+/// Waits for a RTCDataChannel to reach the open state.
 Future<void> waitForDataChannelOpen(
-  DataChannel channel, {
+  RTCDataChannel channel, {
   Duration timeout = const Duration(seconds: 10),
 }) async {
   if (channel.state == DataChannelState.open) return;
@@ -40,7 +40,7 @@ Future<void> waitForDataChannelOpen(
 
 /// Waits for ICE connection to reach connected state.
 Future<void> waitForIceConnected(
-  RtcPeerConnection pc, {
+  RTCPeerConnection pc, {
   Duration timeout = const Duration(seconds: 30),
 }) async {
   if (pc.iceConnectionState == IceConnectionState.connected) return;
@@ -61,8 +61,8 @@ Future<void> waitForIceConnected(
 
 /// Performs a local offer/answer exchange between two peer connections.
 Future<void> exchangeOfferAnswer(
-  RtcPeerConnection offerer,
-  RtcPeerConnection answerer,
+  RTCPeerConnection offerer,
+  RTCPeerConnection answerer,
 ) async {
   final offer = await offerer.createOffer();
   await offerer.setLocalDescription(offer);
@@ -75,15 +75,15 @@ Future<void> exchangeOfferAnswer(
 
 /// Sets up ICE candidate exchange between two local peer connections.
 void setupIceCandidateExchange(
-  RtcPeerConnection pc1,
-  RtcPeerConnection pc2,
+  RTCPeerConnection pc1,
+  RTCPeerConnection pc2,
 ) {
   pc1.onIceCandidate.listen((c) => pc2.addIceCandidate(c));
   pc2.onIceCandidate.listen((c) => pc1.addIceCandidate(c));
 }
 
 /// Prints SDP summary (media lines only).
-void printSdpSummary(String label, SessionDescription sdp) {
+void printSdpSummary(String label, RTCSessionDescription sdp) {
   print('--- $label ---');
   print('Type: ${sdp.type}');
   final mediaLines =
@@ -125,6 +125,6 @@ List<IceServer> get defaultIceServers => [
     ];
 
 /// Creates a peer connection with default STUN configuration.
-RtcPeerConnection createPeerConnectionWithStun() {
-  return RtcPeerConnection(RtcConfiguration(iceServers: defaultIceServers));
+RTCPeerConnection createPeerConnectionWithStun() {
+  return RTCPeerConnection(RtcConfiguration(iceServers: defaultIceServers));
 }

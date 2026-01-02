@@ -71,7 +71,7 @@ void main() async {
 
   // Create peer connection with custom certificate
   // Note: The actual implementation may vary - check RtcConfiguration for options
-  final pc = RtcPeerConnection(RtcConfiguration(
+  final pc = RTCPeerConnection(RtcConfiguration(
     iceServers: [
       IceServer(urls: ['stun:stun.l.google.com:19302'])
     ],

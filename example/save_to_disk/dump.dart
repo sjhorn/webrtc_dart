@@ -28,7 +28,7 @@ void main() async {
   wsServer.transform(WebSocketTransformer()).listen((WebSocket socket) async {
     print('[WS] Client connected');
 
-    final pc = RtcPeerConnection(RtcConfiguration(
+    final pc = RTCPeerConnection(RtcConfiguration(
       iceServers: [
         IceServer(urls: ['stun:stun.l.google.com:19302'])
       ],
@@ -91,7 +91,7 @@ void main() async {
     // Handle answer
     socket.listen((data) async {
       final msg = jsonDecode(data as String);
-      final answer = SessionDescription(type: 'answer', sdp: msg['sdp']);
+      final answer = RTCSessionDescription(type: 'answer', sdp: msg['sdp']);
       await pc.setRemoteDescription(answer);
       print('[SDP] Remote description set');
     }, onDone: () {

@@ -1,6 +1,6 @@
-/// Close DataChannel - Closing State Example
+/// Close RTCDataChannel - Closing State Example
 ///
-/// This example demonstrates the DataChannel closing process,
+/// This example demonstrates the RTCDataChannel closing process,
 /// focusing on the 'closing' state transition before 'closed'.
 /// Sends pings then gracefully closes the channel.
 ///
@@ -11,12 +11,12 @@ import 'dart:async';
 import 'package:webrtc_dart/webrtc_dart.dart';
 
 void main() async {
-  print('DataChannel Closing Example');
+  print('RTCDataChannel Closing Example');
   print('=' * 50);
 
   // Create two peer connections
-  final pc1 = RtcPeerConnection();
-  final pc2 = RtcPeerConnection();
+  final pc1 = RTCPeerConnection();
+  final pc2 = RTCPeerConnection();
 
   // Wait for transport initialization
   await Future.delayed(Duration(milliseconds: 500));

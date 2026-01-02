@@ -2,7 +2,7 @@
 //
 // This server demonstrates handling multiple simultaneous clients:
 // 1. Each browser gets its own PeerConnection
-// 2. DataChannel communication verified for each client
+// 2. RTCDataChannel communication verified for each client
 // 3. Tests broadcast/SFU architecture capability
 //
 // Pattern: Dart creates offer for each client (broadcast style)
@@ -15,8 +15,8 @@ import 'package:webrtc_dart/webrtc_dart.dart';
 
 class ClientConnection {
   final String id;
-  final RtcPeerConnection pc;
-  dynamic dc; // DataChannel or ProxyDataChannel
+  final RTCPeerConnection pc;
+  dynamic dc; // RTCDataChannel or ProxyDataChannel
   final List<Map<String, dynamic>> candidates = [];
   DateTime? connectedTime;
   int messagesSent = 0;
@@ -134,7 +134,7 @@ class MultiClientServer {
     print('[Multi] New connection: $clientId');
 
     // Create peer connection for this client
-    final pc = RtcPeerConnection(RtcConfiguration(
+    final pc = RTCPeerConnection(RtcConfiguration(
       iceServers: [
         IceServer(urls: ['stun:stun.l.google.com:19302'])
       ],
@@ -170,7 +170,7 @@ class MultiClientServer {
       });
     });
 
-    // Return client ID - DataChannel and offer will be created in /offer endpoint
+    // Return client ID - RTCDataChannel and offer will be created in /offer endpoint
     request.response.headers.contentType = ContentType.json;
     request.response.write(jsonEncode({'clientId': clientId}));
   }
@@ -190,12 +190,12 @@ class MultiClientServer {
       return;
     }
 
-    // Create DataChannel before createOffer (will be included in SDP)
+    // Create RTCDataChannel before createOffer (will be included in SDP)
     client.dc = client.pc.createDataChannel('client-$clientId');
-    print('[Multi] [$clientId] Created DataChannel');
+    print('[Multi] [$clientId] Created RTCDataChannel');
 
     client.dc!.onStateChange.listen((state) {
-      print('[Multi] [$clientId] DataChannel state: $state');
+      print('[Multi] [$clientId] RTCDataChannel state: $state');
       if (state == DataChannelState.open) {
         client.dcOpen = true;
       }
@@ -235,7 +235,7 @@ class MultiClientServer {
       return;
     }
 
-    final answer = SessionDescription(
+    final answer = RTCSessionDescription(
       type: data['type'] as String,
       sdp: data['sdp'] as String,
     );
@@ -281,7 +281,7 @@ class MultiClientServer {
     }
 
     try {
-      final candidate = Candidate.fromSdp(candidateStr);
+      final candidate = RTCIceCandidate.fromSdp(candidateStr);
       await client.pc.addIceCandidate(candidate);
       print('[Multi] [$clientId] Added candidate: ${candidate.type}');
     } catch (e) {
@@ -559,11 +559,11 @@ class MultiClientServer {
 
             pc.ondatachannel = (e) => {
                 conn.dc = e.channel;
-                log('[' + clientId + '] DataChannel received: ' + e.channel.label, 'client');
+                log('[' + clientId + '] RTCDataChannel received: ' + e.channel.label, 'client');
 
                 e.channel.onopen = () => {
                     conn.dcOpen = true;
-                    log('[' + clientId + '] DataChannel open!', 'success');
+                    log('[' + clientId + '] RTCDataChannel open!', 'success');
                     updateStats();
                 };
 
@@ -698,7 +698,7 @@ class MultiClientServer {
 
         async function waitForAllDCOpen() {
             return new Promise((resolve, reject) => {
-                const timeout = setTimeout(() => reject(new Error('DataChannel timeout')), 15000);
+                const timeout = setTimeout(() => reject(new Error('RTCDataChannel timeout')), 15000);
                 const check = () => {
                     const allOpen = Array.from(connections.values()).every(c => c.dcOpen);
                     if (allOpen && connections.size === NUM_CLIENTS) {
@@ -757,7 +757,7 @@ class MultiClientServer {
 }
 
 void main() async {
-  // Enable SCTP and DataChannel logging
+  // Enable SCTP and RTCDataChannel logging
   hierarchicalLoggingEnabled = true;
   WebRtcLogging.sctp.level = Level.FINE;
   WebRtcLogging.datachannel.level = Level.FINE;

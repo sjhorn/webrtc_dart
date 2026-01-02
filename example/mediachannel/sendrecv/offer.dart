@@ -45,7 +45,7 @@ class SendRecvServer {
 
     // Create PeerConnection with header extensions (like werift)
     // useSdesMid() and useAbsSendTime()
-    final pc = RtcPeerConnection(RtcConfiguration(
+    final pc = RTCPeerConnection(RtcConfiguration(
       codecs: RtcCodecs(
         video: [
           RtpCodecParameters(
@@ -169,7 +169,7 @@ class SendRecvServer {
           if (msg['type'] == 'answer') {
             print('[Server] Received answer');
             await pc.setRemoteDescription(
-              SessionDescription(type: 'answer', sdp: msg['sdp'] as String),
+              RTCSessionDescription(type: 'answer', sdp: msg['sdp'] as String),
             );
             print('[Server] Remote description set');
           }

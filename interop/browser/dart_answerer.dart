@@ -18,7 +18,7 @@ void main() async {
   print('=== Dart WebRTC Answerer for Browser Interop ===\n');
 
   // Create peer connection
-  final pc = RtcPeerConnection();
+  final pc = RTCPeerConnection();
   print('[Dart] PeerConnection created');
 
   // Wait for initialization
@@ -34,7 +34,7 @@ void main() async {
   });
 
   // Track ICE candidates
-  final localCandidates = <Candidate>[];
+  final localCandidates = <RTCIceCandidate>[];
   pc.onIceCandidate.listen((candidate) {
     print(
         '[Dart] Local ICE candidate: ${candidate.type} ${candidate.host}:${candidate.port}');
@@ -43,13 +43,13 @@ void main() async {
 
   // Handle incoming data channels
   pc.onDataChannel.listen((channel) {
-    print('[Dart] Incoming DataChannel: ${channel.label}');
+    print('[Dart] Incoming RTCDataChannel: ${channel.label}');
 
     channel.onStateChange.listen((state) {
-      print('[Dart] DataChannel state: $state');
+      print('[Dart] RTCDataChannel state: $state');
 
       if (state == DataChannelState.open) {
-        print('[Dart] DataChannel OPEN! Sending greeting...');
+        print('[Dart] RTCDataChannel OPEN! Sending greeting...');
         channel.sendString('Hello from Dart!');
 
         // Send periodic messages
@@ -93,7 +93,7 @@ void main() async {
 
   try {
     final offerData = jsonDecode(offerJson) as Map<String, dynamic>;
-    final offer = SessionDescription(
+    final offer = RTCSessionDescription(
       type: offerData['type'] as String,
       sdp: offerData['sdp'] as String,
     );

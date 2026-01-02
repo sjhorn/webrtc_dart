@@ -6,6 +6,7 @@
 ///
 /// Usage:
 ///   dart run example/telephony/dtmf_example.dart
+library;
 
 import 'dart:async';
 import 'package:webrtc_dart/webrtc_dart.dart';
@@ -90,9 +91,9 @@ void main() async {
     },
   );
 
-  print('\n' + '=' * 42);
+  print('\n${'=' * 42}');
   print('DTMF Demonstration');
-  print('=' * 42 + '\n');
+  print('${'=' * 42}\n');
 
   // Get the DTMF sender
   final dtmf = sender.dtmf;

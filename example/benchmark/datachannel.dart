@@ -1,4 +1,4 @@
-/// DataChannel Benchmark
+/// RTCDataChannel Benchmark
 ///
 /// Measures the round-trip time for sending binary messages between two peers.
 /// Based on: https://github.com/dguenther/js-datachannel-benchmarks
@@ -46,19 +46,19 @@ class BenchmarkResult {
 }
 
 Future<void> main() async {
-  print('DataChannel Benchmark');
+  print('RTCDataChannel Benchmark');
   print('=' * 50);
   print('');
   print('Setting up peer connections...');
 
   // Create two peer connections
-  final peer1 = RtcPeerConnection();
-  final peer2 = RtcPeerConnection();
+  final peer1 = RTCPeerConnection();
+  final peer2 = RTCPeerConnection();
 
   // Wait for transport initialization (certificate generation, etc.)
   await Future.delayed(Duration(milliseconds: 500));
 
-  // Track data channels (dynamic - can be DataChannel or ProxyDataChannel)
+  // Track data channels (dynamic - can be RTCDataChannel or ProxyDataChannel)
   late dynamic dc1;
   late dynamic dc2;
 
@@ -106,7 +106,7 @@ Future<void> main() async {
   await peer1.setRemoteDescription(answer);
 
   // Wait for datachannels to be ready
-  print('Waiting for DataChannel connections...');
+  print('Waiting for RTCDataChannel connections...');
   await Future.wait([dc1Ready.future, dc2Ready.future])
       .timeout(Duration(seconds: 10));
 

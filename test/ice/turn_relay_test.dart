@@ -42,9 +42,9 @@ void main() {
       });
     });
 
-    group('Relay Candidate Detection', () {
+    group('Relay RTCIceCandidate Detection', () {
       test('candidate type relay is identified correctly', () {
-        final relayCandidate = Candidate(
+        final relayCandidate = RTCIceCandidate(
           foundation: 'relay-1',
           component: 1,
           transport: 'udp',
@@ -72,9 +72,9 @@ void main() {
       });
     });
 
-    group('Relay Candidate Pairing', () {
+    group('Relay RTCIceCandidate Pairing', () {
       test('relay candidate can pair with host candidate', () {
-        final relayCandidate = Candidate(
+        final relayCandidate = RTCIceCandidate(
           foundation: 'relay-1',
           component: 1,
           transport: 'udp',
@@ -84,7 +84,7 @@ void main() {
           type: 'relay',
         );
 
-        final hostCandidate = Candidate(
+        final hostCandidate = RTCIceCandidate(
           foundation: 'host-1',
           component: 1,
           transport: 'udp',
@@ -98,7 +98,7 @@ void main() {
       });
 
       test('relay candidate can pair with srflx candidate', () {
-        final relayCandidate = Candidate(
+        final relayCandidate = RTCIceCandidate(
           foundation: 'relay-1',
           component: 1,
           transport: 'udp',
@@ -108,7 +108,7 @@ void main() {
           type: 'relay',
         );
 
-        final srflxCandidate = Candidate(
+        final srflxCandidate = RTCIceCandidate(
           foundation: 'srflx-1',
           component: 1,
           transport: 'udp',
@@ -122,7 +122,7 @@ void main() {
       });
 
       test('relay candidate can pair with another relay candidate', () {
-        final relayCandidate1 = Candidate(
+        final relayCandidate1 = RTCIceCandidate(
           foundation: 'relay-1',
           component: 1,
           transport: 'udp',
@@ -132,7 +132,7 @@ void main() {
           type: 'relay',
         );
 
-        final relayCandidate2 = Candidate(
+        final relayCandidate2 = RTCIceCandidate(
           foundation: 'relay-2',
           component: 1,
           transport: 'udp',
@@ -146,7 +146,7 @@ void main() {
       });
 
       test('creates candidate pair with relay local candidate', () {
-        final relayCandidate = Candidate(
+        final relayCandidate = RTCIceCandidate(
           foundation: 'relay-1',
           component: 1,
           transport: 'udp',
@@ -156,7 +156,7 @@ void main() {
           type: 'relay',
         );
 
-        final remoteCandidate = Candidate(
+        final remoteCandidate = RTCIceCandidate(
           foundation: 'host-1',
           component: 1,
           transport: 'udp',
@@ -215,7 +215,7 @@ void main() {
 
     group('Relay data routing logic', () {
       test('identifies relay candidate type correctly', () {
-        final candidate = Candidate(
+        final candidate = RTCIceCandidate(
           foundation: 'relay-abc',
           component: 1,
           transport: 'udp',
@@ -230,7 +230,7 @@ void main() {
       });
 
       test('identifies non-relay candidate types', () {
-        final hostCandidate = Candidate(
+        final hostCandidate = RTCIceCandidate(
           foundation: 'host-abc',
           component: 1,
           transport: 'udp',
@@ -240,7 +240,7 @@ void main() {
           type: 'host',
         );
 
-        final srflxCandidate = Candidate(
+        final srflxCandidate = RTCIceCandidate(
           foundation: 'srflx-abc',
           component: 1,
           transport: 'udp',
@@ -255,7 +255,7 @@ void main() {
       });
     });
 
-    group('Candidate Foundation for Relay', () {
+    group('RTCIceCandidate Foundation for Relay', () {
       test('generates unique foundation for relay candidates', () {
         final foundation1 = candidateFoundation('relay', 'udp', '1.2.3.4');
         final foundation2 = candidateFoundation('relay', 'udp', '5.6.7.8');

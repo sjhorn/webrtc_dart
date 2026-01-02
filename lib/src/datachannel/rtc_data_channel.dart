@@ -234,9 +234,9 @@ class RTCDataChannel {
   /// Open the data channel (send DCEP OPEN)
   Future<void> open() async {
     _log.fine(
-        'DataChannel.open() called: label=$label, streamId=$streamId, state=$_state');
+        'RTCDataChannel.open() called: label=$label, streamId=$streamId, state=$_state');
     if (_state != DataChannelState.connecting) {
-      throw StateError('DataChannel already opened or closed');
+      throw StateError('RTCDataChannel already opened or closed');
     }
 
     final openMessage = DcepOpenMessage(
@@ -327,7 +327,7 @@ class RTCDataChannel {
   /// Send string message
   Future<void> sendString(String message) async {
     if (_state != DataChannelState.open) {
-      throw StateError('DataChannel not open');
+      throw StateError('RTCDataChannel not open');
     }
 
     final data = Uint8List.fromList(message.codeUnits);
@@ -349,7 +349,7 @@ class RTCDataChannel {
   /// Send binary message
   Future<void> sendBinary(Uint8List message) async {
     if (_state != DataChannelState.open) {
-      throw StateError('DataChannel not open');
+      throw StateError('RTCDataChannel not open');
     }
 
     final ppid = message.isEmpty
@@ -441,7 +441,7 @@ class RTCDataChannel {
 
   @override
   String toString() {
-    return 'DataChannel(label="$label", id=$streamId, state=$_state)';
+    return 'RTCDataChannel(label="$label", id=$streamId, state=$_state)';
   }
 }
 
@@ -456,7 +456,7 @@ class PendingDataChannelConfig {
   final int priority;
 
   /// The proxy data channel that will be wired up when initialized
-  final ProxyDataChannel proxy;
+  final ProxyRTCDataChannel proxy;
 
   PendingDataChannelConfig({
     required this.label,
@@ -470,9 +470,9 @@ class PendingDataChannelConfig {
 }
 
 /// A proxy data channel that forwards to a real channel once SCTP is ready.
-/// This allows createDataChannel() to return immediately while the real
+/// This allows createRTCDataChannel() to return immediately while the real
 /// channel is created asynchronously when the connection is established.
-class ProxyDataChannel {
+class ProxyRTCDataChannel {
   /// Channel configuration
   final String _label;
   final String _protocol;
@@ -509,14 +509,14 @@ class ProxyDataChannel {
   StreamSubscription? _onbufferedamountlowSubscription;
 
   /// Completer for when channel is ready
-  final Completer<DataChannel> _readyCompleter = Completer<DataChannel>();
+  final Completer<RTCDataChannel> _readyCompleter = Completer<RTCDataChannel>();
 
   /// Buffered amount tracking (before real channel exists)
   /// Note: _bufferedAmount is always 0 for proxy since sends are queued
   final int _bufferedAmount = 0;
   int _bufferedAmountLowThreshold = 0;
 
-  ProxyDataChannel({
+  ProxyRTCDataChannel({
     required String label,
     String protocol = '',
     bool ordered = true,
@@ -530,7 +530,7 @@ class ProxyDataChannel {
         _maxPacketLifeTime = maxPacketLifeTime,
         _priority = priority;
 
-  // DataChannel-like interface
+  // RTCDataChannel-like interface
 
   String get label => _realChannel?.label ?? _label;
   String get protocol => _realChannel?.protocol ?? _protocol;
@@ -673,7 +673,7 @@ class ProxyDataChannel {
   }
 
   /// Future that completes when channel is ready
-  Future<DataChannel> get ready => _readyCompleter.future;
+  Future<RTCDataChannel> get ready => _readyCompleter.future;
 
   /// Whether the channel has been initialized
   bool get isInitialized => _realChannel != null;
@@ -681,8 +681,8 @@ class ProxyDataChannel {
   /// Track if we've been closed
   bool _isClosed = false;
 
-  /// Initialize with a real DataChannel (called when SCTP is ready)
-  void initializeWithChannel(DataChannel channel) {
+  /// Initialize with a real RTCDataChannel (called when SCTP is ready)
+  void initializeWithChannel(RTCDataChannel channel) {
     if (_realChannel != null) return;
 
     _realChannel = channel;
@@ -798,7 +798,7 @@ class ProxyDataChannel {
 
   @override
   String toString() {
-    return 'ProxyDataChannel(label="$_label", initialized=${_realChannel != null}, state=$_state)';
+    return 'ProxyRTCDataChannel(label="$_label", initialized=${_realChannel != null}, state=$_state)';
   }
 }
 

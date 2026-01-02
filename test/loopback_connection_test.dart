@@ -1,5 +1,5 @@
 /// Loopback connection test - two Dart PeerConnections connected to each other
-/// This tests the full ICE → DTLS → SCTP → DataChannel stack in isolation
+/// This tests the full ICE → DTLS → SCTP → RTCDataChannel stack in isolation
 library;
 
 import 'dart:async';
@@ -9,12 +9,12 @@ import 'package:webrtc_dart/webrtc_dart.dart';
 void main() {
   group('Loopback Connection', () {
     test('two peer connections exchange ICE candidates and connect', () async {
-      final pc1 = RtcPeerConnection();
-      final pc2 = RtcPeerConnection();
+      final pc1 = RTCPeerConnection();
+      final pc2 = RTCPeerConnection();
 
       // Collect ICE candidates from each peer
-      final pc1Candidates = <Candidate>[];
-      final pc2Candidates = <Candidate>[];
+      final pc1Candidates = <RTCIceCandidate>[];
+      final pc2Candidates = <RTCIceCandidate>[];
 
       pc1.onIceCandidate.listen((c) {
         print('[PC1] ICE candidate: ${c.type} ${c.host}:${c.port}');
@@ -92,8 +92,8 @@ void main() {
     }, timeout: Timeout(Duration(seconds: 15)));
 
     test('data channel message exchange', () async {
-      final pc1 = RtcPeerConnection();
-      final pc2 = RtcPeerConnection();
+      final pc1 = RTCPeerConnection();
+      final pc2 = RTCPeerConnection();
 
       final receivedMessages = <String>[];
       final pc1Connected = Completer<void>();
@@ -137,8 +137,8 @@ void main() {
       });
 
       // Collect and exchange ICE candidates
-      final pc1Candidates = <Candidate>[];
-      final pc2Candidates = <Candidate>[];
+      final pc1Candidates = <RTCIceCandidate>[];
+      final pc2Candidates = <RTCIceCandidate>[];
       pc1.onIceCandidate.listen((c) => pc1Candidates.add(c));
       pc2.onIceCandidate.listen((c) => pc2Candidates.add(c));
 

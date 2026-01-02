@@ -17,7 +17,7 @@ import 'package:webrtc_dart/src/nonstandard/media/track.dart' as nonstandard;
 
 class SendrecvAnswerServer {
   HttpServer? _server;
-  RtcPeerConnection? _pc;
+  RTCPeerConnection? _pc;
   nonstandard.MediaStreamTrack? _sendTrack;
   final List<Map<String, dynamic>> _localCandidates = [];
   Completer<void> _connectionCompleter = Completer();
@@ -126,7 +126,7 @@ class SendrecvAnswerServer {
     _echoStarted = false;
 
     // Create peer connection
-    _pc = RtcPeerConnection(RtcConfiguration(
+    _pc = RTCPeerConnection(RtcConfiguration(
       iceServers: [
         IceServer(urls: ['stun:stun.l.google.com:19302'])
       ],
@@ -225,7 +225,7 @@ class SendrecvAnswerServer {
     final body = await utf8.decodeStream(request);
     final data = jsonDecode(body) as Map<String, dynamic>;
 
-    final offer = SessionDescription(
+    final offer = RTCSessionDescription(
       type: data['type'] as String,
       sdp: data['sdp'] as String,
     );
@@ -285,7 +285,7 @@ class SendrecvAnswerServer {
     }
 
     try {
-      final candidate = Candidate.fromSdp(candidateStr);
+      final candidate = RTCIceCandidate.fromSdp(candidateStr);
       await _pc!.addIceCandidate(candidate);
       print('[Sendrecv-Answer] Added ICE candidate: ${candidate.type}');
     } catch (e) {

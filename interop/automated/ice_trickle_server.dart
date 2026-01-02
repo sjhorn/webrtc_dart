@@ -3,7 +3,7 @@
 // This server demonstrates ICE trickle functionality:
 // 1. Creates offer and starts ICE gathering
 // 2. Exchanges ICE candidates incrementally with browser
-// 3. Establishes DataChannel connection
+// 3. Establishes RTCDataChannel connection
 // 4. Verifies ping/pong message exchange
 //
 // Trickle ICE allows candidates to be exchanged as they are gathered,
@@ -19,8 +19,8 @@ import 'package:webrtc_dart/webrtc_dart.dart';
 
 class IceTrickleServer {
   HttpServer? _server;
-  RtcPeerConnection? _pc;
-  dynamic _dc; // DataChannel or ProxyDataChannel
+  RTCPeerConnection? _pc;
+  dynamic _dc; // RTCDataChannel or ProxyDataChannel
   final List<Map<String, dynamic>> _localCandidates = [];
   Completer<void> _connectionCompleter = Completer();
   Completer<void> _dcOpenCompleter = Completer();
@@ -127,7 +127,7 @@ class IceTrickleServer {
     _candidateTypes.clear();
 
     // Create peer connection
-    _pc = RtcPeerConnection(RtcConfiguration(
+    _pc = RTCPeerConnection(RtcConfiguration(
       iceServers: [
         IceServer(urls: ['stun:stun.l.google.com:19302'])
       ],
@@ -164,7 +164,7 @@ class IceTrickleServer {
       });
     });
 
-    // DataChannel will be created in /offer handler
+    // RTCDataChannel will be created in /offer handler
     // (SCTP transport needs to be initialized first)
 
     request.response.headers.contentType = ContentType.json;
@@ -178,12 +178,12 @@ class IceTrickleServer {
       return;
     }
 
-    // Create DataChannel before createOffer so it's included in SDP
+    // Create RTCDataChannel before createOffer so it's included in SDP
     _dc = _pc!.createDataChannel('trickle-test');
-    print('[Trickle] Created DataChannel: trickle-test');
+    print('[Trickle] Created RTCDataChannel: trickle-test');
 
     _dc!.onStateChange.listen((state) {
-      print('[Trickle] DataChannel state: $state');
+      print('[Trickle] RTCDataChannel state: $state');
       if (state == DataChannelState.open && !_dcOpenCompleter.isCompleted) {
         _dcOpenCompleter.complete();
       }
@@ -220,7 +220,7 @@ class IceTrickleServer {
     final body = await utf8.decodeStream(request);
     final data = jsonDecode(body) as Map<String, dynamic>;
 
-    final answer = SessionDescription(
+    final answer = RTCSessionDescription(
       type: data['type'] as String,
       sdp: data['sdp'] as String,
     );
@@ -257,7 +257,7 @@ class IceTrickleServer {
     }
 
     try {
-      final candidate = Candidate.fromSdp(candidateStr);
+      final candidate = RTCIceCandidate.fromSdp(candidateStr);
       await _pc!.addIceCandidate(candidate);
       _candidatesReceived++;
       print(
@@ -278,7 +278,7 @@ class IceTrickleServer {
   Future<void> _handlePing(HttpRequest request) async {
     if (_dc == null || _dc!.state != DataChannelState.open) {
       request.response.statusCode = 400;
-      request.response.write('DataChannel not open');
+      request.response.write('RTCDataChannel not open');
       return;
     }
 
@@ -384,7 +384,7 @@ class IceTrickleServer {
     </style>
 </head>
 <body>
-    <h1>ICE Trickle Test <span class="badge">DataChannel</span></h1>
+    <h1>ICE Trickle Test <span class="badge">RTCDataChannel</span></h1>
     <p>Tests ICE trickle with incremental candidate exchange.</p>
     <div id="status">Status: Waiting to start...</div>
     <div class="stats">
@@ -487,13 +487,13 @@ class IceTrickleServer {
                         pc.connectionState === 'connected' ? 'success' : 'info');
                 };
 
-                // Handle incoming DataChannel
+                // Handle incoming RTCDataChannel
                 pc.ondatachannel = (e) => {
                     dc = e.channel;
-                    log('Received DataChannel: ' + dc.label, 'success');
+                    log('Received RTCDataChannel: ' + dc.label, 'success');
 
                     dc.onopen = () => {
-                        log('DataChannel open!', 'success');
+                        log('RTCDataChannel open!', 'success');
                     };
 
                     dc.onmessage = (e) => {
@@ -554,13 +554,13 @@ class IceTrickleServer {
                 await waitForConnection();
                 log('Connection established!', 'success');
 
-                // Wait for DataChannel
-                setStatus('Waiting for DataChannel...');
+                // Wait for RTCDataChannel
+                setStatus('Waiting for RTCDataChannel...');
                 await waitForDataChannel();
-                log('DataChannel ready!', 'success');
+                log('RTCDataChannel ready!', 'success');
 
                 // Send test messages
-                setStatus('Testing DataChannel communication...');
+                setStatus('Testing RTCDataChannel communication...');
                 await new Promise(resolve => setTimeout(resolve, 500));
 
                 // Trigger ping from Dart
@@ -616,7 +616,7 @@ class IceTrickleServer {
 
         async function waitForDataChannel() {
             return new Promise((resolve, reject) => {
-                const timeout = setTimeout(() => reject(new Error('DataChannel timeout')), 10000);
+                const timeout = setTimeout(() => reject(new Error('RTCDataChannel timeout')), 10000);
 
                 const check = () => {
                     if (dc && dc.readyState === 'open') {

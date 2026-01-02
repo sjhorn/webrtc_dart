@@ -18,9 +18,9 @@ import 'package:webrtc_dart/src/nonstandard/media/track.dart' as nonstandard;
 class RtpForwardTestServer {
   HttpServer? _httpServer;
   HttpServer? _wsServer;
-  RtcPeerConnection? _pc;
+  RTCPeerConnection? _pc;
   nonstandard.MediaStreamTrack? _videoTrack;
-  RtpTransceiver? _transceiver;
+  RTCRtpTransceiver? _transceiver;
   Timer? _rtpTimer;
   int _packetsSent = 0;
   bool _connected = false;
@@ -70,7 +70,7 @@ class RtpForwardTestServer {
     print('[Server] WebSocket connected');
 
     // Create peer connection with video codec
-    _pc = RtcPeerConnection(
+    _pc = RTCPeerConnection(
       RtcConfiguration(
         codecs: RtcCodecs(
           video: [
@@ -124,7 +124,7 @@ class RtpForwardTestServer {
           final msg = jsonDecode(data as String) as Map<String, dynamic>;
           if (msg['type'] == 'answer') {
             await _pc!.setRemoteDescription(
-              SessionDescription(
+              RTCSessionDescription(
                 type: msg['type'] as String,
                 sdp: msg['sdp'] as String,
               ),

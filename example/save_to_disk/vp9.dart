@@ -52,7 +52,7 @@ class SaveToDiskVP9Server {
     Timer? stopTimer;
 
     // Create PeerConnection with VP9 + Opus codecs (matches werift)
-    final pc = RtcPeerConnection(
+    final pc = RTCPeerConnection(
       RtcConfiguration(
         codecs: RtcCodecs(
           video: [
@@ -205,7 +205,7 @@ class SaveToDiskVP9Server {
           if (msg['type'] == 'answer') {
             print('[Server] Received answer');
             await pc.setRemoteDescription(
-              SessionDescription(type: 'answer', sdp: msg['sdp'] as String),
+              RTCSessionDescription(type: 'answer', sdp: msg['sdp'] as String),
             );
             print('[Server] Remote description set');
           }

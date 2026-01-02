@@ -18,7 +18,7 @@ import 'package:webrtc_dart/src/container/mp4/container.dart';
 
 class SaveToDiskMp4AvServer {
   HttpServer? _server;
-  RtcPeerConnection? _pc;
+  RTCPeerConnection? _pc;
   final List<Map<String, dynamic>> _localCandidates = [];
   Completer<void> _connectionCompleter = Completer();
   DateTime? _startTime;
@@ -171,7 +171,7 @@ class SaveToDiskMp4AvServer {
     });
 
     // Create peer connection with STUN server
-    _pc = RtcPeerConnection(RtcConfiguration(
+    _pc = RTCPeerConnection(RtcConfiguration(
       iceServers: [
         IceServer(urls: ['stun:stun.l.google.com:19302'])
       ],
@@ -553,7 +553,7 @@ class SaveToDiskMp4AvServer {
     final body = await utf8.decodeStream(request);
     final data = jsonDecode(body) as Map<String, dynamic>;
 
-    final answer = SessionDescription(
+    final answer = RTCSessionDescription(
       type: data['type'] as String,
       sdp: data['sdp'] as String,
     );
@@ -591,7 +591,7 @@ class SaveToDiskMp4AvServer {
     }
 
     try {
-      final candidate = Candidate.fromSdp(candidateStr);
+      final candidate = RTCIceCandidate.fromSdp(candidateStr);
       await _pc!.addIceCandidate(candidate);
       print('[SaveToDisk-MP4-AV] Added ICE candidate: ${candidate.type}');
     } catch (e) {

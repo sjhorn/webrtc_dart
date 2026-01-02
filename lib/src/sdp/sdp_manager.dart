@@ -21,16 +21,16 @@ import 'package:webrtc_dart/src/sdp/sdp.dart';
 /// Reference: werift-webrtc/packages/webrtc/src/sdpManager.ts
 class SdpManager {
   /// Current local description (after negotiation complete)
-  SessionDescription? currentLocalDescription;
+  RTCSessionDescription? currentLocalDescription;
 
   /// Current remote description (after negotiation complete)
-  SessionDescription? currentRemoteDescription;
+  RTCSessionDescription? currentRemoteDescription;
 
   /// Pending local description (during negotiation)
-  SessionDescription? pendingLocalDescription;
+  RTCSessionDescription? pendingLocalDescription;
 
   /// Pending remote description (during negotiation)
-  SessionDescription? pendingRemoteDescription;
+  RTCSessionDescription? pendingRemoteDescription;
 
   /// Canonical name for RTCP SDES
   final String cname;
@@ -48,7 +48,7 @@ class SdpManager {
   /// Set of allocated MIDs to prevent duplicates
   final Set<String> _seenMid = {};
 
-  /// Next MID counter (starts at 1, 0 reserved for DataChannel)
+  /// Next MID counter (starts at 1, 0 reserved for RTCDataChannel)
   int _nextMidCounter = 1;
 
   SdpManager({
@@ -57,11 +57,11 @@ class SdpManager {
   });
 
   /// Get the effective local description (pending takes precedence)
-  SessionDescription? get localDescriptionInternal =>
+  RTCSessionDescription? get localDescriptionInternal =>
       pendingLocalDescription ?? currentLocalDescription;
 
   /// Get the effective remote description (pending takes precedence)
-  SessionDescription? get remoteDescriptionInternal =>
+  RTCSessionDescription? get remoteDescriptionInternal =>
       pendingRemoteDescription ?? currentRemoteDescription;
 
   /// Get local description as RTCSessionDescription for public API
@@ -104,7 +104,7 @@ class SdpManager {
 
   /// Set local description and update pending/current state
   /// Matches werift: setLocalDescription(description)
-  void setLocalDescription(SessionDescription description) {
+  void setLocalDescription(RTCSessionDescription description) {
     currentLocalDescription = description;
     if (description.type == 'answer') {
       pendingLocalDescription = null;
@@ -114,22 +114,18 @@ class SdpManager {
   }
 
   /// Set remote description and update pending/current state
-  /// Returns the parsed SessionDescription
+  /// Returns the parsed RTCSessionDescription
   /// Matches werift: setRemoteDescription(sessionDescription, signalingState)
-  SessionDescription setRemoteDescription(
+  RTCSessionDescription setRemoteDescription(
     RTCSessionDescription sessionDescription,
     SignalingState signalingState,
   ) {
-    if (sessionDescription.sdp == null || sessionDescription.type == null) {
-      throw StateError('Invalid sessionDescription: missing sdp or type');
-    }
-
     // Create and validate
     final remoteSdp = createDescription(
-      sdp: sessionDescription.sdp!,
+      sdp: sessionDescription.sdp,
       isLocal: false,
       signalingState: signalingState,
-      type: sessionDescription.type!,
+      type: sessionDescription.type,
     );
 
     if (remoteSdp.type == 'answer') {
@@ -142,15 +138,15 @@ class SdpManager {
     return remoteSdp;
   }
 
-  /// Create and validate a SessionDescription
+  /// Create and validate a RTCSessionDescription
   /// Matches werift: parseSdp({sdp, isLocal, signalingState, type})
-  SessionDescription createDescription({
+  RTCSessionDescription createDescription({
     required String sdp,
     required bool isLocal,
     required SignalingState signalingState,
     required String type,
   }) {
-    final description = SessionDescription(type: type, sdp: sdp);
+    final description = RTCSessionDescription(type: type, sdp: sdp);
     validateDescription(
       description: description,
       isLocal: isLocal,
@@ -162,7 +158,7 @@ class SdpManager {
   /// Validate description against signaling state machine
   /// Matches werift: validateDescription({description, isLocal, signalingState})
   void validateDescription({
-    required SessionDescription description,
+    required RTCSessionDescription description,
     required bool isLocal,
     required SignalingState signalingState,
   }) {
@@ -300,8 +296,8 @@ class SdpManager {
   /// - [midExtensionId]: Extension ID for sdes:mid header extension
   /// - [perMidCredentials]: Optional per-MID ICE credentials for bundlePolicy:disable
   ///   If provided, each m-line uses its own iceUfrag/icePwd
-  SessionDescription buildOfferSdp({
-    required List<RtpTransceiver> transceivers,
+  RTCSessionDescription buildOfferSdp({
+    required List<RTCRtpTransceiver> transceivers,
     required String iceUfrag,
     required String icePwd,
     required String dtlsFingerprint,
@@ -562,7 +558,7 @@ class SdpManager {
     );
 
     final sdp = sdpMessage.serialize();
-    return SessionDescription(type: 'offer', sdp: sdp);
+    return RTCSessionDescription(type: 'offer', sdp: sdp);
   }
 
   /// Build answer SDP matching remote offer
@@ -576,9 +572,9 @@ class SdpManager {
   /// - [dtlsFingerprint]: DTLS certificate fingerprint
   /// - [rtxSsrcByMid]: Map of MID -> RTX SSRC (will be updated with new entries)
   /// - [generateSsrc]: Callback to generate new SSRC values
-  SessionDescription buildAnswerSdp({
+  RTCSessionDescription buildAnswerSdp({
     required SdpMessage remoteSdp,
-    required List<RtpTransceiver> transceivers,
+    required List<RTCRtpTransceiver> transceivers,
     required String iceUfrag,
     required String icePwd,
     required String dtlsFingerprint,
@@ -602,7 +598,7 @@ class SdpManager {
       ];
 
       if (remoteMedia.type == 'application') {
-        // DataChannel media line
+        // RTCDataChannel media line
         attributes.add(SdpAttribute(key: 'sctp-port', value: '5000'));
       } else if (remoteMedia.type == 'audio' || remoteMedia.type == 'video') {
         // Audio/video media line
@@ -708,19 +704,6 @@ class SdpManager {
     );
 
     final sdp = sdpMessage.serialize();
-    return SessionDescription(type: 'answer', sdp: sdp);
+    return RTCSessionDescription(type: 'answer', sdp: sdp);
   }
-}
-
-/// RTCSessionDescription - W3C WebRTC API compatible description
-class RTCSessionDescription {
-  final String? type;
-  final String? sdp;
-
-  const RTCSessionDescription({this.type, this.sdp});
-
-  Map<String, String?> toJson() => {'type': type, 'sdp': sdp};
-
-  @override
-  String toString() => 'RTCSessionDescription(type: $type)';
 }

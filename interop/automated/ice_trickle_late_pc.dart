@@ -9,7 +9,7 @@ import 'package:webrtc_dart/webrtc_dart.dart';
 
 class IceTrickleLateServer {
   HttpServer? _server;
-  RtcPeerConnection? _pc;
+  RTCPeerConnection? _pc;
   dynamic _dc;
   final List<Map<String, dynamic>> _localCandidates = [];
   Completer<void> _connectionCompleter = Completer();
@@ -108,7 +108,7 @@ class IceTrickleLateServer {
 
   Future<void> _handleOffer(HttpRequest request) async {
     // Create PC here instead of in /start (like multi_client does)
-    _pc = RtcPeerConnection(RtcConfiguration(
+    _pc = RTCPeerConnection(RtcConfiguration(
       iceServers: [
         IceServer(urls: ['stun:stun.l.google.com:19302'])
       ],
@@ -137,12 +137,12 @@ class IceTrickleLateServer {
       });
     });
 
-    // Create DataChannel
+    // Create RTCDataChannel
     _dc = _pc!.createDataChannel('late-test');
-    print('[Late] Created DataChannel: late-test');
+    print('[Late] Created RTCDataChannel: late-test');
 
     _dc!.onStateChange.listen((state) {
-      print('[Late] DataChannel state: $state');
+      print('[Late] RTCDataChannel state: $state');
       if (state == DataChannelState.open && !_dcOpenCompleter.isCompleted) {
         _dcOpenCompleter.complete();
       }
@@ -174,7 +174,7 @@ class IceTrickleLateServer {
     final body = await utf8.decodeStream(request);
     final data = jsonDecode(body) as Map<String, dynamic>;
 
-    final answer = SessionDescription(
+    final answer = RTCSessionDescription(
       type: data['type'] as String,
       sdp: data['sdp'] as String,
     );
@@ -210,7 +210,7 @@ class IceTrickleLateServer {
     }
 
     try {
-      final candidate = Candidate.fromSdp(candidateStr);
+      final candidate = RTCIceCandidate.fromSdp(candidateStr);
       await _pc!.addIceCandidate(candidate);
       print('[Late] Received candidate: ${candidate.type}');
     } catch (e) {
@@ -229,7 +229,7 @@ class IceTrickleLateServer {
   Future<void> _handlePing(HttpRequest request) async {
     if (_dc == null || _dc!.state != DataChannelState.open) {
       request.response.statusCode = 400;
-      request.response.write('DataChannel not open');
+      request.response.write('RTCDataChannel not open');
       return;
     }
 
@@ -336,10 +336,10 @@ class IceTrickleLateServer {
 
                 pc.ondatachannel = (e) => {
                     dc = e.channel;
-                    log('Received DataChannel: ' + dc.label, 'success');
+                    log('Received RTCDataChannel: ' + dc.label, 'success');
 
                     dc.onopen = () => {
-                        log('DataChannel open!', 'success');
+                        log('RTCDataChannel open!', 'success');
                     };
 
                     dc.onmessage = (e) => {
@@ -386,9 +386,9 @@ class IceTrickleLateServer {
                 await waitForConnection();
                 log('Connection established!', 'success');
 
-                log('Waiting for DataChannel...');
+                log('Waiting for RTCDataChannel...');
                 await waitForDataChannel();
-                log('DataChannel ready!', 'success');
+                log('RTCDataChannel ready!', 'success');
 
                 // Ping test
                 await fetch(serverBase + '/ping');
@@ -435,7 +435,7 @@ class IceTrickleLateServer {
 
         async function waitForDataChannel() {
             return new Promise((resolve, reject) => {
-                const timeout = setTimeout(() => reject(new Error('DataChannel timeout')), 10000);
+                const timeout = setTimeout(() => reject(new Error('RTCDataChannel timeout')), 10000);
                 const check = () => {
                     if (dc && dc.readyState === 'open') {
                         clearTimeout(timeout);

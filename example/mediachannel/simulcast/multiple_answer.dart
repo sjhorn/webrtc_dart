@@ -54,7 +54,7 @@ class SimulcastMultipleAnswerServer {
             print('[Server] Received offer');
 
             // Create PeerConnection with STUN and RID header extensions (like werift)
-            final pc = RtcPeerConnection(RtcConfiguration(
+            final pc = RTCPeerConnection(RtcConfiguration(
               iceServers: [
                 IceServer(urls: ['stun:stun.l.google.com:19302'])
               ],
@@ -119,7 +119,7 @@ class SimulcastMultipleAnswerServer {
 
             // Set remote description (offer from browser)
             await pc.setRemoteDescription(
-              SessionDescription(type: 'offer', sdp: msg['sdp'] as String),
+              RTCSessionDescription(type: 'offer', sdp: msg['sdp'] as String),
             );
             print('[Server] Remote description set');
 

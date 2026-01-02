@@ -14,7 +14,7 @@ import 'package:webrtc_dart/webrtc_dart.dart';
 
 class ClientConnection {
   final String id;
-  final RtcPeerConnection pc;
+  final RTCPeerConnection pc;
   final List<Map<String, dynamic>> candidates = [];
   DateTime? connectedTime;
   int rtpPacketsReceived = 0;
@@ -125,7 +125,7 @@ class MultiClientRecvonlyServer {
     print('[MultiRecvonly] New connection: $clientId');
 
     // Create peer connection for this client
-    final pc = RtcPeerConnection(RtcConfiguration(
+    final pc = RTCPeerConnection(RtcConfiguration(
       iceServers: [
         IceServer(urls: ['stun:stun.l.google.com:19302'])
       ],
@@ -225,7 +225,7 @@ class MultiClientRecvonlyServer {
       return;
     }
 
-    final answer = SessionDescription(
+    final answer = RTCSessionDescription(
       type: data['type'] as String,
       sdp: data['sdp'] as String,
     );
@@ -263,7 +263,7 @@ class MultiClientRecvonlyServer {
     }
 
     try {
-      final candidate = Candidate.fromSdp(candidateStr);
+      final candidate = RTCIceCandidate.fromSdp(candidateStr);
       await client.pc.addIceCandidate(candidate);
       print('[MultiRecvonly] [$clientId] Added candidate: ${candidate.type}');
     } catch (e) {

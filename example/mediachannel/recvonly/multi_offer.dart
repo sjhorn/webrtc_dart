@@ -14,7 +14,7 @@ import 'package:webrtc_dart/webrtc_dart.dart';
 
 class ClientConnection {
   final String id;
-  final RtcPeerConnection pc;
+  final RTCPeerConnection pc;
   int packetsReceived = 0;
 
   ClientConnection(this.id, this.pc);
@@ -45,7 +45,7 @@ void main() async {
     final clientId = 'client_${++_clientCounter}';
     print('[$clientId] Connected');
 
-    final pc = RtcPeerConnection(RtcConfiguration(
+    final pc = RTCPeerConnection(RtcConfiguration(
       iceServers: [
         IceServer(urls: ['stun:stun.l.google.com:19302'])
       ],
@@ -91,7 +91,7 @@ void main() async {
     socket.listen(
       (data) async {
         final msg = jsonDecode(data as String);
-        final answer = SessionDescription(type: 'answer', sdp: msg['sdp']);
+        final answer = RTCSessionDescription(type: 'answer', sdp: msg['sdp']);
         await pc.setRemoteDescription(answer);
         print('[$clientId] Remote description set');
       },

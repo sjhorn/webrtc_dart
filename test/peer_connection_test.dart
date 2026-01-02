@@ -13,9 +13,9 @@ import 'package:webrtc_dart/src/nonstandard/media/track.dart' as nonstandard;
 import 'package:webrtc_dart/src/srtp/rtp_packet.dart';
 
 void main() {
-  group('RtcPeerConnection', () {
+  group('RTCPeerConnection', () {
     test('initial state', () {
-      final pc = RtcPeerConnection();
+      final pc = RTCPeerConnection();
 
       expect(pc.signalingState, SignalingState.stable);
       expect(pc.connectionState, PeerConnectionState.new_);
@@ -26,7 +26,7 @@ void main() {
     });
 
     test('creates offer', () async {
-      final pc = RtcPeerConnection();
+      final pc = RTCPeerConnection();
 
       final offer = await pc.createOffer();
 
@@ -39,7 +39,7 @@ void main() {
     });
 
     test('sets local description with offer', () async {
-      final pc = RtcPeerConnection();
+      final pc = RTCPeerConnection();
 
       final offer = await pc.createOffer();
       await pc.setLocalDescription(offer);
@@ -50,7 +50,7 @@ void main() {
     });
 
     test('sets remote description with offer', () async {
-      final pc = RtcPeerConnection();
+      final pc = RTCPeerConnection();
 
       final offer = await pc.createOffer();
       await pc.setRemoteDescription(offer);
@@ -61,7 +61,7 @@ void main() {
     });
 
     test('creates answer after receiving offer', () async {
-      final pc = RtcPeerConnection();
+      final pc = RTCPeerConnection();
 
       final offer = await pc.createOffer();
       await pc.setRemoteDescription(offer);
@@ -75,7 +75,7 @@ void main() {
     });
 
     test('sets local description with answer', () async {
-      final pc = RtcPeerConnection();
+      final pc = RTCPeerConnection();
 
       final offer = await pc.createOffer();
       await pc.setRemoteDescription(offer);
@@ -88,8 +88,8 @@ void main() {
     });
 
     test('offer/answer exchange', () async {
-      final pc1 = RtcPeerConnection();
-      final pc2 = RtcPeerConnection();
+      final pc1 = RTCPeerConnection();
+      final pc2 = RTCPeerConnection();
 
       // PC1 creates offer
       final offer = await pc1.createOffer();
@@ -111,7 +111,7 @@ void main() {
     });
 
     test('cannot create offer in wrong state', () async {
-      final pc = RtcPeerConnection();
+      final pc = RTCPeerConnection();
 
       final offer = await pc.createOffer();
       await pc.setRemoteDescription(offer);
@@ -121,28 +121,28 @@ void main() {
     });
 
     test('cannot create answer without remote offer', () async {
-      final pc = RtcPeerConnection();
+      final pc = RTCPeerConnection();
 
       expect(() => pc.createAnswer(), throwsStateError);
     });
 
     test('cannot set local answer in stable state', () async {
-      final pc = RtcPeerConnection();
+      final pc = RTCPeerConnection();
 
       final offer = await pc.createOffer();
       await pc.setRemoteDescription(offer);
       final answer = await pc.createAnswer();
 
       // Create new PC in stable state
-      final pc2 = RtcPeerConnection();
+      final pc2 = RTCPeerConnection();
 
       expect(() => pc2.setLocalDescription(answer), throwsStateError);
     });
 
     test('adds ICE candidate', () async {
-      final pc = RtcPeerConnection();
+      final pc = RTCPeerConnection();
 
-      final candidate = Candidate(
+      final candidate = RTCIceCandidate(
         foundation: '1',
         component: 1,
         transport: 'udp',
@@ -157,9 +157,9 @@ void main() {
     });
 
     test('emits ICE candidates', () async {
-      final pc = RtcPeerConnection();
+      final pc = RTCPeerConnection();
 
-      final candidates = <Candidate>[];
+      final candidates = <RTCIceCandidate>[];
       pc.onIceCandidate.listen(candidates.add);
 
       final offer = await pc.createOffer();
@@ -173,7 +173,7 @@ void main() {
     });
 
     test('emits connection state changes', () async {
-      final pc = RtcPeerConnection();
+      final pc = RTCPeerConnection();
 
       final states = <PeerConnectionState>[];
       pc.onConnectionStateChange.listen(states.add);
@@ -186,16 +186,16 @@ void main() {
       expect(states, contains(PeerConnectionState.closed));
     });
 
-    test('creates data channel before SCTP is ready (returns ProxyDataChannel)',
+    test('creates data channel before SCTP is ready (returns ProxyRTCDataChannel)',
         () async {
-      final pc = RtcPeerConnection();
+      final pc = RTCPeerConnection();
 
       // Wait for async initialization (certificate generation, transport setup)
       await Future.delayed(Duration(milliseconds: 100));
 
       // SCTP is not ready until ICE/DTLS/SCTP handshakes complete
-      // But createDataChannel now returns a ProxyDataChannel that will be
-      // wired to a real DataChannel when SCTP becomes ready
+      // But createDataChannel now returns a ProxyRTCDataChannel that will be
+      // wired to a real RTCDataChannel when SCTP becomes ready
       final channel = pc.createDataChannel('test');
 
       // The channel should be in connecting state until SCTP is ready
@@ -206,7 +206,7 @@ void main() {
     });
 
     test('closes cleanly', () async {
-      final pc = RtcPeerConnection();
+      final pc = RTCPeerConnection();
 
       final offer = await pc.createOffer();
       await pc.setLocalDescription(offer);
@@ -218,28 +218,28 @@ void main() {
     });
 
     test('rollback local offer', () async {
-      final pc = RtcPeerConnection();
+      final pc = RTCPeerConnection();
 
       final offer = await pc.createOffer();
       await pc.setLocalDescription(offer);
       expect(pc.signalingState, SignalingState.haveLocalOffer);
 
       await pc
-          .setLocalDescription(SessionDescription(type: 'rollback', sdp: ''));
+          .setLocalDescription(RTCSessionDescription(type: 'rollback', sdp: ''));
 
       expect(pc.signalingState, SignalingState.stable);
       expect(pc.localDescription, isNull);
     });
 
     test('rollback remote offer', () async {
-      final pc = RtcPeerConnection();
+      final pc = RTCPeerConnection();
 
       final offer = await pc.createOffer();
       await pc.setRemoteDescription(offer);
       expect(pc.signalingState, SignalingState.haveRemoteOffer);
 
       await pc
-          .setRemoteDescription(SessionDescription(type: 'rollback', sdp: ''));
+          .setRemoteDescription(RTCSessionDescription(type: 'rollback', sdp: ''));
 
       expect(pc.signalingState, SignalingState.stable);
       expect(pc.remoteDescription, isNull);
@@ -309,7 +309,7 @@ void main() {
 
   group('BundlePolicy SDP', () {
     test('maxBundle includes BUNDLE group in SDP', () async {
-      final pc = RtcPeerConnection(RtcConfiguration(
+      final pc = RTCPeerConnection(RtcConfiguration(
         bundlePolicy: BundlePolicy.maxBundle,
       ));
 
@@ -324,7 +324,7 @@ void main() {
     });
 
     test('maxCompat includes BUNDLE group in SDP', () async {
-      final pc = RtcPeerConnection(RtcConfiguration(
+      final pc = RTCPeerConnection(RtcConfiguration(
         bundlePolicy: BundlePolicy.maxCompat,
       ));
 
@@ -339,7 +339,7 @@ void main() {
     });
 
     test('disable does NOT include BUNDLE group in SDP', () async {
-      final pc = RtcPeerConnection(RtcConfiguration(
+      final pc = RTCPeerConnection(RtcConfiguration(
         bundlePolicy: BundlePolicy.disable,
       ));
 
@@ -354,10 +354,10 @@ void main() {
     });
 
     test('answer respects bundlePolicy disable', () async {
-      final pc1 = RtcPeerConnection(RtcConfiguration(
+      final pc1 = RTCPeerConnection(RtcConfiguration(
         bundlePolicy: BundlePolicy.disable,
       ));
-      final pc2 = RtcPeerConnection(RtcConfiguration(
+      final pc2 = RTCPeerConnection(RtcConfiguration(
         bundlePolicy: BundlePolicy.disable,
       ));
 
@@ -385,8 +385,8 @@ void main() {
 
   group('Signaling State Machine', () {
     test('stable -> haveLocalOffer -> stable', () async {
-      final pc1 = RtcPeerConnection();
-      final pc2 = RtcPeerConnection();
+      final pc1 = RTCPeerConnection();
+      final pc2 = RTCPeerConnection();
 
       expect(pc1.signalingState, SignalingState.stable);
 
@@ -405,7 +405,7 @@ void main() {
     });
 
     test('stable -> haveRemoteOffer -> stable', () async {
-      final pc = RtcPeerConnection();
+      final pc = RTCPeerConnection();
       expect(pc.signalingState, SignalingState.stable);
 
       final offer = await pc.createOffer();
@@ -420,7 +420,7 @@ void main() {
 
   group('RTX SDP Integration', () {
     test('video offer includes RTX attributes', () async {
-      final pc = RtcPeerConnection();
+      final pc = RTCPeerConnection();
 
       // Add a video track to trigger video SDP generation
       final videoTrack = VideoStreamTrack(id: 'video1', label: 'Video');
@@ -456,7 +456,7 @@ void main() {
     });
 
     test('video offer RTX codec references original codec', () async {
-      final pc = RtcPeerConnection();
+      final pc = RTCPeerConnection();
 
       final videoTrack = VideoStreamTrack(id: 'video1', label: 'Video');
       pc.addTrack(videoTrack);
@@ -487,7 +487,7 @@ void main() {
     });
 
     test('audio offer does not include RTX', () async {
-      final pc = RtcPeerConnection();
+      final pc = RTCPeerConnection();
 
       // Add audio track
       final audioTrack = AudioStreamTrack(id: 'audio1', label: 'Audio');
@@ -512,8 +512,8 @@ void main() {
     });
 
     test('answer includes RTX when offer has RTX', () async {
-      final pc1 = RtcPeerConnection();
-      final pc2 = RtcPeerConnection();
+      final pc1 = RTCPeerConnection();
+      final pc2 = RTCPeerConnection();
 
       // PC1 creates offer with video
       final videoTrack1 = VideoStreamTrack(id: 'video1', label: 'Video');
@@ -549,7 +549,7 @@ void main() {
     });
 
     test('RTX SSRC is different from original SSRC', () async {
-      final pc = RtcPeerConnection();
+      final pc = RTCPeerConnection();
 
       final videoTrack = VideoStreamTrack(id: 'video1', label: 'Video');
       pc.addTrack(videoTrack);
@@ -574,7 +574,7 @@ void main() {
     });
 
     test('RTX attributes are preserved across multiple offers', () async {
-      final pc = RtcPeerConnection();
+      final pc = RTCPeerConnection();
 
       final videoTrack = VideoStreamTrack(id: 'video1', label: 'Video');
       pc.addTrack(videoTrack);
@@ -605,7 +605,7 @@ void main() {
 
   group('Nonstandard Track API (werift parity)', () {
     test('addTransceiver creates transceiver with track wired', () async {
-      final pc = RtcPeerConnection();
+      final pc = RTCPeerConnection();
 
       // Create nonstandard track (like TypeScript werift MediaStreamTrack)
       final track = nonstandard.MediaStreamTrack(
@@ -627,7 +627,7 @@ void main() {
     });
 
     test('addTransceiver with H264 codec', () async {
-      final pc = RtcPeerConnection();
+      final pc = RTCPeerConnection();
 
       final track = nonstandard.MediaStreamTrack(
         kind: nonstandard.MediaKind.video,
@@ -650,7 +650,7 @@ void main() {
     });
 
     test('addTransceiver creates offer with video media', () async {
-      final pc = RtcPeerConnection();
+      final pc = RTCPeerConnection();
 
       final track = nonstandard.MediaStreamTrack(
         kind: nonstandard.MediaKind.video,
@@ -677,7 +677,7 @@ void main() {
     });
 
     test('sender.registerNonstandardTrack wires track to sender', () async {
-      final pc = RtcPeerConnection();
+      final pc = RTCPeerConnection();
 
       // First add transceiver without track
       final transceiver = pc.addTransceiver(
@@ -702,7 +702,7 @@ void main() {
     });
 
     test('audio track creates audio transceiver', () async {
-      final pc = RtcPeerConnection();
+      final pc = RTCPeerConnection();
 
       final track = nonstandard.MediaStreamTrack(
         kind: nonstandard.MediaKind.audio,
@@ -723,7 +723,7 @@ void main() {
     test('codecs from RtcConfiguration are used when no explicit codec',
         () async {
       // Create peer connection with H264 codec config (like TypeScript werift)
-      final pc = RtcPeerConnection(RtcConfiguration(
+      final pc = RTCPeerConnection(RtcConfiguration(
         codecs: RtcCodecs(
           video: [
             createH264Codec(
@@ -767,7 +767,7 @@ void main() {
       // payload type than the SDP-negotiated codec, _attachNonstandardTrack should
       // rewrite the payload type to match the negotiated codec.
 
-      final pc = RtcPeerConnection(RtcConfiguration(
+      final pc = RTCPeerConnection(RtcConfiguration(
         codecs: RtcCodecs(
           video: [
             createH264Codec(payloadType: 96), // Negotiated PT is 96
@@ -823,7 +823,7 @@ void main() {
         () async {
       // This test verifies the fix for the bug where createAudioTransceiver
       // always used Opus regardless of configured codecs.
-      final pc = RtcPeerConnection(RtcConfiguration(
+      final pc = RTCPeerConnection(RtcConfiguration(
         codecs: RtcCodecs(
           audio: [createPcmuCodec()], // Configure PCMU instead of default Opus
           video: [createH264Codec(payloadType: 96)],
@@ -852,7 +852,7 @@ void main() {
     });
 
     test('audio transceiver SDP contains configured PCMU codec', () async {
-      final pc = RtcPeerConnection(RtcConfiguration(
+      final pc = RTCPeerConnection(RtcConfiguration(
         codecs: RtcCodecs(
           audio: [createPcmuCodec()],
         ),
@@ -881,7 +881,7 @@ void main() {
     });
 
     test('addTransceiver with audio kind uses configured codec', () async {
-      final pc = RtcPeerConnection(RtcConfiguration(
+      final pc = RTCPeerConnection(RtcConfiguration(
         codecs: RtcCodecs(
           audio: [createPcmuCodec()],
         ),
@@ -899,7 +899,7 @@ void main() {
     });
 
     test('multiple transceivers (video + audio) use correct codecs', () async {
-      final pc = RtcPeerConnection(RtcConfiguration(
+      final pc = RTCPeerConnection(RtcConfiguration(
         codecs: RtcCodecs(
           audio: [createPcmuCodec()],
           video: [createH264Codec(payloadType: 96)],

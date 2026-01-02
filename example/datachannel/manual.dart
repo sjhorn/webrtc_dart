@@ -1,7 +1,7 @@
-/// Quick Start: Your First DataChannel
+/// Quick Start: Your First RTCDataChannel
 ///
 /// This example shows basic peer connection and data channel creation.
-/// It matches the "Your First DataChannel" snippet in README.md.
+/// It matches the "Your First RTCDataChannel" snippet in README.md.
 ///
 /// Usage: dart run example/quickstart_datachannel.dart
 library;
@@ -10,7 +10,7 @@ import 'package:webrtc_dart/webrtc_dart.dart';
 
 void main() async {
   // Create a new peer connection
-  final pc = RtcPeerConnection(RtcConfiguration(
+  final pc = RTCPeerConnection(RtcConfiguration(
     iceServers: [
       IceServer(urls: ['stun:stun.l.google.com:19302'])
     ],

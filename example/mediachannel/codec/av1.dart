@@ -13,7 +13,7 @@ void main() async {
   print('AV1 Codec Example');
   print('=' * 50);
 
-  final pc = RtcPeerConnection(RtcConfiguration(
+  final pc = RTCPeerConnection(RtcConfiguration(
     iceServers: [
       IceServer(urls: ['stun:stun.l.google.com:19302'])
     ],

@@ -9,7 +9,7 @@ import 'package:webrtc_dart/webrtc_dart.dart';
 
 class IceTricklePcInConnectServer {
   HttpServer? _server;
-  RtcPeerConnection? _pc;
+  RTCPeerConnection? _pc;
   dynamic _dc;
   final List<Map<String, dynamic>> _localCandidates = [];
   Completer<void> _dcOpenCompleter = Completer();
@@ -96,7 +96,7 @@ class IceTricklePcInConnectServer {
     _dcOpenCompleter = Completer();
 
     // THEORY: Warmup PC doesn't help, disabled for now
-    // final warmupPc = RtcPeerConnection(RtcConfiguration(
+    // final warmupPc = RTCPeerConnection(RtcConfiguration(
     //   iceServers: [IceServer(urls: ['stun:stun.l.google.com:19302'])],
     // ));
     // print('[PcConnect] Created warmup PC');
@@ -115,7 +115,7 @@ class IceTricklePcInConnectServer {
     print('[PcConnect] Creating PeerConnection in /connect');
 
     // Create peer connection HERE (like multi_client)
-    _pc = RtcPeerConnection(RtcConfiguration(
+    _pc = RTCPeerConnection(RtcConfiguration(
       iceServers: [
         IceServer(urls: ['stun:stun.l.google.com:19302'])
       ],
@@ -162,12 +162,12 @@ class IceTricklePcInConnectServer {
       return;
     }
 
-    // Create DataChannel before createOffer
+    // Create RTCDataChannel before createOffer
     _dc = _pc!.createDataChannel('pc-connect-test');
-    print('[PcConnect] Created DataChannel: pc-connect-test');
+    print('[PcConnect] Created RTCDataChannel: pc-connect-test');
 
     _dc!.onStateChange.listen((state) {
-      print('[PcConnect] DataChannel state: $state');
+      print('[PcConnect] RTCDataChannel state: $state');
       if (state == DataChannelState.open && !_dcOpenCompleter.isCompleted) {
         _dcOpenCompleter.complete();
       }
@@ -200,7 +200,7 @@ class IceTricklePcInConnectServer {
     final body = await utf8.decodeStream(request);
     final data = jsonDecode(body) as Map<String, dynamic>;
 
-    final answer = SessionDescription(
+    final answer = RTCSessionDescription(
       type: data['type'] as String,
       sdp: data['sdp'] as String,
     );
@@ -236,7 +236,7 @@ class IceTricklePcInConnectServer {
     }
 
     try {
-      final candidate = Candidate.fromSdp(candidateStr);
+      final candidate = RTCIceCandidate.fromSdp(candidateStr);
       await _pc!.addIceCandidate(candidate);
       print('[PcConnect] Received candidate: ${candidate.type}');
     } catch (e) {
@@ -342,10 +342,10 @@ class IceTricklePcInConnectServer {
 
                 pc.ondatachannel = (e) => {
                     dc = e.channel;
-                    log('Received DataChannel: ' + dc.label, 'success');
+                    log('Received RTCDataChannel: ' + dc.label, 'success');
 
                     dc.onopen = () => {
-                        log('DataChannel open!', 'success');
+                        log('RTCDataChannel open!', 'success');
                     };
 
                     dc.onmessage = (e) => {
@@ -391,9 +391,9 @@ class IceTricklePcInConnectServer {
                 await waitForConnection();
                 log('Connected!', 'success');
 
-                log('Waiting for DataChannel...');
+                log('Waiting for RTCDataChannel...');
                 await waitForDataChannel();
-                log('DataChannel ready!', 'success');
+                log('RTCDataChannel ready!', 'success');
 
                 const resultResp = await fetch(serverBase + '/result');
                 const result = await resultResp.json();
@@ -434,7 +434,7 @@ class IceTricklePcInConnectServer {
 
         async function waitForDataChannel() {
             return new Promise((resolve, reject) => {
-                const timeout = setTimeout(() => reject(new Error('DataChannel timeout')), 15000);
+                const timeout = setTimeout(() => reject(new Error('RTCDataChannel timeout')), 15000);
                 const check = () => {
                     if (dc && dc.readyState === 'open') {
                         clearTimeout(timeout);

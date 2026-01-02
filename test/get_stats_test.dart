@@ -3,9 +3,9 @@ import 'package:webrtc_dart/src/rtc_peer_connection.dart';
 import 'package:webrtc_dart/src/stats/rtc_stats.dart';
 
 void main() {
-  group('RtcPeerConnection.getStats()', () {
+  group('RTCPeerConnection.getStats()', () {
     test('returns RTCStatsReport', () async {
-      final pc = RtcPeerConnection();
+      final pc = RTCPeerConnection();
 
       final stats = await pc.getStats();
 
@@ -13,7 +13,7 @@ void main() {
     });
 
     test('contains peer-connection stats', () async {
-      final pc = RtcPeerConnection();
+      final pc = RTCPeerConnection();
 
       final stats = await pc.getStats();
 
@@ -33,7 +33,7 @@ void main() {
     });
 
     test('peer-connection stats have valid properties', () async {
-      final pc = RtcPeerConnection();
+      final pc = RTCPeerConnection();
 
       final stats = await pc.getStats();
 
@@ -45,8 +45,8 @@ void main() {
     });
 
     test('includes RTP stats when transceivers exist', () async {
-      final pc1 = RtcPeerConnection();
-      final pc2 = RtcPeerConnection();
+      final pc1 = RTCPeerConnection();
+      final pc2 = RTCPeerConnection();
 
       // Create offer/answer to establish transceivers
       final offer = await pc1.createOffer();
@@ -71,7 +71,7 @@ void main() {
     });
 
     test('stats can be converted to JSON', () async {
-      final pc = RtcPeerConnection();
+      final pc = RTCPeerConnection();
 
       final stats = await pc.getStats();
 
@@ -86,7 +86,7 @@ void main() {
     });
 
     test('RTCStatsReport supports map-like access', () async {
-      final pc = RtcPeerConnection();
+      final pc = RTCPeerConnection();
 
       final stats = await pc.getStats();
 
@@ -104,7 +104,7 @@ void main() {
     });
 
     test('RTCStatsReport.containsKey works', () async {
-      final pc = RtcPeerConnection();
+      final pc = RTCPeerConnection();
 
       final stats = await pc.getStats();
 
@@ -114,7 +114,7 @@ void main() {
     });
 
     test('RTCStatsReport.forEach works', () async {
-      final pc = RtcPeerConnection();
+      final pc = RTCPeerConnection();
 
       final stats = await pc.getStats();
 
@@ -128,7 +128,7 @@ void main() {
     });
 
     test('works on closed connection without error', () async {
-      final pc = RtcPeerConnection();
+      final pc = RTCPeerConnection();
 
       await pc.close();
 

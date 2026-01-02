@@ -2,9 +2,9 @@ import 'package:test/test.dart';
 import 'package:webrtc_dart/src/ice/rtc_ice_candidate.dart';
 
 void main() {
-  group('Candidate', () {
+  group('RTCIceCandidate', () {
     test('creates candidate with all properties', () {
-      final candidate = Candidate(
+      final candidate = RTCIceCandidate(
         foundation: '1234567890',
         component: 1,
         transport: 'udp',
@@ -25,7 +25,7 @@ void main() {
 
     test('parses candidate from SDP', () {
       final sdp = '6815297761 1 udp 2130706431 192.168.1.1 54321 typ host';
-      final candidate = Candidate.fromSdp(sdp);
+      final candidate = RTCIceCandidate.fromSdp(sdp);
 
       expect(candidate.foundation, equals('6815297761'));
       expect(candidate.component, equals(1));
@@ -39,7 +39,7 @@ void main() {
     test('parses candidate with candidate: prefix', () {
       final sdp =
           'candidate:6815297761 1 udp 2130706431 192.168.1.1 54321 typ host';
-      final candidate = Candidate.fromSdp(sdp);
+      final candidate = RTCIceCandidate.fromSdp(sdp);
 
       expect(candidate.foundation, equals('6815297761'));
       expect(candidate.component, equals(1));
@@ -53,7 +53,7 @@ void main() {
     test('parses candidate with a=candidate: prefix', () {
       final sdp =
           'a=candidate:6815297761 1 udp 2130706431 192.168.1.1 54321 typ host';
-      final candidate = Candidate.fromSdp(sdp);
+      final candidate = RTCIceCandidate.fromSdp(sdp);
 
       expect(candidate.foundation, equals('6815297761'));
       expect(candidate.component, equals(1));
@@ -64,7 +64,7 @@ void main() {
     test('parses candidate with optional attributes', () {
       final sdp = '6815297761 1 udp 1694498815 10.0.0.1 54321 typ srflx '
           'raddr 192.168.1.1 rport 54321 generation 0 ufrag test';
-      final candidate = Candidate.fromSdp(sdp);
+      final candidate = RTCIceCandidate.fromSdp(sdp);
 
       expect(candidate.type, equals('srflx'));
       expect(candidate.relatedAddress, equals('192.168.1.1'));
@@ -75,11 +75,11 @@ void main() {
 
     test('throws on invalid SDP', () {
       final invalidSdp = '1 2 3'; // Too few parts
-      expect(() => Candidate.fromSdp(invalidSdp), throwsArgumentError);
+      expect(() => RTCIceCandidate.fromSdp(invalidSdp), throwsArgumentError);
     });
 
     test('converts candidate to SDP', () {
-      final candidate = Candidate(
+      final candidate = RTCIceCandidate(
         foundation: '6815297761',
         component: 1,
         transport: 'udp',
@@ -95,7 +95,7 @@ void main() {
     });
 
     test('converts candidate with optional attributes to SDP', () {
-      final candidate = Candidate(
+      final candidate = RTCIceCandidate(
         foundation: '6815297761',
         component: 1,
         transport: 'udp',
@@ -121,9 +121,9 @@ void main() {
       final originalSdp =
           '6815297761 1 udp 2130706431 192.168.1.1 54321 typ host '
           'generation 0 ufrag test';
-      final candidate = Candidate.fromSdp(originalSdp);
+      final candidate = RTCIceCandidate.fromSdp(originalSdp);
       final regeneratedSdp = candidate.toSdp();
-      final reparsed = Candidate.fromSdp(regeneratedSdp);
+      final reparsed = RTCIceCandidate.fromSdp(regeneratedSdp);
 
       expect(reparsed.foundation, equals(candidate.foundation));
       expect(reparsed.component, equals(candidate.component));
@@ -138,7 +138,7 @@ void main() {
 
     group('canPairWith', () {
       test('can pair with same component and IP version', () {
-        final local = Candidate(
+        final local = RTCIceCandidate(
           foundation: '1',
           component: 1,
           transport: 'udp',
@@ -148,7 +148,7 @@ void main() {
           type: 'host',
         );
 
-        final remote = Candidate(
+        final remote = RTCIceCandidate(
           foundation: '2',
           component: 1,
           transport: 'udp',
@@ -162,7 +162,7 @@ void main() {
       });
 
       test('cannot pair with different component', () {
-        final local = Candidate(
+        final local = RTCIceCandidate(
           foundation: '1',
           component: 1,
           transport: 'udp',
@@ -172,7 +172,7 @@ void main() {
           type: 'host',
         );
 
-        final remote = Candidate(
+        final remote = RTCIceCandidate(
           foundation: '2',
           component: 2,
           transport: 'udp',
@@ -186,7 +186,7 @@ void main() {
       });
 
       test('cannot pair with different IP version', () {
-        final local = Candidate(
+        final local = RTCIceCandidate(
           foundation: '1',
           component: 1,
           transport: 'udp',
@@ -196,7 +196,7 @@ void main() {
           type: 'host',
         );
 
-        final remote = Candidate(
+        final remote = RTCIceCandidate(
           foundation: '2',
           component: 1,
           transport: 'udp',
@@ -210,7 +210,7 @@ void main() {
       });
 
       test('can pair IPv6 candidates', () {
-        final local = Candidate(
+        final local = RTCIceCandidate(
           foundation: '1',
           component: 1,
           transport: 'udp',
@@ -220,7 +220,7 @@ void main() {
           type: 'host',
         );
 
-        final remote = Candidate(
+        final remote = RTCIceCandidate(
           foundation: '2',
           component: 1,
           transport: 'udp',
@@ -235,7 +235,7 @@ void main() {
     });
 
     test('equality comparison', () {
-      final c1 = Candidate(
+      final c1 = RTCIceCandidate(
         foundation: '1',
         component: 1,
         transport: 'udp',
@@ -245,7 +245,7 @@ void main() {
         type: 'host',
       );
 
-      final c2 = Candidate(
+      final c2 = RTCIceCandidate(
         foundation: '1',
         component: 1,
         transport: 'udp',
@@ -255,7 +255,7 @@ void main() {
         type: 'host',
       );
 
-      final c3 = Candidate(
+      final c3 = RTCIceCandidate(
         foundation: '1',
         component: 1,
         transport: 'udp',

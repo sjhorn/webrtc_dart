@@ -1,7 +1,7 @@
-/// Quick Start: Local DataChannel Test
+/// Quick Start: Local RTCDataChannel Test
 ///
 /// This example creates two peer connections locally and exchanges messages.
-/// It matches the "Example 1: Local DataChannel Test" snippet in README.md.
+/// It matches the "Example 1: Local RTCDataChannel Test" snippet in README.md.
 ///
 /// Usage: dart run example/quickstart_local.dart
 library;
@@ -10,8 +10,8 @@ import 'package:webrtc_dart/webrtc_dart.dart';
 
 void main() async {
   // Create two peer connections
-  final pcOffer = RtcPeerConnection();
-  final pcAnswer = RtcPeerConnection();
+  final pcOffer = RTCPeerConnection();
+  final pcAnswer = RTCPeerConnection();
 
   // Exchange ICE candidates
   pcOffer.onIceCandidate.listen((candidate) async {

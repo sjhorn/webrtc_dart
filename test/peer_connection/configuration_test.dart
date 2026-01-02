@@ -5,7 +5,7 @@ void main() {
   group('PeerConnection configuration', () {
     group('getConfiguration', () {
       test('returns default configuration when no config provided', () {
-        final pc = RtcPeerConnection();
+        final pc = RTCPeerConnection();
         final config = pc.getConfiguration();
 
         expect(config, isNotNull);
@@ -20,7 +20,7 @@ void main() {
           bundlePolicy: BundlePolicy.maxBundle,
         );
 
-        final pc = RtcPeerConnection(initialConfig);
+        final pc = RTCPeerConnection(initialConfig);
         final config = pc.getConfiguration();
 
         expect(config.iceServers.length, equals(1));
@@ -32,7 +32,7 @@ void main() {
 
     group('setConfiguration', () {
       test('updates ICE servers', () {
-        final pc = RtcPeerConnection();
+        final pc = RTCPeerConnection();
 
         final newConfig = RtcConfiguration(
           iceServers: [
@@ -56,7 +56,7 @@ void main() {
       });
 
       test('updates bundle policy', () {
-        final pc = RtcPeerConnection(
+        final pc = RTCPeerConnection(
           RtcConfiguration(bundlePolicy: BundlePolicy.maxCompat),
         );
 
@@ -72,7 +72,7 @@ void main() {
       });
 
       test('updates ICE transport policy', () {
-        final pc = RtcPeerConnection();
+        final pc = RTCPeerConnection();
 
         pc.setConfiguration(
           RtcConfiguration(iceTransportPolicy: IceTransportPolicy.relay),
@@ -83,7 +83,7 @@ void main() {
       });
 
       test('can replace configuration multiple times', () {
-        final pc = RtcPeerConnection();
+        final pc = RTCPeerConnection();
 
         // First update
         pc.setConfiguration(
@@ -111,7 +111,7 @@ void main() {
       });
 
       test('updates bundle policy to disable', () {
-        final pc = RtcPeerConnection();
+        final pc = RTCPeerConnection();
 
         pc.setConfiguration(
           RtcConfiguration(bundlePolicy: BundlePolicy.disable),
@@ -134,7 +134,7 @@ void main() {
           ],
         );
 
-        final pc = RtcPeerConnection(config);
+        final pc = RTCPeerConnection(config);
         final retrievedConfig = pc.getConfiguration();
 
         expect(retrievedConfig.iceServers[0].username, equals('turnuser'));
@@ -157,7 +157,7 @@ void main() {
           ],
         );
 
-        final pc = RtcPeerConnection(config);
+        final pc = RTCPeerConnection(config);
         final retrievedConfig = pc.getConfiguration();
 
         expect(retrievedConfig.iceServers.length, equals(2));

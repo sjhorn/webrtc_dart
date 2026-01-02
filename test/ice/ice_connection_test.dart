@@ -77,7 +77,7 @@ void main() {
     test('adds remote candidate', () async {
       final connection = IceConnectionImpl(iceControlling: true);
 
-      final candidate = Candidate(
+      final candidate = RTCIceCandidate(
         foundation: '1',
         component: 1,
         transport: 'udp',
@@ -105,7 +105,7 @@ void main() {
     test('validates remote candidates', () async {
       final connection = IceConnectionImpl(iceControlling: true);
 
-      final invalidCandidate = Candidate(
+      final invalidCandidate = RTCIceCandidate(
         foundation: '1',
         component: 1,
         transport: 'udp',
@@ -125,7 +125,7 @@ void main() {
       final connection = IceConnectionImpl(iceControlling: true);
 
       // Add a local candidate manually for testing
-      final _ = Candidate(
+      final _ = RTCIceCandidate(
         foundation: '1',
         component: 1,
         transport: 'udp',
@@ -139,7 +139,7 @@ void main() {
       // We need to manually add to _localCandidates for this test
       // In real usage, this would be done by gatherCandidates()
 
-      final remoteCandidate = Candidate(
+      final remoteCandidate = RTCIceCandidate(
         foundation: '2',
         component: 1,
         transport: 'udp',

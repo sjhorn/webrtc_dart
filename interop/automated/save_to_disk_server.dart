@@ -17,7 +17,7 @@ import 'package:webrtc_dart/src/nonstandard/recorder/media_recorder.dart';
 
 class SaveToDiskServer {
   HttpServer? _server;
-  RtcPeerConnection? _pc;
+  RTCPeerConnection? _pc;
   MediaRecorder? _recorder;
   final List<Map<String, dynamic>> _localCandidates = [];
   Completer<void> _connectionCompleter = Completer();
@@ -121,7 +121,7 @@ class SaveToDiskServer {
     _outputPath = './recording-${DateTime.now().millisecondsSinceEpoch}.webm';
 
     // Create peer connection with STUN server
-    _pc = RtcPeerConnection(RtcConfiguration(
+    _pc = RTCPeerConnection(RtcConfiguration(
       iceServers: [
         IceServer(urls: ['stun:stun.l.google.com:19302'])
       ],
@@ -196,7 +196,7 @@ class SaveToDiskServer {
       await _recorder!.start();
       print('[SaveToDisk] Recording started to: $_outputPath');
 
-      // Note: PLI sending not yet exposed via RtpTransceiver API
+      // Note: PLI sending not yet exposed via RTCRtpTransceiver API
       // Browser will send keyframes naturally at regular intervals
 
       // Stop recording after duration
@@ -264,7 +264,7 @@ class SaveToDiskServer {
     final body = await utf8.decodeStream(request);
     final data = jsonDecode(body) as Map<String, dynamic>;
 
-    final answer = SessionDescription(
+    final answer = RTCSessionDescription(
       type: data['type'] as String,
       sdp: data['sdp'] as String,
     );
@@ -302,7 +302,7 @@ class SaveToDiskServer {
     }
 
     try {
-      final candidate = Candidate.fromSdp(candidateStr);
+      final candidate = RTCIceCandidate.fromSdp(candidateStr);
       await _pc!.addIceCandidate(candidate);
       print('[SaveToDisk] Added ICE candidate: ${candidate.type}');
     } catch (e) {

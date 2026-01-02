@@ -1261,12 +1261,18 @@ class SctpAssociation {
   }
 
   /// Schedule SACK to be sent
+  ///
+  /// Uses immediate scheduling (like werift) rather than RFC 4960's delayed ACK
+  /// recommendation of 200ms. Immediate ACKs provide much better latency for
+  /// DataChannel use cases while maintaining correctness.
   void _scheduleSack() {
-    _sackTimer?.cancel();
-    _sackTimer = Timer(
-      Duration(milliseconds: SctpConstants.sackTimeout),
-      () => _sendSack(),
-    );
+    if (_sackTimer != null) return; // Already scheduled
+    // Use Timer with Duration.zero for immediate execution on next event loop
+    // This matches werift's setImmediate behavior
+    _sackTimer = Timer(Duration.zero, () {
+      _sackTimer = null;
+      _sendSack();
+    });
   }
 
   /// Send SACK chunk

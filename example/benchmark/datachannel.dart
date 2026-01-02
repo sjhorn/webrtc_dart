@@ -65,13 +65,16 @@ Future<void> main() async {
   final dc1Ready = Completer<void>();
   final dc2Ready = Completer<void>();
 
-  // Set up ICE candidate exchange
-  peer1.onIceCandidate.listen((candidate) async {
-    await peer2.addIceCandidate(candidate);
+  // Collect ICE candidates first, then exchange them
+  final peer1Candidates = <RTCIceCandidate>[];
+  final peer2Candidates = <RTCIceCandidate>[];
+
+  peer1.onIceCandidate.listen((candidate) {
+    peer1Candidates.add(candidate);
   });
 
-  peer2.onIceCandidate.listen((candidate) async {
-    await peer1.addIceCandidate(candidate);
+  peer2.onIceCandidate.listen((candidate) {
+    peer2Candidates.add(candidate);
   });
 
   // Handle incoming datachannel on peer2
@@ -104,6 +107,17 @@ Future<void> main() async {
   final answer = await peer2.createAnswer();
   await peer2.setLocalDescription(answer);
   await peer1.setRemoteDescription(answer);
+
+  // Wait for ICE gathering
+  await Future.delayed(Duration(milliseconds: 500));
+
+  // Exchange ICE candidates
+  for (final candidate in peer1Candidates) {
+    await peer2.addIceCandidate(candidate);
+  }
+  for (final candidate in peer2Candidates) {
+    await peer1.addIceCandidate(candidate);
+  }
 
   // Wait for datachannels to be ready
   print('Waiting for RTCDataChannel connections...');

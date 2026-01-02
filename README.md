@@ -118,12 +118,14 @@ Tested with Chrome, Firefox, and Safari via automated Playwright tests.
 
 ## Examples
 
-See [`example/`](example/) for:
+See [`example/`](example/) for the original examples ported from werift:
 
 - `datachannel/` - Data channel patterns
 - `mediachannel/` - SFU patterns (sendonly, recvonly, sendrecv)
 - `save_to_disk/` - Recording to WebM/MP4
 - `mediachannel/pubsub/` - Multi-peer SFU
+
+To see additional examples comparing how to implement in either werift or webrtc_dart see [WebRTC Examples](http://blog.hornmicro.com/webrtc_examples/)
 
 ## Test Coverage
 

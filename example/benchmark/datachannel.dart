@@ -7,6 +7,7 @@
 library;
 
 import 'dart:async';
+import 'dart:io';
 import 'dart:math';
 import 'dart:typed_data';
 import 'package:webrtc_dart/webrtc_dart.dart';
@@ -159,9 +160,8 @@ Future<void> main() async {
   print(
       'Throughput (4KB messages): ${throughputResult.toStringAsFixed(2)} MB/s');
 
-  // Cleanup
-  await peer1.close();
-  await peer2.close();
+  // Exit immediately - close() can hang due to graceful shutdown handshakes
+  exit(0);
 }
 
 Future<BenchmarkResult> runBenchmark({

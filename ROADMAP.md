@@ -100,12 +100,16 @@ Run benchmark: `dart run example/benchmark/datachannel.dart`
 | werift (Node.js) | 0.23ms | 1x |
 | webrtc_dart | 0.78ms | 3.4x |
 
+**DataChannel Throughput:** ~200 MB/s (4KB messages)
+
 **Investigated & Deferred:**
 
 | Issue | Finding |
 |-------|---------|
 | Buffer pooling | Only 0.1% of SRTP time - not worthwhile |
-| Native crypto FFI | Would close remaining 3.4x gap but requires significant effort |
+| scheduleMicrotask vs Timer | 15x faster scheduling (~0.2µs vs 3.4µs) but negligible impact on RTT |
+| Synchronous SACK | Caused 10x throughput regression - Timer batching is better |
+| Native crypto FFI | Would close remaining gap but requires significant effort |
 
 **Note:** The remaining ~3.4x gap vs werift is due to Dart event loop overhead
 and JIT differences. Further optimization would require native FFI bindings.
@@ -117,6 +121,10 @@ See `benchmark/` for measurement suite
 - ICE-LITE for server deployments
 - Enhanced SVC layer control
 - Insertable Streams API
+- **DataChannel close() deadlock fix**: When both peers close simultaneously, RFC 6525 stream reset requests can deadlock. Options:
+  - Add timeout to graceful close
+  - Process incoming reconfig requests while in closing state
+  - Provide non-blocking close option
 
 ### Long-term
 

@@ -94,14 +94,16 @@ Run benchmarks: `dart run benchmark/micro/srtp_encrypt_bench.dart`
 | 1000 | 0.206 ms | 0.004 ms | 51x |
 | 5000 | 5.297 ms | 0.023 ms | **230x** |
 
-**Remaining Opportunities:**
+**Investigated & Deferred:**
 
-| Priority | Issue | Location |
-|----------|-------|----------|
-| Low | Further buffer pooling | SRTP result assembly |
+| Issue | Finding |
+|-------|---------|
+| Buffer pooling | Only 0.1% of SRTP time - not worthwhile |
+| Native crypto FFI | Would close gap vs werift but requires significant effort |
 
 **Note:** The remaining ~18x gap vs werift is due to Node.js using native OpenSSL
-for AES-GCM, while Dart uses pure-Dart DartAesGcm. This is a platform limitation.
+for AES-GCM, while Dart uses pure-Dart crypto. This is a platform limitation that
+would require FFI bindings to native libraries to address.
 
 See `benchmark/` for measurement suite
 

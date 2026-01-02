@@ -53,6 +53,7 @@ export 'src/datachannel/dcep.dart';
 export 'src/media/media_stream_track.dart';
 export 'src/media/media_stream.dart';
 export 'src/media/rtc_rtp_transceiver.dart';
+export 'src/media/rtc_dtmf_sender.dart';
 export 'src/media/svc_manager.dart';
 export 'src/media/parameters.dart';
 

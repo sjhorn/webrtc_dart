@@ -5,6 +5,7 @@ import 'package:webrtc_dart/src/codec/codec_parameters.dart';
 import 'package:webrtc_dart/src/codec/opus.dart';
 import 'package:webrtc_dart/src/media/media_stream_track.dart';
 import 'package:webrtc_dart/src/media/parameters.dart';
+import 'package:webrtc_dart/src/media/rtc_dtmf_sender.dart';
 import 'package:webrtc_dart/src/nonstandard/media/track.dart' as nonstandard;
 import 'package:webrtc_dart/src/rtp/rtp_session.dart';
 import 'package:webrtc_dart/src/srtp/rtp_packet.dart';
@@ -61,6 +62,12 @@ class RTCRtpSender {
 
   /// Media ID (mid) for this sender
   String? mid;
+
+  /// DTMF sender for audio tracks (null for video)
+  RTCDTMFSender? _dtmf;
+
+  /// Payload type for DTMF telephone-event (typically 101)
+  int? dtmfPayloadType;
 
   RTCRtpSender({
     MediaStreamTrack? track,
@@ -313,6 +320,37 @@ class RTCRtpSender {
 
   /// Get current track
   MediaStreamTrack? get track => _track;
+
+  /// Get DTMF sender for audio tracks (W3C standard property)
+  ///
+  /// Returns null for video senders. For audio senders, returns an
+  /// RTCDTMFSender that can be used to send DTMF tones.
+  ///
+  /// Example:
+  /// ```dart
+  /// if (sender.dtmf != null) {
+  ///   sender.dtmf!.insertDTMF('123#');
+  /// }
+  /// ```
+  RTCDTMFSender? get dtmf {
+    // DTMF is only available for audio
+    if (_track != null && _track!.kind != MediaStreamTrackKind.audio) {
+      return null;
+    }
+
+    // Check codec - DTMF requires audio codec
+    if (!codec.mimeType.toLowerCase().startsWith('audio/')) {
+      return null;
+    }
+
+    // Lazily create DTMF sender
+    _dtmf ??= RTCDTMFSender(
+      rtpSession: rtpSession,
+      payloadType: dtmfPayloadType ?? 101,
+    );
+
+    return _dtmf;
+  }
 
   /// Get nonstandard track (for pre-encoded RTP like werift)
   nonstandard.MediaStreamTrack? get nonstandardTrack => _nonstandardTrack;
@@ -629,6 +667,8 @@ class RTCRtpSender {
     if (!_stopped) {
       _stopped = true;
       _detachTrack();
+      _dtmf?.dispose();
+      _dtmf = null;
     }
   }
 

@@ -23,6 +23,16 @@ class RTCSessionDescription {
     return SdpMessage.parse(sdp);
   }
 
+  /// Serialize to JSON format (W3C standard)
+  ///
+  /// Returns a Map matching the RTCSessionDescriptionInit dictionary.
+  Map<String, dynamic> toJSON() {
+    return {
+      'type': type,
+      'sdp': sdp,
+    };
+  }
+
   @override
   String toString() {
     return 'RTCSessionDescription(type=$type)';

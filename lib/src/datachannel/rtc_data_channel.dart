@@ -34,6 +34,13 @@ class RTCDataChannel {
   /// Priority
   final int priority;
 
+  /// Whether the channel was negotiated out-of-band
+  ///
+  /// When true, the data channel was set up via application-level
+  /// negotiation (both peers create matching channels with the same ID).
+  /// When false (default), the channel uses in-band DCEP signaling.
+  final bool negotiated;
+
   /// Reliability parameter (maxRetransmits or maxPacketLifeTime)
   final int reliabilityParameter;
 
@@ -129,10 +136,31 @@ class RTCDataChannel {
     required this.priority,
     required this.reliabilityParameter,
     required SctpAssociation association,
+    this.negotiated = false,
   }) : _association = association;
 
   /// Get current state
   DataChannelState get state => _state;
+
+  // ===========================================================================
+  // W3C Standard Property Aliases
+  // ===========================================================================
+
+  /// Channel ID (W3C standard name for 'streamId')
+  int get id => streamId;
+
+  /// Ready state (W3C standard name for 'state')
+  DataChannelState get readyState => _state;
+
+  // ===========================================================================
+  // W3C-style listener subscriptions (for setter-based callbacks)
+  // ===========================================================================
+  StreamSubscription? _onopenSubscription;
+  StreamSubscription? _oncloseSubscription;
+  StreamSubscription? _onclosingSubscription;
+  StreamSubscription? _onmessageSubscription;
+  StreamSubscription? _onerrorSubscription;
+  StreamSubscription? _onbufferedamountlowSubscription;
 
   /// Stream of received messages
   Stream<dynamic> get onMessage => _messageController.stream;
@@ -142,6 +170,66 @@ class RTCDataChannel {
 
   /// Stream of state changes
   Stream<DataChannelState> get onStateChange => _stateController.stream;
+
+  // ===========================================================================
+  // W3C-style Listener Setters (for JavaScript-like callback syntax)
+  // ===========================================================================
+  // These provide an alternative to Dart Streams for developers familiar
+  // with the JavaScript WebRTC API: dc.onmessage = (e) => {...};
+
+  /// Set open callback (W3C-style)
+  /// Fires when readyState changes to 'open'
+  set onopen(void Function()? callback) {
+    _onopenSubscription?.cancel();
+    _onopenSubscription = callback != null
+        ? onStateChange
+            .where((s) => s == DataChannelState.open)
+            .listen((_) => callback())
+        : null;
+  }
+
+  /// Set close callback (W3C-style)
+  /// Fires when readyState changes to 'closed'
+  set onclose(void Function()? callback) {
+    _oncloseSubscription?.cancel();
+    _oncloseSubscription = callback != null
+        ? onStateChange
+            .where((s) => s == DataChannelState.closed)
+            .listen((_) => callback())
+        : null;
+  }
+
+  /// Set closing callback (W3C-style)
+  /// Fires when readyState changes to 'closing'
+  set onclosing(void Function()? callback) {
+    _onclosingSubscription?.cancel();
+    _onclosingSubscription = callback != null
+        ? onStateChange
+            .where((s) => s == DataChannelState.closing)
+            .listen((_) => callback())
+        : null;
+  }
+
+  /// Set message callback (W3C-style)
+  set onmessage(void Function(dynamic)? callback) {
+    _onmessageSubscription?.cancel();
+    _onmessageSubscription =
+        callback != null ? onMessage.listen(callback) : null;
+  }
+
+  /// Set error callback (W3C-style)
+  set onerror(void Function(dynamic)? callback) {
+    _onerrorSubscription?.cancel();
+    _onerrorSubscription = callback != null ? onError.listen(callback) : null;
+  }
+
+  /// Set buffered amount low callback (W3C-style)
+  set onbufferedamountlow(void Function()? callback) {
+    _onbufferedamountlowSubscription?.cancel();
+    _onbufferedamountlowSubscription = callback != null
+        ? onBufferedAmountLow.listen((_) => callback())
+        : null;
+  }
 
   /// Open the data channel (send DCEP OPEN)
   Future<void> open() async {
@@ -337,6 +425,14 @@ class RTCDataChannel {
 
   /// Dispose resources
   Future<void> _dispose() async {
+    // Cancel W3C-style listener subscriptions
+    _onopenSubscription?.cancel();
+    _oncloseSubscription?.cancel();
+    _onclosingSubscription?.cancel();
+    _onmessageSubscription?.cancel();
+    _onerrorSubscription?.cancel();
+    _onbufferedamountlowSubscription?.cancel();
+
     await _messageController.close();
     await _errorController.close();
     await _stateController.close();
@@ -404,6 +500,14 @@ class ProxyDataChannel {
   final StreamController<void> _bufferedAmountLowController =
       StreamController.broadcast();
 
+  // W3C-style listener subscriptions
+  StreamSubscription? _onopenSubscription;
+  StreamSubscription? _oncloseSubscription;
+  StreamSubscription? _onclosingSubscription;
+  StreamSubscription? _onmessageSubscription;
+  StreamSubscription? _onerrorSubscription;
+  StreamSubscription? _onbufferedamountlowSubscription;
+
   /// Completer for when channel is ready
   final Completer<DataChannel> _readyCompleter = Completer<DataChannel>();
 
@@ -434,6 +538,10 @@ class ProxyDataChannel {
   int get priority => _realChannel?.priority ?? _priority;
   bool get ordered => _realChannel?.ordered ?? _ordered;
   DataChannelState get state => _realChannel?.state ?? _state;
+
+  // W3C Standard Property Aliases
+  int get id => streamId;
+  DataChannelState get readyState => state;
 
   DataChannelType get channelType {
     if (_realChannel != null) return _realChannel!.channelType;
@@ -484,6 +592,85 @@ class ProxyDataChannel {
 
   Stream<void> get onBufferedAmountLow =>
       _realChannel?.onBufferedAmountLow ?? _bufferedAmountLowController.stream;
+
+  // ===========================================================================
+  // W3C-style Listener Setters (for JavaScript-like callback syntax)
+  // ===========================================================================
+
+  /// Set open callback (W3C-style)
+  set onopen(void Function()? callback) {
+    _onopenSubscription?.cancel();
+    if (_realChannel != null) {
+      _realChannel!.onopen = callback;
+    } else {
+      _onopenSubscription = callback != null
+          ? onStateChange
+              .where((s) => s == DataChannelState.open)
+              .listen((_) => callback())
+          : null;
+    }
+  }
+
+  /// Set close callback (W3C-style)
+  set onclose(void Function()? callback) {
+    _oncloseSubscription?.cancel();
+    if (_realChannel != null) {
+      _realChannel!.onclose = callback;
+    } else {
+      _oncloseSubscription = callback != null
+          ? onStateChange
+              .where((s) => s == DataChannelState.closed)
+              .listen((_) => callback())
+          : null;
+    }
+  }
+
+  /// Set closing callback (W3C-style)
+  set onclosing(void Function()? callback) {
+    _onclosingSubscription?.cancel();
+    if (_realChannel != null) {
+      _realChannel!.onclosing = callback;
+    } else {
+      _onclosingSubscription = callback != null
+          ? onStateChange
+              .where((s) => s == DataChannelState.closing)
+              .listen((_) => callback())
+          : null;
+    }
+  }
+
+  /// Set message callback (W3C-style)
+  set onmessage(void Function(dynamic)? callback) {
+    _onmessageSubscription?.cancel();
+    if (_realChannel != null) {
+      _realChannel!.onmessage = callback;
+    } else {
+      _onmessageSubscription =
+          callback != null ? onMessage.listen(callback) : null;
+    }
+  }
+
+  /// Set error callback (W3C-style)
+  set onerror(void Function(dynamic)? callback) {
+    _onerrorSubscription?.cancel();
+    if (_realChannel != null) {
+      _realChannel!.onerror = callback;
+    } else {
+      _onerrorSubscription = callback != null ? onError.listen(callback) : null;
+    }
+  }
+
+  /// Set buffered amount low callback (W3C-style)
+  set onbufferedamountlow(void Function()? callback) {
+    _onbufferedamountlowSubscription?.cancel();
+    if (_realChannel != null) {
+      _realChannel!.onbufferedamountlow = callback;
+    } else {
+      _onbufferedamountlowSubscription = callback != null
+          ? onBufferedAmountLow.listen((_) => callback())
+          : null;
+    }
+  }
 
   /// Future that completes when channel is ready
   Future<DataChannel> get ready => _readyCompleter.future;
@@ -594,6 +781,15 @@ class ProxyDataChannel {
         _stateController.add(_state);
       }
     }
+
+    // Cancel W3C-style listener subscriptions
+    _onopenSubscription?.cancel();
+    _oncloseSubscription?.cancel();
+    _onclosingSubscription?.cancel();
+    _onmessageSubscription?.cancel();
+    _onerrorSubscription?.cancel();
+    _onbufferedamountlowSubscription?.cancel();
+
     await _messageController.close();
     await _errorController.close();
     await _stateController.close();

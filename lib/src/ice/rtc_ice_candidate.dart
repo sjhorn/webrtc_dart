@@ -65,6 +65,23 @@ class RTCIceCandidate {
     this.sdpMid,
   });
 
+  // ===========================================================================
+  // W3C Standard Property Aliases
+  // ===========================================================================
+
+  /// IP address (W3C standard name for 'host')
+  String get address => host;
+
+  /// Transport protocol (W3C standard name - same as 'transport')
+  String get protocol => transport;
+
+  /// Username fragment (W3C standard name for 'ufrag')
+  String? get usernameFragment => ufrag;
+
+  /// Candidate string in SDP format (W3C standard property)
+  /// Returns the candidate-attribute value, e.g., "candidate:123 1 udp ..."
+  String get candidate => 'candidate:${toSdp()}';
+
   /// Parse a candidate from SDP format
   /// Example: "6815297761 1 udp 659136 1.2.3.4 31102 typ host generation 0 ufrag b7l3"
   /// Also accepts with "candidate:" prefix: "candidate:6815297761 1 udp ..."
@@ -252,6 +269,18 @@ class RTCIceCandidate {
       sdpMLineIndex: sdpMLineIndex ?? this.sdpMLineIndex,
       sdpMid: sdpMid ?? this.sdpMid,
     );
+  }
+
+  /// Serialize to JSON format (W3C standard)
+  ///
+  /// Returns a Map matching the RTCIceCandidateInit dictionary.
+  Map<String, dynamic> toJSON() {
+    return {
+      'candidate': candidate,
+      'sdpMid': sdpMid,
+      'sdpMLineIndex': sdpMLineIndex,
+      if (usernameFragment != null) 'usernameFragment': usernameFragment,
+    };
   }
 
   @override

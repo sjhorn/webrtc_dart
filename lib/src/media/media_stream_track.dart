@@ -66,6 +66,9 @@ abstract class MediaStreamTrack {
   /// Get current state
   MediaStreamTrackState get state => _state;
 
+  /// Ready state (W3C standard name for 'state')
+  MediaStreamTrackState get readyState => _state;
+
   /// Check if track is muted
   bool get muted => _muted;
 

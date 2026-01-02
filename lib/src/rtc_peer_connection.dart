@@ -207,6 +207,27 @@ class RTCPeerConnection {
   final StreamController<void> _negotiationNeededController =
       StreamController.broadcast();
 
+  /// Signaling state change stream controller
+  final StreamController<SignalingState> _signalingStateController =
+      StreamController.broadcast();
+
+  /// ICE candidate error stream controller
+  final StreamController<RTCPeerConnectionIceErrorEvent>
+      _iceCandidateErrorController = StreamController.broadcast();
+
+  // ===========================================================================
+  // W3C-style listener subscriptions (for setter-based callbacks)
+  // ===========================================================================
+  StreamSubscription? _onicecandidateSubscription;
+  StreamSubscription? _ontrackSubscription;
+  StreamSubscription? _ondatachannelSubscription;
+  StreamSubscription? _onnegotiationneededSubscription;
+  StreamSubscription? _onconnectionstatechangeSubscription;
+  StreamSubscription? _onicegatheringstatechangeSubscription;
+  StreamSubscription? _oniceconnectionstatechangeSubscription;
+  StreamSubscription? _onsignalingstatechangeSubscription;
+  StreamSubscription? _onicecandidateerrorSubscription;
+
   /// Flag to prevent multiple negotiation needed events during batch operations
   bool _negotiationNeededPending = false;
 
@@ -453,6 +474,90 @@ class RTCPeerConnection {
   /// Applications should respond by calling createOffer() and starting
   /// a new offer/answer exchange.
   Stream<void> get onNegotiationNeeded => _negotiationNeededController.stream;
+
+  /// Signaling state change event
+  ///
+  /// Fires when the signaling state changes, such as during offer/answer
+  /// negotiation. Possible states are: stable, have-local-offer,
+  /// have-remote-offer, have-local-pranswer, have-remote-pranswer, closed.
+  Stream<SignalingState> get onSignalingStateChange =>
+      _signalingStateController.stream;
+
+  /// ICE candidate error event
+  ///
+  /// Fires when an error occurs during ICE candidate gathering, such as
+  /// when a STUN or TURN server cannot be reached or returns an error.
+  Stream<RTCPeerConnectionIceErrorEvent> get onIceCandidateError =>
+      _iceCandidateErrorController.stream;
+
+  // ===========================================================================
+  // W3C-style Listener Setters (for JavaScript-like callback syntax)
+  // ===========================================================================
+  // These provide an alternative to Dart Streams for developers familiar
+  // with the JavaScript WebRTC API: pc.onicecandidate = (e) => {...};
+
+  /// Set ICE candidate callback (W3C-style)
+  set onicecandidate(void Function(RTCIceCandidate)? callback) {
+    _onicecandidateSubscription?.cancel();
+    _onicecandidateSubscription =
+        callback != null ? onIceCandidate.listen(callback) : null;
+  }
+
+  /// Set track callback (W3C-style)
+  set ontrack(void Function(RTCRtpTransceiver)? callback) {
+    _ontrackSubscription?.cancel();
+    _ontrackSubscription = callback != null ? onTrack.listen(callback) : null;
+  }
+
+  /// Set data channel callback (W3C-style)
+  set ondatachannel(void Function(RTCDataChannel)? callback) {
+    _ondatachannelSubscription?.cancel();
+    _ondatachannelSubscription =
+        callback != null ? onDataChannel.listen(callback) : null;
+  }
+
+  /// Set negotiation needed callback (W3C-style)
+  set onnegotiationneeded(void Function()? callback) {
+    _onnegotiationneededSubscription?.cancel();
+    _onnegotiationneededSubscription =
+        callback != null ? onNegotiationNeeded.listen((_) => callback()) : null;
+  }
+
+  /// Set connection state change callback (W3C-style)
+  set onconnectionstatechange(void Function(PeerConnectionState)? callback) {
+    _onconnectionstatechangeSubscription?.cancel();
+    _onconnectionstatechangeSubscription =
+        callback != null ? onConnectionStateChange.listen(callback) : null;
+  }
+
+  /// Set ICE gathering state change callback (W3C-style)
+  set onicegatheringstatechange(void Function(IceGatheringState)? callback) {
+    _onicegatheringstatechangeSubscription?.cancel();
+    _onicegatheringstatechangeSubscription =
+        callback != null ? onIceGatheringStateChange.listen(callback) : null;
+  }
+
+  /// Set ICE connection state change callback (W3C-style)
+  set oniceconnectionstatechange(void Function(IceConnectionState)? callback) {
+    _oniceconnectionstatechangeSubscription?.cancel();
+    _oniceconnectionstatechangeSubscription =
+        callback != null ? onIceConnectionStateChange.listen(callback) : null;
+  }
+
+  /// Set signaling state change callback (W3C-style)
+  set onsignalingstatechange(void Function(SignalingState)? callback) {
+    _onsignalingstatechangeSubscription?.cancel();
+    _onsignalingstatechangeSubscription =
+        callback != null ? onSignalingStateChange.listen(callback) : null;
+  }
+
+  /// Set ICE candidate error callback (W3C-style)
+  set onicecandidateerror(
+      void Function(RTCPeerConnectionIceErrorEvent)? callback) {
+    _onicecandidateerrorSubscription?.cancel();
+    _onicecandidateerrorSubscription =
+        callback != null ? onIceCandidateError.listen(callback) : null;
+  }
 
   /// Get the current configuration
   ///
@@ -1222,9 +1327,12 @@ class RTCPeerConnection {
     }
   }
 
-  /// Set signaling state
+  /// Set signaling state and emit event
   void _setSignalingState(SignalingState state) {
-    _signalingState = state;
+    if (_signalingState != state) {
+      _signalingState = state;
+      _signalingStateController.add(state);
+    }
   }
 
   // Note: Connection state, ICE connection state, and ICE gathering state are
@@ -1953,6 +2061,17 @@ class RTCPeerConnection {
     // Close SecureTransportManager (handles state streams)
     await _secureManager.close();
 
+    // Cancel W3C-style listener subscriptions
+    _onicecandidateSubscription?.cancel();
+    _ontrackSubscription?.cancel();
+    _ondatachannelSubscription?.cancel();
+    _onnegotiationneededSubscription?.cancel();
+    _onconnectionstatechangeSubscription?.cancel();
+    _onicegatheringstatechangeSubscription?.cancel();
+    _oniceconnectionstatechangeSubscription?.cancel();
+    _onsignalingstatechangeSubscription?.cancel();
+    _onicecandidateerrorSubscription?.cancel();
+
     await _iceCandidateController.close();
     await _connectionStateController.close();
     await _iceConnectionStateController.close();
@@ -1960,11 +2079,51 @@ class RTCPeerConnection {
     await _sctpManager.close();
     await _trackController.close();
     await _negotiationNeededController.close();
+    await _signalingStateController.close();
+    await _iceCandidateErrorController.close();
   }
 
   @override
   String toString() {
     return 'RTCPeerConnection(state=$connectionState, signaling=$_signalingState)';
+  }
+}
+
+// =============================================================================
+// RTCPeerConnectionIceErrorEvent
+// =============================================================================
+
+/// ICE candidate error event
+///
+/// Fired when an error occurs during ICE candidate gathering.
+/// See W3C WebRTC spec: https://w3c.github.io/webrtc-pc/#rtcpeerconnectioniceerrorevent
+class RTCPeerConnectionIceErrorEvent {
+  /// The local address used to communicate with the STUN/TURN server
+  final String? address;
+
+  /// The local port used to communicate with the STUN/TURN server
+  final int? port;
+
+  /// The STUN/TURN URL that encountered the error
+  final String? url;
+
+  /// The numeric STUN error code returned by the STUN/TURN server
+  final int errorCode;
+
+  /// The STUN reason text returned by the STUN/TURN server
+  final String errorText;
+
+  const RTCPeerConnectionIceErrorEvent({
+    this.address,
+    this.port,
+    this.url,
+    required this.errorCode,
+    required this.errorText,
+  });
+
+  @override
+  String toString() {
+    return 'RTCPeerConnectionIceErrorEvent(url=$url, errorCode=$errorCode, errorText=$errorText)';
   }
 }
 

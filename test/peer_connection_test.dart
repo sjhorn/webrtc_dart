@@ -1,13 +1,13 @@
 import 'dart:typed_data';
 
 import 'package:test/test.dart';
-import 'package:webrtc_dart/src/peer_connection.dart';
-import 'package:webrtc_dart/src/ice/candidate.dart';
-import 'package:webrtc_dart/src/datachannel/data_channel.dart';
+import 'package:webrtc_dart/src/rtc_peer_connection.dart';
+import 'package:webrtc_dart/src/ice/rtc_ice_candidate.dart';
+import 'package:webrtc_dart/src/datachannel/rtc_data_channel.dart';
 import 'package:webrtc_dart/src/sdp/sdp.dart';
 import 'package:webrtc_dart/src/sdp/rtx_sdp.dart';
 import 'package:webrtc_dart/src/media/media_stream_track.dart';
-import 'package:webrtc_dart/src/media/rtp_transceiver.dart';
+import 'package:webrtc_dart/src/media/rtc_rtp_transceiver.dart';
 import 'package:webrtc_dart/src/codec/codec_parameters.dart';
 import 'package:webrtc_dart/src/nonstandard/media/track.dart' as nonstandard;
 import 'package:webrtc_dart/src/srtp/rtp_packet.dart';

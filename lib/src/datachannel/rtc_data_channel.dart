@@ -18,7 +18,7 @@ enum DataChannelState {
 /// Data Channel
 /// WebRTC Data Channel API
 /// RFC 8831 - WebRTC Data Channels
-class DataChannel {
+class RTCDataChannel {
   /// Label
   final String label;
 
@@ -121,7 +121,7 @@ class DataChannel {
   /// Reliable delivery
   bool get reliable => channelType.isReliable;
 
-  DataChannel({
+  RTCDataChannel({
     required this.label,
     required this.protocol,
     required this.streamId,
@@ -386,7 +386,7 @@ class ProxyDataChannel {
   final int _priority;
 
   /// The real data channel (set when SCTP is ready)
-  DataChannel? _realChannel;
+  RTCDataChannel? _realChannel;
 
   /// Current state (before real channel is created)
   DataChannelState _state = DataChannelState.connecting;
@@ -605,3 +605,11 @@ class ProxyDataChannel {
     return 'ProxyDataChannel(label="$_label", initialized=${_realChannel != null}, state=$_state)';
   }
 }
+
+// =============================================================================
+// Backward Compatibility TypeDef
+// =============================================================================
+
+/// @deprecated Use RTCDataChannel instead
+@Deprecated('Use RTCDataChannel instead')
+typedef DataChannel = RTCDataChannel;

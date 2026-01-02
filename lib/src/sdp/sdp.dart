@@ -6,14 +6,14 @@ library;
 import '../media/parameters.dart';
 
 /// SDP Session Description
-class SessionDescription {
+class RTCSessionDescription {
   /// Type (offer, answer, pranswer, rollback)
   final String type;
 
   /// SDP string
   final String sdp;
 
-  const SessionDescription({
+  const RTCSessionDescription({
     required this.type,
     required this.sdp,
   });
@@ -25,9 +25,17 @@ class SessionDescription {
 
   @override
   String toString() {
-    return 'SessionDescription(type=$type)';
+    return 'RTCSessionDescription(type=$type)';
   }
 }
+
+// =============================================================================
+// Backward Compatibility TypeDef
+// =============================================================================
+
+/// @deprecated Use RTCSessionDescription instead
+@Deprecated('Use RTCSessionDescription instead')
+typedef SessionDescription = RTCSessionDescription;
 
 /// SDP Message
 /// Structured representation of an SDP

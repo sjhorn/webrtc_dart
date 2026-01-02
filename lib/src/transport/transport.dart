@@ -2,7 +2,7 @@ import 'dart:async';
 import 'dart:typed_data';
 
 import 'package:webrtc_dart/src/common/logging.dart';
-import 'package:webrtc_dart/src/datachannel/data_channel.dart';
+import 'package:webrtc_dart/src/datachannel/rtc_data_channel.dart';
 import 'package:webrtc_dart/src/datachannel/data_channel_manager.dart' as dcm;
 import 'package:webrtc_dart/src/dtls/certificate/certificate_generator.dart';
 import 'package:webrtc_dart/src/dtls/context/transport.dart' as dtls_ctx;

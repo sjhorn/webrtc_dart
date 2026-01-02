@@ -1,7 +1,7 @@
 import 'package:webrtc_dart/src/media/media_stream_track.dart';
 import 'package:webrtc_dart/src/media/parameters.dart' show SimulcastDirection;
-import 'package:webrtc_dart/src/media/rtp_transceiver.dart';
-import 'package:webrtc_dart/src/peer_connection.dart';
+import 'package:webrtc_dart/src/media/rtc_rtp_transceiver.dart';
+import 'package:webrtc_dart/src/rtc_peer_connection.dart';
 import 'package:webrtc_dart/src/rtp/header_extension.dart';
 import 'package:webrtc_dart/src/sdp/rtx_sdp.dart';
 import 'package:webrtc_dart/src/sdp/sdp.dart';
@@ -298,6 +298,8 @@ class SdpManager {
   /// - [rtxSsrcByMid]: Map of MID -> RTX SSRC (will be updated with new entries)
   /// - [generateSsrc]: Callback to generate new SSRC values
   /// - [midExtensionId]: Extension ID for sdes:mid header extension
+  /// - [perMidCredentials]: Optional per-MID ICE credentials for bundlePolicy:disable
+  ///   If provided, each m-line uses its own iceUfrag/icePwd
   SessionDescription buildOfferSdp({
     required List<RtpTransceiver> transceivers,
     required String iceUfrag,
@@ -306,6 +308,7 @@ class SdpManager {
     required Map<String, int> rtxSsrcByMid,
     required int Function() generateSsrc,
     int midExtensionId = 1,
+    Map<String, ({String ufrag, String pwd})>? perMidCredentials,
   }) {
     final mediaDescriptions = <SdpMedia>[];
     final bundleMids = <String>[];
@@ -330,9 +333,12 @@ class SdpManager {
 
       // Build attributes list
       final directionStr = transceiver.direction.name;
+      // Use per-MID credentials if available (for bundlePolicy:disable)
+      final midUfrag = perMidCredentials?[mid]?.ufrag ?? iceUfrag;
+      final midPwd = perMidCredentials?[mid]?.pwd ?? icePwd;
       final attributes = <SdpAttribute>[
-        SdpAttribute(key: 'ice-ufrag', value: iceUfrag),
-        SdpAttribute(key: 'ice-pwd', value: icePwd),
+        SdpAttribute(key: 'ice-ufrag', value: midUfrag),
+        SdpAttribute(key: 'ice-pwd', value: midPwd),
         SdpAttribute(key: 'fingerprint', value: dtlsFingerprint),
         SdpAttribute(key: 'setup', value: 'actpass'),
         SdpAttribute(key: 'mid', value: mid),
@@ -464,28 +470,32 @@ class SdpManager {
       );
     }
 
-    // Add application media for data channel (always included for compatibility)
-    const dataChannelMid = '0';
-    if (!bundleMids.contains(dataChannelMid)) {
-      bundleMids.add(dataChannelMid);
+    // Add application media for data channel
+    // Skip for bundlePolicy:disable unless explicit data channel support is needed
+    // Each m-line would need its own transport for bundlePolicy:disable
+    if (bundlePolicy != BundlePolicy.disable) {
+      const dataChannelMid = '0';
+      if (!bundleMids.contains(dataChannelMid)) {
+        bundleMids.add(dataChannelMid);
+      }
+      mediaDescriptions.add(
+        SdpMedia(
+          type: 'application',
+          port: 9,
+          protocol: 'UDP/DTLS/SCTP',
+          formats: ['webrtc-datachannel'],
+          connection: const SdpConnection(connectionAddress: '0.0.0.0'),
+          attributes: [
+            SdpAttribute(key: 'ice-ufrag', value: iceUfrag),
+            SdpAttribute(key: 'ice-pwd', value: icePwd),
+            SdpAttribute(key: 'fingerprint', value: dtlsFingerprint),
+            SdpAttribute(key: 'setup', value: 'actpass'),
+            SdpAttribute(key: 'mid', value: dataChannelMid),
+            SdpAttribute(key: 'sctp-port', value: '5000'),
+          ],
+        ),
+      );
     }
-    mediaDescriptions.add(
-      SdpMedia(
-        type: 'application',
-        port: 9,
-        protocol: 'UDP/DTLS/SCTP',
-        formats: ['webrtc-datachannel'],
-        connection: const SdpConnection(connectionAddress: '0.0.0.0'),
-        attributes: [
-          SdpAttribute(key: 'ice-ufrag', value: iceUfrag),
-          SdpAttribute(key: 'ice-pwd', value: icePwd),
-          SdpAttribute(key: 'fingerprint', value: dtlsFingerprint),
-          SdpAttribute(key: 'setup', value: 'actpass'),
-          SdpAttribute(key: 'mid', value: dataChannelMid),
-          SdpAttribute(key: 'sctp-port', value: '5000'),
-        ],
-      ),
-    );
 
     // Preserve m-line order from first negotiation (RFC 3264 requirement)
     if (establishedMlineOrder != null && establishedMlineOrder!.isNotEmpty) {

@@ -1,6 +1,6 @@
 import 'dart:math' as math;
 
-import 'package:webrtc_dart/src/ice/candidate.dart';
+import 'package:webrtc_dart/src/ice/rtc_ice_candidate.dart';
 
 /// ICE candidate pair state
 /// See RFC 5245 - 5.7.4. Computing States

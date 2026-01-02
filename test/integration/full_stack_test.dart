@@ -2,7 +2,7 @@ import 'dart:async';
 import 'dart:typed_data';
 import 'package:test/test.dart';
 import 'package:webrtc_dart/src/ice/ice_connection.dart';
-import 'package:webrtc_dart/src/ice/candidate.dart';
+import 'package:webrtc_dart/src/ice/rtc_ice_candidate.dart';
 import 'package:webrtc_dart/src/transport/transport.dart';
 import 'package:webrtc_dart/src/dtls/certificate/certificate_generator.dart';
 

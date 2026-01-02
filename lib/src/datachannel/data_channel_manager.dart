@@ -2,7 +2,7 @@ import 'dart:async';
 import 'dart:typed_data';
 
 import 'package:webrtc_dart/src/common/logging.dart';
-import 'package:webrtc_dart/src/datachannel/data_channel.dart';
+import 'package:webrtc_dart/src/datachannel/rtc_data_channel.dart';
 import 'package:webrtc_dart/src/datachannel/dcep.dart';
 import 'package:webrtc_dart/src/sctp/association.dart';
 import 'package:webrtc_dart/src/sctp/const.dart';

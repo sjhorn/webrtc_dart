@@ -1,8 +1,8 @@
 import 'dart:async';
 
 import 'package:test/test.dart';
-import 'package:webrtc_dart/src/peer_connection.dart';
-import 'package:webrtc_dart/src/media/rtp_transceiver.dart';
+import 'package:webrtc_dart/src/rtc_peer_connection.dart';
+import 'package:webrtc_dart/src/media/rtc_rtp_transceiver.dart';
 import 'package:webrtc_dart/src/media/media_stream_track.dart';
 import 'package:webrtc_dart/src/nonstandard/media/track.dart' as nonstandard;
 

@@ -5,7 +5,7 @@ import 'dart:typed_data';
 
 import 'package:webrtc_dart/src/common/crypto.dart';
 import 'package:webrtc_dart/src/common/logging.dart';
-import 'package:webrtc_dart/src/ice/candidate.dart';
+import 'package:webrtc_dart/src/ice/rtc_ice_candidate.dart';
 import 'package:webrtc_dart/src/ice/candidate_pair.dart';
 import 'package:webrtc_dart/src/ice/mdns.dart';
 import 'package:webrtc_dart/src/ice/tcp_transport.dart';

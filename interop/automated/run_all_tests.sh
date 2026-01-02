@@ -11,6 +11,15 @@
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 BROWSER="${1:-${BROWSER:-chrome}}"
+LOG_FILE="$SCRIPT_DIR/test_results.log"
+
+# Clear log file
+> "$LOG_FILE"
+
+# Function to log and print
+log() {
+    echo "$@" | tee -a "$LOG_FILE"
+}
 
 # Core tests (most reliable, run first)
 CORE_TESTS="browser ice_trickle ice_restart datachannel_answer"
@@ -30,12 +39,13 @@ MULTI_TESTS="multi_client multi_client_sendonly multi_client_recvonly multi_clie
 # All tests combined
 ALL_TESTS="$CORE_TESTS $MEDIA_TESTS $SAVE_TESTS $ADVANCED_TESTS $MULTI_TESTS"
 
-echo "========================================"
-echo "Running All Automated Tests"
-echo "========================================"
-echo "Browser: $BROWSER"
-echo "Tests: $(echo $ALL_TESTS | wc -w | tr -d ' ') total"
-echo ""
+log "========================================"
+log "Running All Automated Tests"
+log "========================================"
+log "Browser: $BROWSER"
+log "Tests: $(echo $ALL_TESTS | wc -w | tr -d ' ') total"
+log "Log file: $LOG_FILE"
+log ""
 
 passed=0
 failed=0
@@ -45,9 +55,9 @@ failed_tests=""
 cd "$SCRIPT_DIR"
 
 for test in $ALL_TESTS; do
-    echo "----------------------------------------"
-    echo "Running: $test"
-    echo "----------------------------------------"
+    log "----------------------------------------"
+    log "Running: $test"
+    log "----------------------------------------"
 
     # Brief delay to ensure previous test cleaned up (helps with Safari port reuse)
     sleep 1
@@ -58,40 +68,41 @@ for test in $ALL_TESTS; do
 
     # Check result
     if [ $exit_code -eq 0 ]; then
-        echo "+ PASS: $test"
+        log "+ PASS: $test"
         passed=$((passed + 1))
     elif echo "$output" | grep -q "Skipped\|SKIP"; then
-        echo "- SKIP: $test"
+        log "- SKIP: $test"
         skipped=$((skipped + 1))
     else
-        echo "x FAIL: $test"
+        log "x FAIL: $test"
         failed=$((failed + 1))
         failed_tests="$failed_tests $test"
-        # Show error
+        # Show error in log
+        echo "$output" | grep -E "Error:|error:" | head -3 >> "$LOG_FILE"
         echo "$output" | grep -E "Error:|error:" | head -3
     fi
-    echo ""
+    log ""
 done
 
-echo "========================================"
-echo "SUMMARY"
-echo "========================================"
-echo "Passed:  $passed"
-echo "Failed:  $failed"
-echo "Skipped: $skipped"
-echo "Total:   $((passed + failed + skipped))"
+log "========================================"
+log "SUMMARY"
+log "========================================"
+log "Passed:  $passed"
+log "Failed:  $failed"
+log "Skipped: $skipped"
+log "Total:   $((passed + failed + skipped))"
 
 if [ -n "$failed_tests" ]; then
-    echo ""
-    echo "Failed tests:$failed_tests"
+    log ""
+    log "Failed tests:$failed_tests"
 fi
 
-echo "========================================"
+log "========================================"
 
 if [ $failed -eq 0 ]; then
-    echo "All tests passed!"
+    log "All tests passed!"
     exit 0
 else
-    echo "Some tests failed!"
+    log "Some tests failed!"
     exit 1
 fi

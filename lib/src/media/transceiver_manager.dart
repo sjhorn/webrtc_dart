@@ -3,7 +3,7 @@ import 'dart:async';
 import 'package:webrtc_dart/src/codec/codec_parameters.dart'
     show RtpCodecParameters;
 import 'package:webrtc_dart/src/media/rtp_router.dart';
-import 'package:webrtc_dart/src/media/rtp_transceiver.dart';
+import 'package:webrtc_dart/src/media/rtc_rtp_transceiver.dart';
 import 'package:webrtc_dart/src/sdp/sdp.dart' show SdpMedia;
 import 'package:webrtc_dart/src/media/parameters.dart' show SimulcastDirection;
 

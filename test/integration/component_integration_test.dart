@@ -1,9 +1,9 @@
 import 'dart:typed_data';
 import 'package:test/test.dart';
-import 'package:webrtc_dart/src/ice/candidate.dart';
+import 'package:webrtc_dart/src/ice/rtc_ice_candidate.dart';
 import 'package:webrtc_dart/src/sctp/association.dart';
 import 'package:webrtc_dart/src/sdp/sdp.dart';
-import 'package:webrtc_dart/src/peer_connection.dart';
+import 'package:webrtc_dart/src/rtc_peer_connection.dart';
 import 'package:webrtc_dart/src/codec/codec_parameters.dart';
 
 void main() {

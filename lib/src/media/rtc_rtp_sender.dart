@@ -12,7 +12,7 @@ import 'package:webrtc_dart/src/srtp/rtp_packet.dart';
 /// RTP Sender
 /// Sends RTP packets for an outgoing media track
 /// Supports simulcast with multiple encoding layers
-class RtpSender {
+class RTCRtpSender {
   /// Media track being sent (null if no track)
   MediaStreamTrack? _track;
 
@@ -61,7 +61,7 @@ class RtpSender {
   /// Media ID (mid) for this sender
   String? mid;
 
-  RtpSender({
+  RTCRtpSender({
     MediaStreamTrack? track,
     required this.rtpSession,
     required this.codec,
@@ -615,6 +615,14 @@ class RtpSender {
   @override
   String toString() {
     final encStr = _encodings.map((e) => e.rid ?? 'default').join(',');
-    return 'RtpSender(track=${track?.id}, codec=${codec.codecName}, encodings=[$encStr])';
+    return 'RTCRtpSender(track=${track?.id}, codec=${codec.codecName}, encodings=[$encStr])';
   }
 }
+
+// =============================================================================
+// Backward Compatibility TypeDef
+// =============================================================================
+
+/// @deprecated Use RTCRtpSender instead
+@Deprecated('Use RTCRtpSender instead')
+typedef RtpSender = RTCRtpSender;

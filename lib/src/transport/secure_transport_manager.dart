@@ -8,7 +8,7 @@ import 'package:webrtc_dart/src/rtp/rtp_session.dart';
 import 'package:webrtc_dart/src/srtp/srtp_session.dart';
 import 'package:webrtc_dart/src/transport/ice_gatherer.dart';
 import 'package:webrtc_dart/src/transport/transport.dart';
-import 'package:webrtc_dart/src/peer_connection.dart'
+import 'package:webrtc_dart/src/rtc_peer_connection.dart'
     show PeerConnectionState, IceConnectionState, IceGatheringState;
 
 /// SecureTransportManager handles ICE/DTLS/SRTP transport lifecycle.

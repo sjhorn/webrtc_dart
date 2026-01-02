@@ -1,10 +1,10 @@
 import 'dart:async';
 import 'package:test/test.dart';
 import 'package:webrtc_dart/src/ice/ice_connection.dart';
-import 'package:webrtc_dart/src/ice/candidate.dart';
+import 'package:webrtc_dart/src/ice/rtc_ice_candidate.dart';
 import 'package:webrtc_dart/src/transport/transport.dart';
 import 'package:webrtc_dart/src/dtls/certificate/certificate_generator.dart';
-import 'package:webrtc_dart/src/datachannel/data_channel.dart';
+import 'package:webrtc_dart/src/datachannel/rtc_data_channel.dart';
 
 void main() {
   group('DataChannel End-to-End', () {

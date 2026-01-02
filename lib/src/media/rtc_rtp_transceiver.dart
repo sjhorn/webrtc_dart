@@ -1,14 +1,14 @@
 import 'package:webrtc_dart/src/codec/codec_parameters.dart';
 import 'package:webrtc_dart/src/media/media_stream_track.dart';
 import 'package:webrtc_dart/src/media/parameters.dart';
-import 'package:webrtc_dart/src/media/rtp_receiver.dart';
-import 'package:webrtc_dart/src/media/rtp_sender.dart';
+import 'package:webrtc_dart/src/media/rtc_rtp_receiver.dart';
+import 'package:webrtc_dart/src/media/rtc_rtp_sender.dart';
 import 'package:webrtc_dart/src/rtp/rtp_session.dart';
 import 'package:webrtc_dart/src/transport/transport.dart';
 
 // Re-export RtpSender and RtpReceiver for convenience
-export 'package:webrtc_dart/src/media/rtp_sender.dart';
-export 'package:webrtc_dart/src/media/rtp_receiver.dart';
+export 'package:webrtc_dart/src/media/rtc_rtp_sender.dart';
+export 'package:webrtc_dart/src/media/rtc_rtp_receiver.dart';
 
 /// RTP Transceiver Direction
 enum RtpTransceiverDirection { sendrecv, sendonly, recvonly, inactive }
@@ -16,7 +16,7 @@ enum RtpTransceiverDirection { sendrecv, sendonly, recvonly, inactive }
 /// RTP Transceiver
 /// Manages sending and receiving RTP for a media track
 /// Combines RtpSender and RtpReceiver
-class RtpTransceiver {
+class RTCRtpTransceiver {
   /// Media type (audio or video)
   final MediaStreamTrackKind kind;
 
@@ -55,7 +55,7 @@ class RtpTransceiver {
   /// The primary sending codec is still sender.codec
   List<RtpCodecParameters> codecs = [];
 
-  RtpTransceiver({
+  RTCRtpTransceiver({
     required this.kind,
     String? mid,
     required this.sender,
@@ -167,7 +167,7 @@ RtpTransceiver createAudioTransceiver({
     codec: effectiveCodec,
   );
 
-  return RtpTransceiver(
+  return RTCRtpTransceiver(
     kind: MediaStreamTrackKind.audio,
     mid: mid,
     sender: sender,
@@ -224,7 +224,7 @@ RtpTransceiver createVideoTransceiver({
     codec: effectiveCodec,
   );
 
-  return RtpTransceiver(
+  return RTCRtpTransceiver(
     kind: MediaStreamTrackKind.video,
     mid: mid,
     sender: sender,
@@ -232,3 +232,11 @@ RtpTransceiver createVideoTransceiver({
     direction: direction,
   );
 }
+
+// =============================================================================
+// Backward Compatibility TypeDef
+// =============================================================================
+
+/// @deprecated Use RTCRtpTransceiver instead
+@Deprecated('Use RTCRtpTransceiver instead')
+typedef RtpTransceiver = RTCRtpTransceiver;

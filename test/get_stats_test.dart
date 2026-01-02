@@ -1,5 +1,5 @@
 import 'package:test/test.dart';
-import 'package:webrtc_dart/src/peer_connection.dart';
+import 'package:webrtc_dart/src/rtc_peer_connection.dart';
 import 'package:webrtc_dart/src/stats/rtc_stats.dart';
 
 void main() {

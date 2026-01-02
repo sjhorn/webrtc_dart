@@ -4,15 +4,24 @@
 /// ICE, DTLS, SRTP, SCTP, and the PeerConnection API.
 library;
 
+// Import for typedef declarations
+import 'src/rtc_peer_connection.dart' show RTCPeerConnection;
+import 'src/datachannel/rtc_data_channel.dart' show RTCDataChannel;
+import 'src/media/rtc_rtp_transceiver.dart' show RTCRtpTransceiver;
+import 'src/media/rtc_rtp_sender.dart' show RTCRtpSender;
+import 'src/media/rtc_rtp_receiver.dart' show RTCRtpReceiver;
+import 'src/ice/rtc_ice_candidate.dart' show RTCIceCandidate;
+import 'src/sdp/sdp.dart' show RTCSessionDescription;
+
 export 'src/webrtc_dart_base.dart';
 
 // Logging
 export 'src/common/logging.dart' show WebRtcLogging;
 
 // Core API
-export 'src/peer_connection.dart'
+export 'src/rtc_peer_connection.dart'
     show
-        RtcPeerConnection,
+        RTCPeerConnection,
         PeerConnectionState,
         SignalingState,
         IceConnectionState,
@@ -28,7 +37,7 @@ export 'src/sdp/rtx_sdp.dart';
 
 // ICE
 export 'src/ice/ice_connection.dart';
-export 'src/ice/candidate.dart';
+export 'src/ice/rtc_ice_candidate.dart';
 export 'src/ice/tcp_transport.dart';
 export 'src/ice/mdns.dart';
 
@@ -37,13 +46,13 @@ export 'src/turn/turn_client.dart';
 export 'src/turn/channel_data.dart';
 
 // Data Channels
-export 'src/datachannel/data_channel.dart';
+export 'src/datachannel/rtc_data_channel.dart';
 export 'src/datachannel/dcep.dart';
 
 // Media Tracks
 export 'src/media/media_stream_track.dart';
 export 'src/media/media_stream.dart';
-export 'src/media/rtp_transceiver.dart';
+export 'src/media/rtc_rtp_transceiver.dart';
 export 'src/media/svc_manager.dart';
 export 'src/media/parameters.dart';
 
@@ -92,3 +101,37 @@ export 'src/stun/attributes.dart';
 // Utilities
 export 'src/common/binary.dart'
     show random16, random32, bufferXor, bufferArrayXor;
+
+// =============================================================================
+// Backward Compatibility TypeDefs
+// =============================================================================
+// These provide backward compatibility for code using the old Dart-style names.
+// New code should use the W3C standard names (RTCPeerConnection, etc.)
+
+/// @deprecated Use RTCPeerConnection instead
+@Deprecated('Use RTCPeerConnection instead')
+typedef RtcPeerConnection = RTCPeerConnection;
+
+/// @deprecated Use RTCDataChannel instead
+@Deprecated('Use RTCDataChannel instead')
+typedef DataChannel = RTCDataChannel;
+
+/// @deprecated Use RTCRtpTransceiver instead
+@Deprecated('Use RTCRtpTransceiver instead')
+typedef RtpTransceiver = RTCRtpTransceiver;
+
+/// @deprecated Use RTCRtpSender instead
+@Deprecated('Use RTCRtpSender instead')
+typedef RtpSender = RTCRtpSender;
+
+/// @deprecated Use RTCRtpReceiver instead
+@Deprecated('Use RTCRtpReceiver instead')
+typedef RtpReceiver = RTCRtpReceiver;
+
+/// @deprecated Use RTCIceCandidate instead
+@Deprecated('Use RTCIceCandidate instead')
+typedef Candidate = RTCIceCandidate;
+
+/// @deprecated Use RTCSessionDescription instead
+@Deprecated('Use RTCSessionDescription instead')
+typedef SessionDescription = RTCSessionDescription;

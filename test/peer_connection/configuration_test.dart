@@ -1,5 +1,5 @@
 import 'package:test/test.dart';
-import 'package:webrtc_dart/src/peer_connection.dart';
+import 'package:webrtc_dart/src/rtc_peer_connection.dart';
 
 void main() {
   group('PeerConnection configuration', () {

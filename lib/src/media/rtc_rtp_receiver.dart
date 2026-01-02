@@ -13,7 +13,7 @@ import 'package:webrtc_dart/src/srtp/rtp_packet.dart';
 /// RTP Receiver
 /// Receives RTP packets for an incoming media track
 /// Supports simulcast by managing multiple tracks by RID
-class RtpReceiver {
+class RTCRtpReceiver {
   /// Primary media track for received data (non-simulcast)
   final MediaStreamTrack track;
 
@@ -62,7 +62,7 @@ class RtpReceiver {
   /// Callback to send RTCP packets (set by PeerConnection)
   Future<void> Function(Uint8List rtcpPacket)? onSendRtcp;
 
-  RtpReceiver({
+  RTCRtpReceiver({
     required this.track,
     required this.rtpSession,
     required this.codec,
@@ -376,6 +376,14 @@ class RtpReceiver {
   String toString() {
     final ridCount = _trackByRid.length;
     final svcInfo = _svcFilter != null ? ', svc=enabled' : '';
-    return 'RtpReceiver(track=${track.id}, codec=${codec.codecName}, simulcast=$ridCount$svcInfo)';
+    return 'RTCRtpReceiver(track=${track.id}, codec=${codec.codecName}, simulcast=$ridCount$svcInfo)';
   }
 }
+
+// =============================================================================
+// Backward Compatibility TypeDef
+// =============================================================================
+
+/// @deprecated Use RTCRtpReceiver instead
+@Deprecated('Use RTCRtpReceiver instead')
+typedef RtpReceiver = RTCRtpReceiver;

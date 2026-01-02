@@ -105,6 +105,20 @@ BROWSER=firefox ./run_test.sh ice_restart
 ./run_all_tests.sh chrome   # Comprehensive test suite
 ```
 
+**Test Results Logging** (preferred for Claude Code sessions):
+The `run_all_tests.sh` script automatically writes results to `test_results.log`. For ad-hoc tests, pipe output to a log file:
+```bash
+# Run tests and save output for later analysis
+./run_test.sh browser chrome 2>&1 | tee /tmp/browser_test.log
+
+# Check results without re-running
+grep -E "PASS|FAIL|Error" /tmp/browser_test.log
+
+# For run_all_tests.sh, results are in:
+cat interop/automated/test_results.log
+```
+This avoids re-running slow tests repeatedly when investigating failures.
+
 **Manual testing** (run server and test separately):
 ```bash
 # Terminal 1: Start Dart server

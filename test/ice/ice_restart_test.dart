@@ -1,6 +1,6 @@
 import 'package:test/test.dart';
 import 'package:webrtc_dart/src/ice/ice_connection.dart';
-import 'package:webrtc_dart/src/peer_connection.dart';
+import 'package:webrtc_dart/src/rtc_peer_connection.dart';
 import 'package:webrtc_dart/src/sdp/sdp.dart';
 
 void main() {

@@ -1,6 +1,6 @@
 import 'package:test/test.dart';
 import 'package:webrtc_dart/src/ice/ice_connection.dart';
-import 'package:webrtc_dart/src/ice/candidate.dart';
+import 'package:webrtc_dart/src/ice/rtc_ice_candidate.dart';
 
 void main() {
   group('ICE Early Check Queue (RFC 8445 Section 7.2.1)', () {

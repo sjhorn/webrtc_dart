@@ -1,6 +1,6 @@
 import 'dart:async';
 
-import 'package:webrtc_dart/src/datachannel/data_channel.dart';
+import 'package:webrtc_dart/src/datachannel/rtc_data_channel.dart';
 import 'package:webrtc_dart/src/stats/data_channel_stats.dart';
 import 'package:webrtc_dart/src/stats/rtc_stats.dart';
 

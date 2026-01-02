@@ -1,6 +1,6 @@
 import 'dart:async';
 
-import 'package:webrtc_dart/src/ice/candidate.dart';
+import 'package:webrtc_dart/src/ice/rtc_ice_candidate.dart';
 import 'package:webrtc_dart/src/ice/ice_connection.dart';
 
 /// ICE Gatherer state

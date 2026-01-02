@@ -5,7 +5,7 @@ import 'package:crypto/crypto.dart';
 
 /// ICE Candidate
 /// Represents a transport address that can be used for connectivity checks
-class Candidate {
+class RTCIceCandidate {
   /// Foundation - identifier for candidates from the same base
   final String foundation;
 
@@ -48,7 +48,7 @@ class Candidate {
   /// SDP media identifier (MID)
   final String? sdpMid;
 
-  Candidate({
+  RTCIceCandidate({
     required this.foundation,
     required this.component,
     required this.transport,
@@ -68,7 +68,7 @@ class Candidate {
   /// Parse a candidate from SDP format
   /// Example: "6815297761 1 udp 659136 1.2.3.4 31102 typ host generation 0 ufrag b7l3"
   /// Also accepts with "candidate:" prefix: "candidate:6815297761 1 udp ..."
-  factory Candidate.fromSdp(String sdp) {
+  factory RTCIceCandidate.fromSdp(String sdp) {
     // Strip "candidate:" or "a=candidate:" prefix if present
     var normalized = sdp.trim();
     if (normalized.startsWith('a=candidate:')) {
@@ -113,7 +113,7 @@ class Candidate {
       }
     }
 
-    return Candidate(
+    return RTCIceCandidate(
       foundation: kwargs['foundation'] as String,
       component: kwargs['component'] as int,
       transport: kwargs['transport'] as String,
@@ -138,7 +138,7 @@ class Candidate {
   /// - active can pair with passive
   /// - passive can pair with active
   /// - so (simultaneous-open) can pair with so
-  bool canPairWith(Candidate other) {
+  bool canPairWith(RTCIceCandidate other) {
     final thisIsV4 = InternetAddress(host).type == InternetAddressType.IPv4;
     final otherIsV4 =
         InternetAddress(other.host).type == InternetAddressType.IPv4;
@@ -220,7 +220,7 @@ class Candidate {
   }
 
   /// Create a copy with modified fields
-  Candidate copyWith({
+  RTCIceCandidate copyWith({
     String? foundation,
     int? component,
     String? transport,
@@ -236,7 +236,7 @@ class Candidate {
     int? sdpMLineIndex,
     String? sdpMid,
   }) {
-    return Candidate(
+    return RTCIceCandidate(
       foundation: foundation ?? this.foundation,
       component: component ?? this.component,
       transport: transport ?? this.transport,
@@ -256,13 +256,13 @@ class Candidate {
 
   @override
   String toString() {
-    return 'Candidate($type, $host:$port, priority=$priority)';
+    return 'RTCIceCandidate($type, $host:$port, priority=$priority)';
   }
 
   @override
   bool operator ==(Object other) {
     if (identical(this, other)) return true;
-    return other is Candidate &&
+    return other is RTCIceCandidate &&
         foundation == other.foundation &&
         component == other.component &&
         transport == other.transport &&
@@ -276,6 +276,14 @@ class Candidate {
     return Object.hash(foundation, component, transport, host, port, type);
   }
 }
+
+// =============================================================================
+// Backward Compatibility TypeDef
+// =============================================================================
+
+/// @deprecated Use RTCIceCandidate instead
+@Deprecated('Use RTCIceCandidate instead')
+typedef Candidate = RTCIceCandidate;
 
 /// Compute foundation for a candidate
 /// See RFC 5245 - 4.1.1.3. Computing Foundations

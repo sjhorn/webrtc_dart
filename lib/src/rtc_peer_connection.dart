@@ -4,15 +4,15 @@ import 'dart:typed_data';
 
 import 'package:webrtc_dart/src/codec/codec_parameters.dart';
 import 'package:webrtc_dart/src/common/logging.dart';
-import 'package:webrtc_dart/src/datachannel/data_channel.dart';
+import 'package:webrtc_dart/src/datachannel/rtc_data_channel.dart';
 import 'package:webrtc_dart/src/dtls/certificate/certificate_generator.dart';
 import 'package:webrtc_dart/src/dtls/dtls_transport.dart' show DtlsRole;
-import 'package:webrtc_dart/src/ice/candidate.dart';
+import 'package:webrtc_dart/src/ice/rtc_ice_candidate.dart';
 import 'package:webrtc_dart/src/ice/ice_connection.dart';
 import 'package:webrtc_dart/src/ice/mdns.dart';
 import 'package:webrtc_dart/src/media/media_stream_track.dart';
 import 'package:webrtc_dart/src/media/rtp_router.dart';
-import 'package:webrtc_dart/src/media/rtp_transceiver.dart';
+import 'package:webrtc_dart/src/media/rtc_rtp_transceiver.dart';
 import 'package:webrtc_dart/src/media/transceiver_manager.dart';
 import 'package:webrtc_dart/src/nonstandard/media/track.dart' as nonstandard;
 import 'package:webrtc_dart/src/sctp/sctp_transport_manager.dart';
@@ -135,7 +135,7 @@ class RtcOfferOptions {
 /// RTCPeerConnection
 /// WebRTC Peer Connection API
 /// Based on W3C WebRTC 1.0 specification
-class RtcPeerConnection {
+class RTCPeerConnection {
   /// Configuration (mutable via setConfiguration)
   RtcConfiguration _configuration;
 
@@ -263,7 +263,7 @@ class RtcPeerConnection {
   /// immediately after constructing the PeerConnection.
   Future<void> waitForReady() => _initializationComplete;
 
-  RtcPeerConnection([RtcConfiguration configuration = const RtcConfiguration()])
+  RTCPeerConnection([RtcConfiguration configuration = const RtcConfiguration()])
       : _configuration = configuration {
     _debugLabel = 'PC${++_instanceCounter}';
 
@@ -512,6 +512,29 @@ class RtcPeerConnection {
         ? computeCertificateFingerprint(_certificate!.certificate)
         : 'sha-256 00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00'; // fallback for tests
 
+    // For bundlePolicy:disable, pre-create MediaTransports with their own ICE credentials
+    // before building the SDP, so each m-line gets unique ufrag/pwd
+    Map<String, ({String ufrag, String pwd})>? perMidCredentials;
+    if (_configuration.bundlePolicy == BundlePolicy.disable) {
+      perMidCredentials = {};
+      var mLineIndex = 0;
+      for (final transceiver in _transceivers) {
+        // Allocate MID now (before SDP is built)
+        transceiver.mid ??= _sdpManager.allocateMid();
+        final mid = transceiver.mid!;
+
+        // Create MediaTransport for this transceiver
+        final transport = await _findOrCreateMediaTransport(mid, mLineIndex);
+        perMidCredentials[mid] = (
+          ufrag: transport.iceConnection.localUsername,
+          pwd: transport.iceConnection.localPassword,
+        );
+        _log.fine(
+            '[$_debugLabel] Pre-created transport for $mid: ufrag=${transport.iceConnection.localUsername}');
+        mLineIndex++;
+      }
+    }
+
     // Build offer SDP using SdpManager
     return _sdpManager.buildOfferSdp(
       transceivers: _transceivers,
@@ -521,6 +544,7 @@ class RtcPeerConnection {
       rtxSsrcByMid: _rtxSsrcByMid,
       generateSsrc: _generateSsrc,
       midExtensionId: _midExtensionId,
+      perMidCredentials: perMidCredentials,
     );
   }
 
@@ -594,48 +618,23 @@ class RtcPeerConnection {
       _secureManager.setIceGatheringState(IceGatheringState.complete);
     }
 
-    // For bundlePolicy:disable offerer case, create MediaTransports from local SDP
-    // This handles: createOffer, setLocalDescription(offer) - before receiving answer
+    // For bundlePolicy:disable offerer case, start ICE gathering on MediaTransports
+    // MediaTransports are pre-created in createOffer() with unique credentials per m-line
     if (_configuration.bundlePolicy == BundlePolicy.disable &&
         description.type == 'offer' &&
-        _mediaTransports.isEmpty) {
-      // Parse the local offer to extract media line info
-      final sdpLines = description.sdp.split('\n');
-      var mLineIndex = 0;
-      for (final line in sdpLines) {
-        if (line.startsWith('m=audio') || line.startsWith('m=video')) {
-          // Find the MID for this media line
-          final midIndex = sdpLines.indexOf(line);
-          String? mid;
-          for (var i = midIndex + 1; i < sdpLines.length; i++) {
-            if (sdpLines[i].startsWith('m=')) break;
-            if (sdpLines[i].startsWith('a=mid:')) {
-              mid = sdpLines[i].substring(6).trim();
-              break;
-            }
-          }
-          if (mid != null) {
-            _log.fine(
-                '[$_debugLabel] Creating MediaTransport for offerer: mid=$mid, mLineIndex=$mLineIndex');
-            await _findOrCreateMediaTransport(mid, mLineIndex);
-          }
-          mLineIndex++;
-        }
-      }
-
+        _mediaTransports.isNotEmpty &&
+        iceGatheringState == IceGatheringState.new_) {
       // Start gathering on all MediaTransports for the offerer
-      if (_mediaTransports.isNotEmpty) {
-        _secureManager.setIceGatheringState(IceGatheringState.gathering);
-        await Future.wait(_mediaTransports.values.map((transport) async {
-          try {
-            await transport.iceConnection.gatherCandidates();
-          } catch (e) {
-            _log.fine(
-                '[$_debugLabel] Transport ${transport.id} gather error: $e');
-          }
-        }));
-        _secureManager.setIceGatheringState(IceGatheringState.complete);
-      }
+      _secureManager.setIceGatheringState(IceGatheringState.gathering);
+      await Future.wait(_mediaTransports.values.map((transport) async {
+        try {
+          await transport.iceConnection.gatherCandidates();
+        } catch (e) {
+          _log.fine(
+              '[$_debugLabel] Transport ${transport.id} gather error: $e');
+        }
+      }));
+      _secureManager.setIceGatheringState(IceGatheringState.complete);
     }
 
     // For bundlePolicy:disable answerer case, start MediaTransport ICE
@@ -1965,6 +1964,14 @@ class RtcPeerConnection {
 
   @override
   String toString() {
-    return 'RtcPeerConnection(state=$connectionState, signaling=$_signalingState)';
+    return 'RTCPeerConnection(state=$connectionState, signaling=$_signalingState)';
   }
 }
+
+// =============================================================================
+// Backward Compatibility TypeDef
+// =============================================================================
+
+/// @deprecated Use RTCPeerConnection instead
+@Deprecated('Use RTCPeerConnection instead')
+typedef RtcPeerConnection = RTCPeerConnection;

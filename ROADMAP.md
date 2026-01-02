@@ -80,30 +80,35 @@ Extracts codec frames from RTP - does NOT encode/decode:
 Run benchmarks: `dart run benchmark/micro/srtp_encrypt_bench.dart`
 
 **Completed Optimizations:**
-- ✅ Switched from pointycastle to `package:cryptography` AesGcm
-- ✅ Cached cipher instance (reused across packets)
-- ✅ Pre-allocated nonce buffer (no per-packet allocation)
-- ✅ Cached SecretKey object
+- ✅ **SCTP immediate SACK (261x faster DataChannel RTT)**
 - ✅ SCTP queue batch removal (230x faster at 5000 chunks)
+- ✅ SRTP cipher caching with `package:cryptography` (12.5x faster)
 
-**SCTP Queue Optimization Results:**
+**DataChannel Round-Trip Benchmark:**
 
-| Queue Size | Before (removeAt) | After (removeRange) | Speedup |
-|------------|-------------------|---------------------|---------|
-| 100 | 0.006 ms | 0.001 ms | 6x |
-| 1000 | 0.206 ms | 0.004 ms | 51x |
-| 5000 | 5.297 ms | 0.023 ms | **230x** |
+| Message Size | Before | After | Speedup |
+|--------------|--------|-------|---------|
+| 100B | 204ms | 0.5ms | **408x** |
+| 1KB | 204ms | 0.78ms | **261x** |
+
+Run benchmark: `dart run example/benchmark/datachannel.dart`
+
+**Comparison with werift (1KB RTT):**
+
+| Implementation | RTT | Gap |
+|----------------|-----|-----|
+| werift (Node.js) | 0.23ms | 1x |
+| webrtc_dart | 0.78ms | 3.4x |
 
 **Investigated & Deferred:**
 
 | Issue | Finding |
 |-------|---------|
 | Buffer pooling | Only 0.1% of SRTP time - not worthwhile |
-| Native crypto FFI | Would close gap vs werift but requires significant effort |
+| Native crypto FFI | Would close remaining 3.4x gap but requires significant effort |
 
-**Note:** The remaining ~18x gap vs werift is due to Node.js using native OpenSSL
-for AES-GCM, while Dart uses pure-Dart crypto. This is a platform limitation that
-would require FFI bindings to native libraries to address.
+**Note:** The remaining ~3.4x gap vs werift is due to Dart event loop overhead
+and JIT differences. Further optimization would require native FFI bindings.
 
 See `benchmark/` for measurement suite
 

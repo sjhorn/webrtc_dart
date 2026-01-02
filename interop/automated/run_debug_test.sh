@@ -17,6 +17,9 @@ set -e
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 
+# Ensure node is available (macOS homebrew path)
+export PATH="/opt/homebrew/opt/node@22/bin:/opt/homebrew/bin:$PATH"
+
 # Configuration
 SERVER_STARTUP_TIMEOUT=30   # seconds to wait for server (dart compiles on first run)
 TEST_TIMEOUT=120

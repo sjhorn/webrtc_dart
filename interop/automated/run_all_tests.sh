@@ -13,6 +13,9 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 BROWSER="${1:-${BROWSER:-chrome}}"
 LOG_FILE="$SCRIPT_DIR/test_results.log"
 
+# Ensure node is available (macOS homebrew path)
+export PATH="/opt/homebrew/opt/node@22/bin:/opt/homebrew/bin:$PATH"
+
 # Clear log file
 > "$LOG_FILE"
 
@@ -31,7 +34,7 @@ MEDIA_TESTS="media_sendonly media_recvonly media_sendrecv media_answer sendrecv_
 SAVE_TESTS="save_to_disk save_to_disk_h264 save_to_disk_vp9 save_to_disk_opus save_to_disk_av save_to_disk_av1"
 
 # Advanced feature tests
-ADVANCED_TESTS="simulcast twcc rtx"
+ADVANCED_TESTS="simulcast twcc rtx dtmf"
 
 # Multi-client tests (take longer)
 MULTI_TESTS="multi_client multi_client_sendonly multi_client_recvonly multi_client_sendrecv"

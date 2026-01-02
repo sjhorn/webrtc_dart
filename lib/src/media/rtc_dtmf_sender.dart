@@ -249,12 +249,17 @@ class RTCDTMFSender {
 
     // Send via RTP session
     // Note: For DTMF, timestamp should not increment between packets of same event
-    await _rtpSession.sendRtp(
-      payloadType: _payloadType,
-      payload: payload,
-      timestampIncrement: endOfEvent ? 160 : 0, // Only increment at event end
-      marker: !endOfEvent && duration == 0, // Marker on first packet
-    );
+    try {
+      await _rtpSession.sendRtp(
+        payloadType: _payloadType,
+        payload: payload,
+        timestampIncrement: endOfEvent ? 160 : 0, // Only increment at event end
+        marker: !endOfEvent && duration == 0, // Marker on first packet
+      );
+    } catch (e) {
+      // ICE connection may not be established yet - continue with tone events
+      // The ontonechange events will still fire to track tone progress
+    }
   }
 
   /// Convert DTMF character to RFC 4733 event code

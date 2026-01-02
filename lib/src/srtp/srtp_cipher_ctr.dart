@@ -47,6 +47,21 @@ class SrtpCipherCtr {
   /// SRTCP index counter
   int _srtcpIndex = 0;
 
+  /// Cached stream cipher for AES-CTR (reused across packets)
+  late final SICStreamCipher _cipher;
+
+  /// Cached HMAC for SRTP auth tags (reused across packets)
+  late final HMac _srtpHmac;
+
+  /// Cached HMAC for SRTCP auth tags (reused across packets)
+  late final HMac _srtcpHmac;
+
+  /// Pre-allocated counter buffer (reused across packets)
+  final Uint8List _counterBuffer = Uint8List(16);
+
+  /// Pre-allocated ROC buffer for auth tag (reused across packets)
+  final Uint8List _rocBuffer = Uint8List(4);
+
   SrtpCipherCtr({
     required this.srtpSessionKey,
     required this.srtpSessionSalt,
@@ -54,7 +69,12 @@ class SrtpCipherCtr {
     required this.srtcpSessionKey,
     required this.srtcpSessionSalt,
     required this.srtcpSessionAuthKey,
-  });
+  }) {
+    // Initialize cached cipher and HMAC instances
+    _cipher = SICStreamCipher(AESEngine());
+    _srtpHmac = HMac(SHA1Digest(), 64);
+    _srtcpHmac = HMac(SHA1Digest(), 64);
+  }
 
   /// Create from master key and salt
   factory SrtpCipherCtr.fromMasterKey({
@@ -95,8 +115,8 @@ class SrtpCipherCtr {
     // Serialize header
     final headerBytes = packet.serializeHeader();
 
-    // Generate counter for AES-CTR
-    final counter = _generateCounter(
+    // Generate counter for AES-CTR (in-place)
+    _generateCounterInPlace(
       packet.sequenceNumber,
       _rolloverCounter,
       packet.ssrc,
@@ -106,7 +126,6 @@ class SrtpCipherCtr {
     // Encrypt payload with AES-CTR
     final encryptedPayload = _aesCtrEncrypt(
       srtpSessionKey,
-      counter,
       packet.payload,
     );
 
@@ -148,8 +167,8 @@ class SrtpCipherCtr {
     // Update rollover counter
     _updateRolloverCounter(header.sequenceNumber);
 
-    // Generate counter
-    final counter = _generateCounter(
+    // Generate counter (in-place)
+    _generateCounterInPlace(
       header.sequenceNumber,
       _rolloverCounter,
       header.ssrc,
@@ -162,7 +181,6 @@ class SrtpCipherCtr {
     // Decrypt payload (AES-CTR decryption is same as encryption)
     final decryptedPayload = _aesCtrEncrypt(
       srtpSessionKey,
-      counter,
       encryptedPayload,
     );
 
@@ -197,8 +215,8 @@ class SrtpCipherCtr {
     _srtcpIndex++;
     final srtcpIndex = _srtcpIndex;
 
-    // Generate counter
-    final counter = _generateCounter(
+    // Generate counter (in-place)
+    _generateCounterInPlace(
       srtcpIndex & 0xffff,
       srtcpIndex >> 16,
       ssrc,
@@ -210,7 +228,6 @@ class SrtpCipherCtr {
     final payload = plainRtcp.sublist(RtcpPacket.headerSize);
     final encryptedPayload = _aesCtrEncrypt(
       srtcpSessionKey,
-      counter,
       payload,
     );
 
@@ -278,8 +295,8 @@ class SrtpCipherCtr {
     // Extract SSRC from header (bytes 4-7)
     final ssrc = ByteData.sublistView(rtcpPortion, 4, 8).getUint32(0);
 
-    // Generate counter
-    final counter = _generateCounter(
+    // Generate counter (in-place)
+    _generateCounterInPlace(
       srtcpIndex & 0xffff,
       srtcpIndex >> 16,
       ssrc,
@@ -290,7 +307,6 @@ class SrtpCipherCtr {
     final encryptedPayload = rtcpPortion.sublist(RtcpPacket.headerSize);
     final decryptedPayload = _aesCtrEncrypt(
       srtcpSessionKey,
-      counter,
       encryptedPayload,
     );
 
@@ -304,106 +320,108 @@ class SrtpCipherCtr {
     return RtcpPacket.parse(decrypted);
   }
 
-  /// Generate counter for AES-CTR
+  /// Generate counter for AES-CTR in-place
   /// RFC 3711 Section 4.1.1
-  Uint8List _generateCounter(
+  /// Modifies _counterBuffer in-place to avoid allocations.
+  void _generateCounterInPlace(
     int sequenceNumber,
     int rolloverCounter,
     int ssrc,
     Uint8List sessionSalt,
   ) {
-    final counter = Uint8List(16);
+    // Clear first 4 bytes (will be XORed with salt)
+    _counterBuffer[0] = sessionSalt[0];
+    _counterBuffer[1] = sessionSalt[1];
+    _counterBuffer[2] = sessionSalt[2];
+    _counterBuffer[3] = sessionSalt[3];
 
-    // SSRC at bytes 4-7 (big-endian)
-    counter[4] = (ssrc >> 24) & 0xFF;
-    counter[5] = (ssrc >> 16) & 0xFF;
-    counter[6] = (ssrc >> 8) & 0xFF;
-    counter[7] = ssrc & 0xFF;
+    // SSRC at bytes 4-7 (big-endian), XORed with salt
+    _counterBuffer[4] = ((ssrc >> 24) & 0xFF) ^ sessionSalt[4];
+    _counterBuffer[5] = ((ssrc >> 16) & 0xFF) ^ sessionSalt[5];
+    _counterBuffer[6] = ((ssrc >> 8) & 0xFF) ^ sessionSalt[6];
+    _counterBuffer[7] = (ssrc & 0xFF) ^ sessionSalt[7];
 
-    // ROC at bytes 8-11 (big-endian)
-    counter[8] = (rolloverCounter >> 24) & 0xFF;
-    counter[9] = (rolloverCounter >> 16) & 0xFF;
-    counter[10] = (rolloverCounter >> 8) & 0xFF;
-    counter[11] = rolloverCounter & 0xFF;
+    // ROC at bytes 8-11 (big-endian), XORed with salt
+    _counterBuffer[8] = ((rolloverCounter >> 24) & 0xFF) ^ sessionSalt[8];
+    _counterBuffer[9] = ((rolloverCounter >> 16) & 0xFF) ^ sessionSalt[9];
+    _counterBuffer[10] = ((rolloverCounter >> 8) & 0xFF) ^ sessionSalt[10];
+    _counterBuffer[11] = (rolloverCounter & 0xFF) ^ sessionSalt[11];
 
-    // Sequence number << 16 at bytes 12-15 (big-endian)
+    // Sequence number << 16 at bytes 12-15 (big-endian), XORed with salt
     final seqShifted = sequenceNumber << 16;
-    counter[12] = (seqShifted >> 24) & 0xFF;
-    counter[13] = (seqShifted >> 16) & 0xFF;
-    counter[14] = (seqShifted >> 8) & 0xFF;
-    counter[15] = seqShifted & 0xFF;
-
-    // XOR with session salt
-    for (var i = 0; i < sessionSalt.length && i < 14; i++) {
-      counter[i] ^= sessionSalt[i];
-    }
-
-    return counter;
+    _counterBuffer[12] = ((seqShifted >> 24) & 0xFF) ^ sessionSalt[12];
+    _counterBuffer[13] = ((seqShifted >> 16) & 0xFF) ^ sessionSalt[13];
+    // Salt is only 14 bytes, so bytes 14-15 are just the sequence
+    _counterBuffer[14] = (seqShifted >> 8) & 0xFF;
+    _counterBuffer[15] = seqShifted & 0xFF;
   }
 
   /// AES-CTR encryption/decryption (symmetric)
+  /// Uses cached cipher instance and pre-allocated counter buffer.
   Uint8List _aesCtrEncrypt(
     Uint8List key,
-    Uint8List counter,
     Uint8List data,
   ) {
     if (data.isEmpty) {
       return Uint8List(0);
     }
 
-    final cipher = SICStreamCipher(AESEngine());
-    cipher.init(
+    // Reinitialize cipher with current key and counter buffer
+    _cipher.init(
       true,
       ParametersWithIV(
         KeyParameter(key),
-        counter,
+        _counterBuffer,
       ),
     );
 
     final output = Uint8List(data.length);
-    cipher.processBytes(data, 0, data.length, output, 0);
+    _cipher.processBytes(data, 0, data.length, output, 0);
     return output;
   }
 
   /// Generate SRTP authentication tag (HMAC-SHA1, truncated to 80 bits)
+  /// Uses cached HMAC instance and pre-allocated ROC buffer.
   Uint8List _generateSrtpAuthTag(
     int rolloverCounter,
     Uint8List header,
     Uint8List encryptedPayload,
   ) {
-    final hmac = HMac(SHA1Digest(), 64);
-    hmac.init(KeyParameter(srtpSessionAuthKey));
+    // Reset and init cached HMAC
+    _srtpHmac.reset();
+    _srtpHmac.init(KeyParameter(srtpSessionAuthKey));
 
     // Update with header
-    hmac.update(header, 0, header.length);
+    _srtpHmac.update(header, 0, header.length);
 
     // Update with encrypted payload
-    hmac.update(encryptedPayload, 0, encryptedPayload.length);
+    _srtpHmac.update(encryptedPayload, 0, encryptedPayload.length);
 
-    // Update with ROC (4 bytes, big-endian)
-    final rocBytes = Uint8List(4);
-    rocBytes[0] = (rolloverCounter >> 24) & 0xFF;
-    rocBytes[1] = (rolloverCounter >> 16) & 0xFF;
-    rocBytes[2] = (rolloverCounter >> 8) & 0xFF;
-    rocBytes[3] = rolloverCounter & 0xFF;
-    hmac.update(rocBytes, 0, 4);
+    // Update with ROC (4 bytes, big-endian) using pre-allocated buffer
+    _rocBuffer[0] = (rolloverCounter >> 24) & 0xFF;
+    _rocBuffer[1] = (rolloverCounter >> 16) & 0xFF;
+    _rocBuffer[2] = (rolloverCounter >> 8) & 0xFF;
+    _rocBuffer[3] = rolloverCounter & 0xFF;
+    _srtpHmac.update(_rocBuffer, 0, 4);
 
     // Get full digest and truncate to 80 bits (10 bytes)
     final digest = Uint8List(20);
-    hmac.doFinal(digest, 0);
+    _srtpHmac.doFinal(digest, 0);
 
     return digest.sublist(0, authTagLength);
   }
 
   /// Generate SRTCP authentication tag
+  /// Uses cached HMAC instance.
   Uint8List _generateSrtcpAuthTag(Uint8List data) {
-    final hmac = HMac(SHA1Digest(), 64);
-    hmac.init(KeyParameter(srtcpSessionAuthKey));
+    // Reset and init cached HMAC
+    _srtcpHmac.reset();
+    _srtcpHmac.init(KeyParameter(srtcpSessionAuthKey));
 
-    hmac.update(data, 0, data.length);
+    _srtcpHmac.update(data, 0, data.length);
 
     final digest = Uint8List(20);
-    hmac.doFinal(digest, 0);
+    _srtcpHmac.doFinal(digest, 0);
 
     return digest.sublist(0, authTagLength);
   }

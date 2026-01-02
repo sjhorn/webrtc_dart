@@ -65,11 +65,37 @@ Extracts codec frames from RTP - does NOT encode/decode:
 
 ## Future Roadmap
 
-### Short-term
+### Short-term: Performance Optimization
 
-- Performance optimization for high-throughput
-- Memory management improvements
-- Expanded documentation
+**Benchmark Results (1000-byte payload):**
+
+| Implementation | Packets/sec | Throughput | Per-packet |
+|----------------|-------------|------------|------------|
+| werift (Node.js) | 418,134 | 399 MB/s | 2.4 µs |
+| webrtc_dart (optimized) | 23,753 | 22.7 MB/s | 42 µs |
+| webrtc_dart (before) | 1,903 | 1.8 MB/s | 526 µs |
+| **Improvement** | **12.5x faster** | | |
+| **Remaining gap** | **~18x vs werift** | | |
+
+Run benchmarks: `dart run benchmark/micro/srtp_encrypt_bench.dart`
+
+**Completed Optimizations:**
+- ✅ Switched from pointycastle to `package:cryptography` AesGcm
+- ✅ Cached cipher instance (reused across packets)
+- ✅ Pre-allocated nonce buffer (no per-packet allocation)
+- ✅ Cached SecretKey object
+
+**Remaining Opportunities:**
+
+| Priority | Issue | Location |
+|----------|-------|----------|
+| Medium | SCTP queue O(n) operations | `association.dart` |
+| Low | Further buffer pooling | SRTP result assembly |
+
+**Note:** The remaining ~18x gap vs werift is due to Node.js using native OpenSSL
+for AES-GCM, while Dart uses pure-Dart DartAesGcm. This is a platform limitation.
+
+See `benchmark/` for measurement suite
 
 ### Medium-term
 

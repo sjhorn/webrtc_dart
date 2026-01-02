@@ -37,6 +37,7 @@ werift-webrtc/
 # Interop signal files (temporary)
 interop/signals/*.jsonl
 interop/node_modules/
+benchmark/werift/node_modules/
 
 # TURN server credentials (contains secrets)
 interop/automated/config.yaml

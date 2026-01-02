@@ -1,0 +1,12 @@
+{
+  "name": "werift-benchmark",
+  "version": "1.0.0",
+  "type": "module",
+  "scripts": {
+    "srtp": "node srtp_bench.mjs",
+    "all": "node srtp_bench.mjs"
+  },
+  "dependencies": {
+    "werift": "^0.22.2"
+  }
+}

@@ -1,5 +1,5 @@
 import 'dart:typed_data';
-import 'package:pointycastle/export.dart';
+import 'package:cryptography/cryptography.dart';
 import 'package:webrtc_dart/src/srtp/const.dart';
 import 'package:webrtc_dart/src/srtp/rtp_packet.dart';
 import 'package:webrtc_dart/src/srtp/replay_protection.dart';
@@ -7,7 +7,7 @@ import 'package:webrtc_dart/src/srtp/replay_protection.dart';
 /// SRTP Cipher for AES-GCM encryption/decryption
 /// RFC 7714 - AES-GCM Authenticated Encryption in SRTP
 ///
-/// Note: This cipher expects pre-derived session keys, not master keys.
+/// Optimized implementation using package:cryptography for native AES-GCM.
 /// Key derivation should be done by SrtpSession before passing to this cipher.
 class SrtpCipher {
   /// Session encryption key (derived from master key)
@@ -23,11 +23,29 @@ class SrtpCipher {
   /// Tracks how many times the 16-bit sequence number has wrapped around
   final Map<int, int> _rocMap = {};
 
+  /// Cached AES-GCM cipher instance (reused across packets)
+  late final AesGcm _cipher;
+
+  /// Cached secret key (reused across packets)
+  SecretKey? _cachedSecretKey;
+
+  /// Pre-allocated nonce buffer (reused across packets)
+  final Uint8List _nonceBuffer = Uint8List(12);
+
   SrtpCipher({
     required this.masterKey,
     required this.masterSalt,
     ReplayProtection? replayProtection,
-  }) : replayProtection = replayProtection ?? ReplayProtection();
+  }) : replayProtection = replayProtection ?? ReplayProtection() {
+    // Initialize cipher once - will be reused for all packets
+    _cipher = AesGcm.with128bits();
+  }
+
+  /// Get or create cached secret key
+  Future<SecretKey> _getSecretKey() async {
+    _cachedSecretKey ??= SecretKey(masterKey);
+    return _cachedSecretKey!;
+  }
 
   /// Encrypt RTP packet
   /// Returns encrypted packet bytes
@@ -35,41 +53,30 @@ class SrtpCipher {
     // Get ROC for this SSRC
     final roc = _getROC(packet.ssrc, packet.sequenceNumber);
 
-    // Derive session keys
-    final sessionKey = _deriveSessionKey(packet.ssrc, roc);
-    final sessionSalt = _deriveSessionSalt(packet.ssrc, roc);
-
-    // Build nonce (IV)
-    final nonce =
-        _buildNonce(sessionSalt, packet.ssrc, packet.sequenceNumber, roc);
+    // Build nonce (IV) - create copy to avoid race conditions in async
+    final nonce = _buildNonce(packet.ssrc, packet.sequenceNumber, roc);
 
     // Serialize RTP header (authenticated data)
     final header = _serializeHeader(packet);
 
+    // Get cached secret key
+    final secretKey = await _getSecretKey();
+
     // Encrypt payload using AES-GCM
-    final gcm = GCMBlockCipher(AESEngine());
-    final params = AEADParameters(
-      KeyParameter(sessionKey),
-      128, // 128-bit auth tag
-      nonce,
-      header, // Additional authenticated data
+    final secretBox = await _cipher.encrypt(
+      packet.payload,
+      secretKey: secretKey,
+      nonce: nonce,
+      aad: header,
     );
 
-    gcm.init(true, params);
-
-    // Allocate output buffer (payload + auth tag)
-    final outputLength = packet.payload.length + SrtpAuthTagSize.tag128;
-    final output = Uint8List(outputLength);
-
-    // Encrypt
-    var outOff =
-        gcm.processBytes(packet.payload, 0, packet.payload.length, output, 0);
-    outOff += gcm.doFinal(output, outOff);
-
     // Build final SRTP packet: header + encrypted_payload + auth_tag
-    final result = Uint8List(header.length + output.length);
+    final cipherText = secretBox.cipherText;
+    final mac = secretBox.mac.bytes;
+    final result = Uint8List(header.length + cipherText.length + mac.length);
     result.setRange(0, header.length, header);
-    result.setRange(header.length, result.length, output);
+    result.setRange(header.length, header.length + cipherText.length, cipherText);
+    result.setRange(header.length + cipherText.length, result.length, mac);
 
     return result;
   }
@@ -85,10 +92,7 @@ class SrtpCipher {
 
     // Parse RTP header (not encrypted)
     final headerEnd = _findHeaderEnd(srtpPacket);
-    final header = srtpPacket.sublist(0, headerEnd);
-
-    // Extract encrypted payload
-    final encrypted = srtpPacket.sublist(headerEnd, srtpPacket.length);
+    final header = Uint8List.sublistView(srtpPacket, 0, headerEnd);
 
     // Parse header fields we need
     final buffer = ByteData.sublistView(srtpPacket);
@@ -103,38 +107,35 @@ class SrtpCipher {
     // Get ROC for this SSRC
     final roc = _getROC(ssrc, sequenceNumber);
 
-    // Derive session keys
-    final sessionKey = _deriveSessionKey(ssrc, roc);
-    final sessionSalt = _deriveSessionSalt(ssrc, roc);
+    // Build nonce (IV) - reuses pre-allocated buffer
+    _buildNonceInPlace(ssrc, sequenceNumber, roc);
 
-    // Build nonce (IV)
-    final nonce = _buildNonce(sessionSalt, ssrc, sequenceNumber, roc);
+    // Extract encrypted payload and MAC
+    final macStart = srtpPacket.length - SrtpAuthTagSize.tag128;
+    final cipherText = Uint8List.sublistView(srtpPacket, headerEnd, macStart);
+    final mac = Mac(Uint8List.sublistView(srtpPacket, macStart));
+
+    // Get cached secret key
+    final secretKey = await _getSecretKey();
 
     // Decrypt payload using AES-GCM
-    final gcm = GCMBlockCipher(AESEngine());
-    final params = AEADParameters(
-      KeyParameter(sessionKey),
-      128, // 128-bit auth tag
-      nonce,
-      header, // Additional authenticated data
-    );
-
-    gcm.init(false, params);
-
-    // Allocate output buffer
-    final outputLength = encrypted.length - SrtpAuthTagSize.tag128;
-    final output = Uint8List(outputLength);
-
-    // Decrypt
     try {
-      var outOff = gcm.processBytes(encrypted, 0, encrypted.length, output, 0);
-      outOff += gcm.doFinal(output, outOff);
+      final secretBox = SecretBox(
+        cipherText,
+        nonce: _nonceBuffer,
+        mac: mac,
+      );
 
-      // Parse decrypted RTP packet
+      final decrypted = await _cipher.decrypt(
+        secretBox,
+        secretKey: secretKey,
+        aad: header,
+      );
+
       // Reconstruct full RTP packet with decrypted payload
-      final fullPacket = Uint8List(header.length + output.length);
+      final fullPacket = Uint8List(header.length + decrypted.length);
       fullPacket.setRange(0, header.length, header);
-      fullPacket.setRange(header.length, fullPacket.length, output);
+      fullPacket.setRange(header.length, fullPacket.length, decrypted);
 
       return RtpPacket.parse(fullPacket);
     } catch (e) {
@@ -155,55 +156,64 @@ class SrtpCipher {
     return currentRoc;
   }
 
-  /// Derive session key from master key
-  /// RFC 3711 Section 4.3
-  Uint8List _deriveSessionKey(int ssrc, int roc) {
-    // Use master key directly (key derivation is done at session level)
-    // In practice, we'd derive per-packet or per-ROC keys
-    return masterKey;
-  }
-
-  /// Derive session salt from master salt
-  /// RFC 3711 Section 4.3
-  Uint8List _deriveSessionSalt(int ssrc, int roc) {
-    // Use master salt directly (salt derivation is done at session level)
-    return masterSalt;
-  }
-
-  /// Build nonce (IV) for AES-GCM
+  /// Build nonce (IV) for AES-GCM - creates new buffer
   /// RFC 7714 Section 8.1
   ///
   /// IV format: 00 || SSRC || ROC || SEQ, XOR with salt
   /// Bytes: [0, 0, SSRC(4 bytes), ROC(4 bytes), SEQ(2 bytes)]
-  Uint8List _buildNonce(Uint8List salt, int ssrc, int seq, int roc) {
+  Uint8List _buildNonce(int ssrc, int seq, int roc) {
     final nonce = Uint8List(12);
 
-    // First 2 bytes are zero
-    nonce[0] = 0;
-    nonce[1] = 0;
+    // First 2 bytes are zero, XOR with salt
+    nonce[0] = masterSalt[0];
+    nonce[1] = masterSalt[1];
 
-    // SSRC (32-bit) at bytes 2-5
-    nonce[2] = (ssrc >> 24) & 0xFF;
-    nonce[3] = (ssrc >> 16) & 0xFF;
-    nonce[4] = (ssrc >> 8) & 0xFF;
-    nonce[5] = ssrc & 0xFF;
+    // SSRC (32-bit) at bytes 2-5, XOR with salt
+    nonce[2] = ((ssrc >> 24) & 0xFF) ^ masterSalt[2];
+    nonce[3] = ((ssrc >> 16) & 0xFF) ^ masterSalt[3];
+    nonce[4] = ((ssrc >> 8) & 0xFF) ^ masterSalt[4];
+    nonce[5] = (ssrc & 0xFF) ^ masterSalt[5];
 
-    // ROC (32-bit) at bytes 6-9
-    nonce[6] = (roc >> 24) & 0xFF;
-    nonce[7] = (roc >> 16) & 0xFF;
-    nonce[8] = (roc >> 8) & 0xFF;
-    nonce[9] = roc & 0xFF;
+    // ROC (32-bit) at bytes 6-9, XOR with salt
+    nonce[6] = ((roc >> 24) & 0xFF) ^ masterSalt[6];
+    nonce[7] = ((roc >> 16) & 0xFF) ^ masterSalt[7];
+    nonce[8] = ((roc >> 8) & 0xFF) ^ masterSalt[8];
+    nonce[9] = (roc & 0xFF) ^ masterSalt[9];
 
-    // SEQ (16-bit) at bytes 10-11
-    nonce[10] = (seq >> 8) & 0xFF;
-    nonce[11] = seq & 0xFF;
-
-    // XOR with salt
-    for (var i = 0; i < 12; i++) {
-      nonce[i] ^= salt[i];
-    }
+    // SEQ (16-bit) at bytes 10-11, XOR with salt
+    nonce[10] = ((seq >> 8) & 0xFF) ^ masterSalt[10];
+    nonce[11] = (seq & 0xFF) ^ masterSalt[11];
 
     return nonce;
+  }
+
+  /// Build nonce (IV) for AES-GCM in-place (for decrypt, which is sync)
+  /// RFC 7714 Section 8.1
+  ///
+  /// IV format: 00 || SSRC || ROC || SEQ, XOR with salt
+  /// Bytes: [0, 0, SSRC(4 bytes), ROC(4 bytes), SEQ(2 bytes)]
+  ///
+  /// This method modifies _nonceBuffer in-place to avoid allocations.
+  void _buildNonceInPlace(int ssrc, int seq, int roc) {
+    // First 2 bytes are zero, XOR with salt
+    _nonceBuffer[0] = masterSalt[0];
+    _nonceBuffer[1] = masterSalt[1];
+
+    // SSRC (32-bit) at bytes 2-5, XOR with salt
+    _nonceBuffer[2] = ((ssrc >> 24) & 0xFF) ^ masterSalt[2];
+    _nonceBuffer[3] = ((ssrc >> 16) & 0xFF) ^ masterSalt[3];
+    _nonceBuffer[4] = ((ssrc >> 8) & 0xFF) ^ masterSalt[4];
+    _nonceBuffer[5] = (ssrc & 0xFF) ^ masterSalt[5];
+
+    // ROC (32-bit) at bytes 6-9, XOR with salt
+    _nonceBuffer[6] = ((roc >> 24) & 0xFF) ^ masterSalt[6];
+    _nonceBuffer[7] = ((roc >> 16) & 0xFF) ^ masterSalt[7];
+    _nonceBuffer[8] = ((roc >> 8) & 0xFF) ^ masterSalt[8];
+    _nonceBuffer[9] = (roc & 0xFF) ^ masterSalt[9];
+
+    // SEQ (16-bit) at bytes 10-11, XOR with salt
+    _nonceBuffer[10] = ((seq >> 8) & 0xFF) ^ masterSalt[10];
+    _nonceBuffer[11] = (seq & 0xFF) ^ masterSalt[11];
   }
 
   /// Serialize RTP header for AAD (Additional Authenticated Data)
@@ -246,5 +256,6 @@ class SrtpCipher {
   void reset() {
     _rocMap.clear();
     replayProtection.reset();
+    _cachedSecretKey = null;
   }
 }

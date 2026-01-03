@@ -3,11 +3,13 @@
 // This server tests Dart as ANSWERER for sendrecv media (browser is offerer):
 // 1. Browser creates PeerConnection with sendrecv video track
 // 2. Browser creates offer and sends to Dart
-// 3. Dart creates answer with sendrecv video
-// 4. Dart receives video from browser and echoes it back
+// 3. Dart receives offer - transceivers are AUTO-CREATED (like werift)
+// 4. Dart creates answer with sendrecv video
+// 5. In onTrack, Dart registers a nonstandard track for echo
+// 6. Dart receives video from browser and echoes it back via writeRtp
 //
 // Pattern: Browser is OFFERER, Dart is ANSWERER
-// This pattern may work with Firefox (which fails when Dart is offerer)
+// No need to pre-create transceivers - they are created automatically
 
 import 'dart:async';
 import 'dart:convert';
@@ -126,27 +128,14 @@ class SendrecvAnswerServer {
     _echoStarted = false;
 
     // Create peer connection
+    // No need to pre-create transceivers - setRemoteDescription automatically
+    // creates them when receiving an offer (matching werift behavior)
     _pc = RTCPeerConnection(RtcConfiguration(
       iceServers: [
         IceServer(urls: ['stun:stun.l.google.com:19302'])
       ],
     ));
     print('[Sendrecv-Answer] PeerConnection created');
-
-    // Create a nonstandard track for sending echoed video
-    // This matches the WORKING pattern from media_sendrecv_server.dart
-    _sendTrack =
-        nonstandard.MediaStreamTrack(kind: nonstandard.MediaKind.video);
-
-    // Pre-create a transceiver with our send track BEFORE receiving the offer
-    // With the MID matching fix, this transceiver will be matched by kind when
-    // processing the browser's offer, and its MID updated to match.
-    final transceiver = _pc!.addTransceiver(
-      _sendTrack!,
-      direction: RtpTransceiverDirection.sendrecv,
-    );
-    print(
-        '[Sendrecv-Answer] Pre-created video transceiver with track (sendrecv), mid=${transceiver.mid}, ssrc=${transceiver.sender.rtpSession.localSsrc}');
 
     // Track connection state
     _subscriptions.add(_pc!.onConnectionStateChange.listen((state) {
@@ -173,30 +162,31 @@ class SendrecvAnswerServer {
       });
     }));
 
-    // Handle incoming tracks - echo RTP via writeRtp on our send track
-    // This matches the WORKING pattern from media_sendrecv_server.dart
+    // Handle incoming tracks - setRemoteDescription auto-creates transceivers
+    // This matches werift's pattern: transceiver is created when offer is received,
+    // then we register a nonstandard track on the sender for echo
     _subscriptions.add(_pc!.onTrack.listen((transceiver) {
       print(
           '[Sendrecv-Answer] onTrack fired: kind=${transceiver.kind}, mid=${transceiver.mid}, '
-          'ssrc=${transceiver.sender.rtpSession.localSsrc}, direction=${transceiver.direction}');
+          'direction=${transceiver.direction}');
       _trackReceived = true;
 
       if (transceiver.kind == MediaStreamTrackKind.video) {
         final receivedTrack = transceiver.receiver.track;
 
-        print('[Sendrecv-Answer] Setting up echo via writeRtp');
+        // Create nonstandard track for echo and register with sender
+        // This matches werift's replaceTrack pattern but for RTP forwarding
+        _sendTrack =
+            nonstandard.MediaStreamTrack(kind: nonstandard.MediaKind.video);
+        transceiver.sender.registerNonstandardTrack(_sendTrack!);
+        print('[Sendrecv-Answer] Registered nonstandard track for echo');
         _echoStarted = true;
 
-        // Echo RTP packets via writeRtp on our send track
-        // Match the WORKING pattern from media_sendrecv_server.dart exactly
+        // Echo RTP packets via writeRtp
         _subscriptions.add(receivedTrack.onReceiveRtp.listen((rtpPacket) {
           _packetsReceived++;
-
-          // Echo the RTP packet back to the browser via our send track
-          if (_sendTrack != null) {
-            _sendTrack!.writeRtp(rtpPacket);
-            _packetsEchoed++;
-          }
+          _sendTrack!.writeRtp(rtpPacket);
+          _packetsEchoed++;
 
           if (_packetsReceived % 100 == 0) {
             print(

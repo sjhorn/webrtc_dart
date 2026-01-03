@@ -1,13 +1,9 @@
-import 'dart:io';
-
-import 'aes_gcm.dart';
-import 'aes_gcm_ffi.dart';
-
 /// Global configuration for cryptographic implementations.
 ///
 /// By default, webrtc_dart automatically uses native OpenSSL/BoringSSL if
 /// available on the system (~16x faster SRTP). Falls back to pure Dart
-/// if no native crypto library is found.
+/// if no native crypto library is found or on platforms without FFI support
+/// (e.g., Flutter web).
 ///
 /// ## Usage
 ///
@@ -18,24 +14,31 @@ import 'aes_gcm_ffi.dart';
 /// // Disable native crypto (force pure Dart)
 /// CryptoConfig.useNative = false;
 ///
-/// // Or use environment variable to disable:
+/// // Or use environment variable to disable (native platforms only):
 /// // WEBRTC_NATIVE_CRYPTO=0 dart run your_app.dart
 /// ```
+library;
+
+import 'aes_gcm.dart';
+
+// Conditional import: use native implementation when dart:ffi is available,
+// otherwise fall back to stub that always uses pure Dart
+import 'crypto_config_stub.dart'
+    if (dart.library.ffi) 'crypto_config_native.dart' as platform;
+
 class CryptoConfig {
   /// Whether to use native crypto (OpenSSL/BoringSSL FFI) when available.
   ///
   /// Default: true (try native, fall back to Dart if unavailable)
   /// Set to false to force pure Dart implementation.
-  static bool _useNative = _checkEnvVar();
+  static bool _useNative = _initUseNative();
 
-  /// Check if the environment variable disables native crypto
-  static bool _checkEnvVar() {
-    final env = Platform.environment['WEBRTC_NATIVE_CRYPTO'];
-    // Default is true (use native). Only disable if explicitly set to 0/false.
-    if (env == '0' || env == 'false') {
-      return false;
+  static bool _initUseNative() {
+    try {
+      return platform.checkNativeEnvVar();
+    } catch (_) {
+      return true; // Default to trying native
     }
-    return true;
   }
 
   /// Get whether native crypto is enabled.
@@ -54,8 +57,15 @@ class CryptoConfig {
   /// Check if native crypto (OpenSSL FFI) is available.
   ///
   /// Returns true if OpenSSL can be loaded via FFI.
+  /// Always returns false on platforms without FFI support (e.g., web).
   static bool get isNativeAvailable {
-    return _nativeAvailable ??= isNativeCryptoAvailable();
+    if (_nativeAvailable != null) return _nativeAvailable!;
+    try {
+      _nativeAvailable = platform.isNativeCryptoAvailable();
+    } catch (_) {
+      _nativeAvailable = false;
+    }
+    return _nativeAvailable!;
   }
 
   /// Cached cipher instance for reuse
@@ -63,11 +73,15 @@ class CryptoConfig {
 
   /// Create an AES-GCM cipher based on current configuration.
   ///
-  /// If [useNative] is true and OpenSSL is available, returns [FfiAesGcmCipher].
-  /// Otherwise returns [DartAesGcmCipher].
+  /// If [useNative] is true and OpenSSL is available, returns native cipher.
+  /// Otherwise returns pure Dart implementation.
   static AesGcmCipher createAesGcm() {
     if (useNative && isNativeAvailable) {
-      return FfiAesGcmCipher();
+      try {
+        return platform.createNativeCipher();
+      } catch (_) {
+        // Fall back to Dart if native cipher creation fails
+      }
     }
     return DartAesGcmCipher();
   }
@@ -94,8 +108,12 @@ class CryptoConfig {
   /// Get a description of the current crypto configuration.
   static String get description {
     if (useNative && isNativeAvailable) {
-      final path = findOpenSSL();
-      return 'Native (OpenSSL: $path)';
+      try {
+        final path = platform.findOpenSSL();
+        return 'Native (OpenSSL: $path)';
+      } catch (_) {
+        return 'Dart (native error)';
+      }
     } else if (!useNative) {
       return 'Dart (native disabled)';
     } else {

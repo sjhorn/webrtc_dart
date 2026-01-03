@@ -30,8 +30,8 @@ class RtpCodecParameters {
 
   /// Get codec name from MIME type
   String get codecName {
-    final parts = mimeType.split('/');
-    return parts.length == 2 ? parts[1] : mimeType;
+    final idx = mimeType.indexOf('/');
+    return idx == -1 ? mimeType : mimeType.substring(idx + 1);
   }
 
   /// Check if this is an audio codec

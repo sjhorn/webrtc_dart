@@ -114,8 +114,9 @@ class RTCDataChannel {
   /// Handle buffered amount change from SCTP association
   /// Fires onBufferedAmountLow when crossing threshold from above
   void handleBufferedAmountChange(int newAmount) {
-    final crossesThreshold = _previousBufferedAmount > _bufferedAmountLowThreshold &&
-        newAmount <= _bufferedAmountLowThreshold;
+    final crossesThreshold =
+        _previousBufferedAmount > _bufferedAmountLowThreshold &&
+            newAmount <= _bufferedAmountLowThreshold;
     _previousBufferedAmount = newAmount;
     if (crossesThreshold) {
       _bufferedAmountLowController.add(null);
@@ -226,9 +227,8 @@ class RTCDataChannel {
   /// Set buffered amount low callback (W3C-style)
   set onbufferedamountlow(void Function()? callback) {
     _onbufferedamountlowSubscription?.cancel();
-    _onbufferedamountlowSubscription = callback != null
-        ? onBufferedAmountLow.listen((_) => callback())
-        : null;
+    _onbufferedamountlowSubscription =
+        callback != null ? onBufferedAmountLow.listen((_) => callback()) : null;
   }
 
   /// Open the data channel (send DCEP OPEN)

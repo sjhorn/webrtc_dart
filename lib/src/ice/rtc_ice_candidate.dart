@@ -87,62 +87,161 @@ class RTCIceCandidate {
   /// Also accepts with "candidate:" prefix: "candidate:6815297761 1 udp ..."
   factory RTCIceCandidate.fromSdp(String sdp) {
     // Strip "candidate:" or "a=candidate:" prefix if present
-    var normalized = sdp.trim();
-    if (normalized.startsWith('a=candidate:')) {
-      normalized = normalized.substring(12);
-    } else if (normalized.startsWith('candidate:')) {
-      normalized = normalized.substring(10);
+    var s = sdp;
+    var start = 0;
+    var end = sdp.length;
+
+    // Trim leading whitespace
+    while (start < end && s.codeUnitAt(start) == 0x20) {
+      start++;
+    }
+    // Trim trailing whitespace
+    while (end > start && s.codeUnitAt(end - 1) == 0x20) {
+      end--;
     }
 
-    final bits = normalized.split(' ');
-    if (bits.length < 8) {
+    // Check for prefixes
+    if (end - start > 12 &&
+        s.codeUnitAt(start) == 0x61 && // 'a'
+        s.codeUnitAt(start + 1) == 0x3D && // '='
+        s.codeUnitAt(start + 2) == 0x63) {
+      // 'c'
+      // a=candidate:
+      start += 12;
+    } else if (end - start > 10 && s.codeUnitAt(start) == 0x63) {
+      // 'c'
+      // candidate:
+      start += 10;
+    }
+
+    // Parse using indexOf to avoid split() allocation
+    // Format: foundation component transport priority host port typ type [optional...]
+
+    int nextSpace(int from) {
+      final idx = s.indexOf(' ', from);
+      return idx == -1 ? end : idx;
+    }
+
+    // Field 0: foundation
+    var pos = start;
+    var spacePos = nextSpace(pos);
+    if (spacePos >= end) {
+      throw ArgumentError('SDP does not have enough properties: $sdp');
+    }
+    final foundation = s.substring(pos, spacePos);
+
+    // Field 1: component
+    pos = spacePos + 1;
+    spacePos = nextSpace(pos);
+    if (spacePos >= end) {
+      throw ArgumentError('SDP does not have enough properties: $sdp');
+    }
+    final component = int.parse(s.substring(pos, spacePos));
+
+    // Field 2: transport
+    pos = spacePos + 1;
+    spacePos = nextSpace(pos);
+    if (spacePos >= end) {
+      throw ArgumentError('SDP does not have enough properties: $sdp');
+    }
+    final transport = s.substring(pos, spacePos);
+
+    // Field 3: priority
+    pos = spacePos + 1;
+    spacePos = nextSpace(pos);
+    if (spacePos >= end) {
+      throw ArgumentError('SDP does not have enough properties: $sdp');
+    }
+    final priority = int.parse(s.substring(pos, spacePos));
+
+    // Field 4: host
+    pos = spacePos + 1;
+    spacePos = nextSpace(pos);
+    if (spacePos >= end) {
+      throw ArgumentError('SDP does not have enough properties: $sdp');
+    }
+    final host = s.substring(pos, spacePos);
+
+    // Field 5: port
+    pos = spacePos + 1;
+    spacePos = nextSpace(pos);
+    if (spacePos >= end) {
+      throw ArgumentError('SDP does not have enough properties: $sdp');
+    }
+    final port = int.parse(s.substring(pos, spacePos));
+
+    // Field 6: "typ" keyword - skip it
+    pos = spacePos + 1;
+    spacePos = nextSpace(pos);
+    if (spacePos >= end) {
       throw ArgumentError('SDP does not have enough properties: $sdp');
     }
 
-    final kwargs = <String, dynamic>{
-      'foundation': bits[0],
-      'component': int.parse(bits[1]),
-      'transport': bits[2],
-      'priority': int.parse(bits[3]),
-      'host': bits[4],
-      'port': int.parse(bits[5]),
-      'type': bits[7],
-    };
+    // Field 7: type
+    pos = spacePos + 1;
+    spacePos = nextSpace(pos);
+    final type = s.substring(pos, spacePos);
 
-    // Parse optional attributes
-    for (var i = 8; i < bits.length - 1; i += 2) {
-      switch (bits[i]) {
-        case 'raddr':
-          kwargs['relatedAddress'] = bits[i + 1];
+    // Optional attributes
+    String? relatedAddress;
+    int? relatedPort;
+    String? tcpType;
+    int? generation;
+    String? ufrag;
+
+    pos = spacePos + 1;
+    while (pos < end) {
+      spacePos = nextSpace(pos);
+      final key = s.substring(pos, spacePos);
+
+      pos = spacePos + 1;
+      if (pos >= end) break;
+
+      spacePos = nextSpace(pos);
+      final value = s.substring(pos, spacePos);
+
+      // Use first character for fast dispatch
+      switch (key.isNotEmpty ? key.codeUnitAt(0) : 0) {
+        case 0x72: // 'r' - raddr or rport
+          if (key == 'raddr') {
+            relatedAddress = value;
+          } else if (key == 'rport') {
+            relatedPort = int.parse(value);
+          }
           break;
-        case 'rport':
-          kwargs['relatedPort'] = int.parse(bits[i + 1]);
+        case 0x74: // 't' - tcptype
+          if (key == 'tcptype') {
+            tcpType = value;
+          }
           break;
-        case 'tcptype':
-          kwargs['tcpType'] = bits[i + 1];
+        case 0x67: // 'g' - generation
+          if (key == 'generation') {
+            generation = int.parse(value);
+          }
           break;
-        case 'generation':
-          kwargs['generation'] = int.parse(bits[i + 1]);
-          break;
-        case 'ufrag':
-          kwargs['ufrag'] = bits[i + 1];
+        case 0x75: // 'u' - ufrag
+          if (key == 'ufrag') {
+            ufrag = value;
+          }
           break;
       }
+
+      pos = spacePos + 1;
     }
 
     return RTCIceCandidate(
-      foundation: kwargs['foundation'] as String,
-      component: kwargs['component'] as int,
-      transport: kwargs['transport'] as String,
-      priority: kwargs['priority'] as int,
-      host: kwargs['host'] as String,
-      port: kwargs['port'] as int,
-      type: kwargs['type'] as String,
-      relatedAddress: kwargs['relatedAddress'] as String?,
-      relatedPort: kwargs['relatedPort'] as int?,
-      tcpType: kwargs['tcpType'] as String?,
-      generation: kwargs['generation'] as int?,
-      ufrag: kwargs['ufrag'] as String?,
+      foundation: foundation,
+      component: component,
+      transport: transport,
+      priority: priority,
+      host: host,
+      port: port,
+      type: type,
+      relatedAddress: relatedAddress,
+      relatedPort: relatedPort,
+      tcpType: tcpType,
+      generation: generation,
+      ufrag: ufrag,
     );
   }
 
@@ -214,26 +313,27 @@ class RTCIceCandidate {
 
   /// Convert candidate to SDP format
   String toSdp() {
-    var sdp =
+    // String interpolation is 3x faster than StringBuffer in Dart
+    final base =
         '$foundation $component $transport $priority $host $port typ $type';
 
-    if (relatedAddress != null) {
-      sdp += ' raddr $relatedAddress';
-    }
-    if (relatedPort != null) {
-      sdp += ' rport $relatedPort';
-    }
-    if (tcpType != null) {
-      sdp += ' tcptype $tcpType';
-    }
-    if (generation != null) {
-      sdp += ' generation $generation';
-    }
-    if (ufrag != null) {
-      sdp += ' ufrag $ufrag';
+    // Fast path: no optional attributes
+    if (relatedAddress == null &&
+        relatedPort == null &&
+        tcpType == null &&
+        generation == null &&
+        ufrag == null) {
+      return base;
     }
 
-    return sdp;
+    // Build optional suffix
+    final raddr = relatedAddress != null ? ' raddr $relatedAddress' : '';
+    final rport = relatedPort != null ? ' rport $relatedPort' : '';
+    final tcp = tcpType != null ? ' tcptype $tcpType' : '';
+    final gen = generation != null ? ' generation $generation' : '';
+    final uf = ufrag != null ? ' ufrag $ufrag' : '';
+
+    return '$base$raddr$rport$tcp$gen$uf';
   }
 
   /// Create a copy with modified fields

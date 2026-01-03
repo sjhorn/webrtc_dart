@@ -2,6 +2,39 @@
 
 All notable changes to this project will be documented in this file.
 
+## 0.24.0
+
+### Performance
+
+- **ICE candidate parsing 2.8x faster** - Replaced `split()` with `indexOf()` + `substring()`:
+  - Host candidate: 1.8M → 5.0M ops/sec
+  - Round-trip: 1.4M → 2.8M ops/sec
+  - Gap vs werift reduced from 7x to 2.6x
+
+- **Codec parameter parsing optimized** - `RTCRtpCodecParameters.name` and `.contentType` now use `indexOf()` instead of `split('/')` to avoid List allocation
+
+### Added
+
+- **Performance regression test suite** - 38 new tests in `test/performance/`:
+  - SRTP encrypt/decrypt throughput
+  - RTP/RTCP parse/serialize
+  - SDP parse/serialize
+  - STUN message handling
+  - SCTP queue operations
+  - DTLS anti-replay window
+  - VP8/H.264 depacketization
+  - ICE candidate parse/serialize
+
+- **Benchmark infrastructure** - Compare webrtc_dart vs werift:
+  - `./benchmark/run_perf_tests.sh` - Run Dart performance tests
+  - `./benchmark/run_werift_benchmarks.sh` - Run werift comparison
+  - `./benchmark/compare.sh` - Side-by-side comparison
+  - Micro-benchmarks in `benchmark/micro/`
+
+### Tests
+
+- 2625 tests passing (including 38 performance tests)
+
 ## 0.23.1
 
 ### Changed

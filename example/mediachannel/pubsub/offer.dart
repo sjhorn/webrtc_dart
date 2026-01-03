@@ -44,8 +44,8 @@ final Map<String, List<RtpPacket>> keyframeCache = {};
 
 /// Pending subscriptions waiting for tracks to be received
 /// Key: media ID, Value: list of (client, transceiver) pairs
-final Map<String, List<(ClientSession, RTCRtpTransceiver)>> pendingSubscriptions =
-    {};
+final Map<String, List<(ClientSession, RTCRtpTransceiver)>>
+    pendingSubscriptions = {};
 
 /// All connected clients for broadcast notifications
 final List<ClientSession> clients = [];

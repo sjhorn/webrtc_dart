@@ -334,10 +334,12 @@ class IceConnectionImpl implements IceConnection {
   IceState get state => _state;
 
   @override
-  List<RTCIceCandidate> get localCandidates => List.unmodifiable(_localCandidates);
+  List<RTCIceCandidate> get localCandidates =>
+      List.unmodifiable(_localCandidates);
 
   @override
-  List<RTCIceCandidate> get remoteCandidates => List.unmodifiable(_remoteCandidates);
+  List<RTCIceCandidate> get remoteCandidates =>
+      List.unmodifiable(_remoteCandidates);
 
   @override
   List<CandidatePair> get checkList => List.unmodifiable(_checkList);
@@ -851,7 +853,8 @@ class IceConnectionImpl implements IceConnection {
   /// Generate a TCP active candidate to pair with a remote TCP passive candidate
   /// RFC 6544: Active candidates have port 9 (discard port) as a placeholder
   /// since the actual port is only known after connection establishment.
-  Future<void> _generateTcpActiveCandidate(RTCIceCandidate remotePassive) async {
+  Future<void> _generateTcpActiveCandidate(
+      RTCIceCandidate remotePassive) async {
     // Determine which local IP to use based on the remote candidate's IP version
     final remoteIsV4 =
         InternetAddress(remotePassive.host).type == InternetAddressType.IPv4;
@@ -1961,7 +1964,8 @@ class IceConnectionImpl implements IceConnection {
   }
 
   /// Send data through TURN relay
-  Future<void> _sendViaTurn(RTCIceCandidate remoteCandidate, Uint8List data) async {
+  Future<void> _sendViaTurn(
+      RTCIceCandidate remoteCandidate, Uint8List data) async {
     if (_turnClient == null) {
       throw StateError('TURN client not available');
     }

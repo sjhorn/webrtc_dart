@@ -102,7 +102,8 @@ class DataChannelAnswerServer {
 
   Future<void> _handleStart(HttpRequest request) async {
     _currentBrowser = request.uri.queryParameters['browser'] ?? 'unknown';
-    print('[DC-Answer] Starting RTCDataChannel answer test for: $_currentBrowser');
+    print(
+        '[DC-Answer] Starting RTCDataChannel answer test for: $_currentBrowser');
 
     // Reset state
     await _cleanup();

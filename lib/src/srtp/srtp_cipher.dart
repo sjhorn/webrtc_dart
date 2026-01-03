@@ -75,7 +75,8 @@ class SrtpCipher {
     final mac = secretBox.mac.bytes;
     final result = Uint8List(header.length + cipherText.length + mac.length);
     result.setRange(0, header.length, header);
-    result.setRange(header.length, header.length + cipherText.length, cipherText);
+    result.setRange(
+        header.length, header.length + cipherText.length, cipherText);
     result.setRange(header.length + cipherText.length, result.length, mac);
 
     return result;

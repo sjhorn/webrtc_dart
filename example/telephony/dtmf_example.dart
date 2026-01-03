@@ -17,11 +17,15 @@ void main() async {
 
   // Create two peer connections to simulate caller and callee
   final caller = RTCPeerConnection(RtcConfiguration(
-    iceServers: [IceServer(urls: ['stun:stun.l.google.com:19302'])],
+    iceServers: [
+      IceServer(urls: ['stun:stun.l.google.com:19302'])
+    ],
   ));
 
   final callee = RTCPeerConnection(RtcConfiguration(
-    iceServers: [IceServer(urls: ['stun:stun.l.google.com:19302'])],
+    iceServers: [
+      IceServer(urls: ['stun:stun.l.google.com:19302'])
+    ],
   ));
 
   print('[Setup] Created caller and callee peer connections\n');
@@ -39,7 +43,8 @@ void main() async {
   final callerConnected = Completer<void>();
   caller.onConnectionStateChange.listen((state) {
     print('[Caller] Connection state: $state');
-    if (state == PeerConnectionState.connected && !callerConnected.isCompleted) {
+    if (state == PeerConnectionState.connected &&
+        !callerConnected.isCompleted) {
       callerConnected.complete();
     }
   });

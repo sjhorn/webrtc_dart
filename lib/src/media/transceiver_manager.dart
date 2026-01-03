@@ -70,7 +70,8 @@ class TransceiverManager {
   }
 
   /// Find transceiver matching criteria
-  RTCRtpTransceiver? findTransceiver(bool Function(RTCRtpTransceiver) predicate) {
+  RTCRtpTransceiver? findTransceiver(
+      bool Function(RTCRtpTransceiver) predicate) {
     return _transceivers.where(predicate).firstOrNull;
   }
 

@@ -22,9 +22,9 @@ This is a pure Dart port of the [werift-webrtc](https://github.com/shinyoshiaki/
 All WebRTC features complete: ICE, DTLS, SRTP, SCTP, RTP/RTCP, DataChannels, Media.
 Codecs: VP8, VP9, H.264, AV1, Opus. Features: NACK, PLI/FIR, RTX, TWCC, Simulcast, getStats().
 
-**2587 tests passing, 0 analyzer issues**
+**2625 tests passing, 0 analyzer issues**
 
-### Server-Side WebRTC (v0.23.1)
+### Server-Side WebRTC (v0.24.0)
 
 This is a **server-side** WebRTC library like Pion (Go), aiortc (Python), werift (TS).
 - Complete transport layer: ICE, DTLS, SRTP, SCTP, RTP/RTCP
@@ -325,18 +325,35 @@ Each layer should be validated independently before building on top of it.
 ## Versioning & CHANGELOG
 
 - Use [Semantic Versioning](https://semver.org): `MAJOR.MINOR.PATCH`
-- **IMPORTANT**: When releasing a new version, update ALL files with version references:
-  - `pubspec.yaml` - version field
-  - `README.md` - installation example (`webrtc_dart: ^X.Y.Z`)
-  - `CHANGELOG.md` - add new version section
-  - `REFACTOR.md` - test count if changed
-  - `CLAUDE.md` - test count if changed
-- Tag the release in Git:
-  ```bash
-  git tag -a vX.Y.Z -m "Release version X.Y.Z"
-  git push origin vX.Y.Z
-  ```
-- Publish to pub.dev: `dart pub publish`
+- **IMPORTANT**: When releasing a new version, follow these steps:
+
+### Release Checklist
+```bash
+# 1. Run all tests (must pass)
+dart test
+
+# 2. Run performance tests (check for regressions)
+./benchmark/run_perf_tests.sh
+
+# 3. Save benchmark results for this release
+dart run benchmark/save_results.dart vX.Y.Z
+
+# 4. Update version in all files:
+#    - pubspec.yaml - version field
+#    - README.md - installation example (webrtc_dart: ^X.Y.Z)
+#    - CHANGELOG.md - add new version section
+#    - REFACTOR.md - test count if changed
+#    - CLAUDE.md - test count if changed
+
+# 5. Commit and tag
+git add .
+git commit -m "Release vX.Y.Z"
+git tag -a vX.Y.Z -m "Release version X.Y.Z"
+git push origin main --tags
+
+# 6. Publish to pub.dev
+dart pub publish
+```
 
 ---
 

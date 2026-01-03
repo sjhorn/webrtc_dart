@@ -1,6 +1,6 @@
 # webrtc_dart Roadmap
 
-## Current Status (v0.23.1)
+## Current Status (v0.24.0)
 
 webrtc_dart is a **server-side** WebRTC library with complete transport implementation and W3C-compatible API naming.
 
@@ -14,7 +14,7 @@ A server-side WebRTC library like [Pion](https://github.com/pion/webrtc) (Go), [
 | **API Naming** | W3C-compatible (RTCPeerConnection, etc.) |
 | **Werift Parity** | 100% feature complete |
 | **Browser Interop** | Chrome, Firefox, Safari working |
-| **Test Coverage** | 2587 tests passing |
+| **Test Coverage** | 2625 tests passing |
 
 ### Server-Side vs Browser
 
@@ -114,7 +114,55 @@ Run benchmark: `dart run example/benchmark/datachannel.dart`
 **Note:** The remaining ~3.4x gap vs werift is due to Dart event loop overhead
 and JIT differences. Further optimization would require native FFI bindings.
 
-See `benchmark/` for measurement suite
+### Benchmarking Infrastructure
+
+**Performance Regression Tests** (`test/performance/`) - 38 tests:
+- Automated tests that warn when performance drops below thresholds
+- Run: `dart test test/performance/` or `./benchmark/run_perf_tests.sh`
+
+| Test File | Coverage |
+|-----------|----------|
+| `srtp_perf_test.dart` | SRTP encrypt/decrypt |
+| `rtp_perf_test.dart` | RTP parse/serialize |
+| `sdp_perf_test.dart` | SDP parse/serialize |
+| `stun_perf_test.dart` | STUN parse/serialize |
+| `sctp_perf_test.dart` | SCTP queue operations |
+| `dtls_perf_test.dart` | DTLS anti-replay window |
+| `codec_perf_test.dart` | VP8/H.264 depacketization |
+| `rtcp_perf_test.dart` | RTCP NACK serialize/parse |
+| `ice_perf_test.dart` | ICE candidate parse/serialize |
+
+**Current Performance (webrtc_dart v0.24.0 vs werift v0.22.2):**
+
+| Operation | webrtc_dart | werift | Comparison |
+|-----------|-------------|--------|------------|
+| RTP parse | 3.5M ops/s | 1.4M ops/s | **2.5x faster** |
+| RTP serialize | 4.8M ops/s | 3.8M ops/s | 1.3x faster |
+| STUN parse | 1.2M ops/s | 0.6M ops/s | **2x faster** |
+| SDP parse | 67K ops/s | 22K ops/s | **3x faster** |
+| H.264 depacketize | 2.9M ops/s | 1.1M ops/s | **2.6x faster** |
+| ICE candidate parse | 5.0M ops/s | 13M ops/s | 2.6x slower* |
+| Anti-replay window | 71M ops/s | - | - |
+| SRTP encrypt 1KB | 20K ops/s | 418K ops/s | 21x slower* |
+
+\*SRTP gap is due to Node.js native crypto vs Dart pure implementation
+
+**Benchmark Commands:**
+```bash
+# Run Dart performance tests
+./benchmark/run_perf_tests.sh
+
+# Run werift comparison benchmarks
+./benchmark/run_werift_benchmarks.sh
+
+# Compare both side-by-side
+./benchmark/compare.sh
+
+# Save results for a release
+dart run benchmark/save_results.dart v0.24.0
+```
+
+**Historical Results:** Stored in `benchmark/results/<version>.json`
 
 ### Medium-term
 

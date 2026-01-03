@@ -52,7 +52,8 @@ void main() {
       // Use valid DTMF characters a-d (which map to A-D)
       dtmfSender.insertDTMF('abcd');
       // Check that buffer contains uppercase characters
-      expect(dtmfSender.toneBuffer.toUpperCase(), equals(dtmfSender.toneBuffer));
+      expect(
+          dtmfSender.toneBuffer.toUpperCase(), equals(dtmfSender.toneBuffer));
     });
 
     test('insertDTMF accepts all valid characters', () {

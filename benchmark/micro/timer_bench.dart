@@ -60,5 +60,6 @@ void main() async {
   print('Future(() {}):         ${futureDelayUs.toStringAsFixed(2)} µs/call');
 
   print('\n' + '-' * 60);
-  print('Speedup (scheduleMicrotask vs Timer): ${(timerUs / microUs).toStringAsFixed(2)}x');
+  print(
+      'Speedup (scheduleMicrotask vs Timer): ${(timerUs / microUs).toStringAsFixed(2)}x');
 }

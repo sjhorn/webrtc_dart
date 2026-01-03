@@ -45,7 +45,7 @@ webrtc_dart handles **transport**, not **media capture/playback**:
 
 ```yaml
 dependencies:
-  webrtc_dart: ^0.23.1
+  webrtc_dart: ^0.24.0
 ```
 
 ## Quick Start
@@ -127,13 +127,33 @@ See [`example/`](example/) for the original examples ported from werift:
 
 To see additional examples comparing how to implement in either werift or webrtc_dart see [WebRTC Examples](http://blog.hornmicro.com/webrtc_examples/)
 
+## Performance
+
+Comparison: webrtc_dart v0.24.0 vs werift v0.22.2
+
+Binary parsing operations are faster than werift (TypeScript). SRTP is slower due to pure Dart crypto vs Node.js native bindings.
+
+| Operation | webrtc_dart | werift | vs werift |
+|-----------|-------------|--------|-----------|
+| RTP parse | 3.5M/s | 1.4M/s | **2.5x faster** |
+| SDP parse | 54K/s | 22K/s | **2.5x faster** |
+| STUN parse | 1.2M/s | 0.7M/s | **1.7x faster** |
+| H.264 depacketize | 2.9M/s | 1.1M/s | **2.6x faster** |
+| ICE candidate parse | 5.0M/s | 13M/s | 2.6x slower* |
+| SRTP encrypt (1KB) | 18K/s | 550K/s | 30x slower* |
+
+\*ICE parsing and SRTP use pure Dart; native FFI would close these gaps.
+
+Run benchmarks: `./benchmark/run_perf_tests.sh`
+
 ## Test Coverage
 
-**2587 tests passing** with browser interop validation.
+**2625 tests passing** (including 38 performance regression tests) with browser interop validation.
 
 ```bash
-dart test                    # Run all tests
-dart test test/ice/          # Run specific suite
+dart test                        # Run all tests
+dart test test/ice/              # Run specific suite
+dart test test/performance/      # Run performance tests
 ```
 
 ## Acknowledgments

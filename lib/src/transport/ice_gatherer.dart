@@ -62,7 +62,8 @@ class RtcIceGatherer {
 
   /// Stream controller for ICE candidates
   /// null indicates end-of-candidates
-  final _iceCandidateController = StreamController<RTCIceCandidate?>.broadcast();
+  final _iceCandidateController =
+      StreamController<RTCIceCandidate?>.broadcast();
 
   /// Subscription to connection's candidate stream
   StreamSubscription<RTCIceCandidate>? _candidateSubscription;

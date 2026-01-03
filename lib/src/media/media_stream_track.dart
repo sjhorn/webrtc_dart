@@ -250,20 +250,26 @@ class MediaTrackConstraints {
     final json = <String, dynamic>{};
     if (width != null) json['width'] = _constraintToJson(width);
     if (height != null) json['height'] = _constraintToJson(height);
-    if (aspectRatio != null) json['aspectRatio'] = _constraintToJson(aspectRatio);
+    if (aspectRatio != null)
+      json['aspectRatio'] = _constraintToJson(aspectRatio);
     if (frameRate != null) json['frameRate'] = _constraintToJson(frameRate);
     if (facingMode != null) json['facingMode'] = _constraintToJson(facingMode);
     if (resizeMode != null) json['resizeMode'] = _constraintToJson(resizeMode);
     if (sampleRate != null) json['sampleRate'] = _constraintToJson(sampleRate);
     if (sampleSize != null) json['sampleSize'] = _constraintToJson(sampleSize);
-    if (echoCancellation != null) json['echoCancellation'] = _constraintToJson(echoCancellation);
-    if (autoGainControl != null) json['autoGainControl'] = _constraintToJson(autoGainControl);
-    if (noiseSuppression != null) json['noiseSuppression'] = _constraintToJson(noiseSuppression);
+    if (echoCancellation != null)
+      json['echoCancellation'] = _constraintToJson(echoCancellation);
+    if (autoGainControl != null)
+      json['autoGainControl'] = _constraintToJson(autoGainControl);
+    if (noiseSuppression != null)
+      json['noiseSuppression'] = _constraintToJson(noiseSuppression);
     if (latency != null) json['latency'] = _constraintToJson(latency);
-    if (channelCount != null) json['channelCount'] = _constraintToJson(channelCount);
+    if (channelCount != null)
+      json['channelCount'] = _constraintToJson(channelCount);
     if (deviceId != null) json['deviceId'] = _constraintToJson(deviceId);
     if (groupId != null) json['groupId'] = _constraintToJson(groupId);
-    if (advanced != null) json['advanced'] = advanced!.map((c) => c.toJson()).toList();
+    if (advanced != null)
+      json['advanced'] = advanced!.map((c) => c.toJson()).toList();
     return json;
   }
 
@@ -477,10 +483,14 @@ abstract class MediaStreamTrack {
       _settings = MediaTrackSettings(
         sampleRate: extractInt(constraints.sampleRate) ?? _settings.sampleRate,
         sampleSize: extractInt(constraints.sampleSize) ?? _settings.sampleSize,
-        channelCount: extractInt(constraints.channelCount) ?? _settings.channelCount,
-        echoCancellation: extractBool(constraints.echoCancellation) ?? _settings.echoCancellation,
-        autoGainControl: extractBool(constraints.autoGainControl) ?? _settings.autoGainControl,
-        noiseSuppression: extractBool(constraints.noiseSuppression) ?? _settings.noiseSuppression,
+        channelCount:
+            extractInt(constraints.channelCount) ?? _settings.channelCount,
+        echoCancellation: extractBool(constraints.echoCancellation) ??
+            _settings.echoCancellation,
+        autoGainControl: extractBool(constraints.autoGainControl) ??
+            _settings.autoGainControl,
+        noiseSuppression: extractBool(constraints.noiseSuppression) ??
+            _settings.noiseSuppression,
         latency: extractDouble(constraints.latency) ?? _settings.latency,
         deviceId: extractString(constraints.deviceId) ?? _settings.deviceId,
         groupId: extractString(constraints.groupId) ?? _settings.groupId,
@@ -489,7 +499,10 @@ abstract class MediaStreamTrack {
       final width = extractInt(constraints.width);
       final height = extractInt(constraints.height);
       double? aspectRatio = extractDouble(constraints.aspectRatio);
-      if (aspectRatio == null && width != null && height != null && height > 0) {
+      if (aspectRatio == null &&
+          width != null &&
+          height != null &&
+          height > 0) {
         aspectRatio = width / height;
       }
 
@@ -498,8 +511,10 @@ abstract class MediaStreamTrack {
         height: height ?? _settings.height,
         aspectRatio: aspectRatio ?? _settings.aspectRatio,
         frameRate: extractDouble(constraints.frameRate) ?? _settings.frameRate,
-        facingMode: extractString(constraints.facingMode) ?? _settings.facingMode,
-        resizeMode: extractString(constraints.resizeMode) ?? _settings.resizeMode,
+        facingMode:
+            extractString(constraints.facingMode) ?? _settings.facingMode,
+        resizeMode:
+            extractString(constraints.resizeMode) ?? _settings.resizeMode,
         deviceId: extractString(constraints.deviceId) ?? _settings.deviceId,
         groupId: extractString(constraints.groupId) ?? _settings.groupId,
       );

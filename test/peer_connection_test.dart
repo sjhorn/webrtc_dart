@@ -186,7 +186,8 @@ void main() {
       expect(states, contains(PeerConnectionState.closed));
     });
 
-    test('creates data channel before SCTP is ready (returns ProxyRTCDataChannel)',
+    test(
+        'creates data channel before SCTP is ready (returns ProxyRTCDataChannel)',
         () async {
       final pc = RTCPeerConnection();
 
@@ -224,8 +225,8 @@ void main() {
       await pc.setLocalDescription(offer);
       expect(pc.signalingState, SignalingState.haveLocalOffer);
 
-      await pc
-          .setLocalDescription(RTCSessionDescription(type: 'rollback', sdp: ''));
+      await pc.setLocalDescription(
+          RTCSessionDescription(type: 'rollback', sdp: ''));
 
       expect(pc.signalingState, SignalingState.stable);
       expect(pc.localDescription, isNull);
@@ -238,8 +239,8 @@ void main() {
       await pc.setRemoteDescription(offer);
       expect(pc.signalingState, SignalingState.haveRemoteOffer);
 
-      await pc
-          .setRemoteDescription(RTCSessionDescription(type: 'rollback', sdp: ''));
+      await pc.setRemoteDescription(
+          RTCSessionDescription(type: 'rollback', sdp: ''));
 
       expect(pc.signalingState, SignalingState.stable);
       expect(pc.remoteDescription, isNull);

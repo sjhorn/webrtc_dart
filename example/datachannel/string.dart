@@ -75,7 +75,8 @@ void main() async {
 
   // Create datachannel on pc1 with protocol
   dc1 = pc1.createDataChannel('chat', protocol: 'text');
-  print('[PC1] Created RTCDataChannel: ${dc1.label} (protocol: ${dc1.protocol})');
+  print(
+      '[PC1] Created RTCDataChannel: ${dc1.label} (protocol: ${dc1.protocol})');
 
   dc1.onStateChange.listen((state) {
     print('[PC1] RTCDataChannel state: $state');

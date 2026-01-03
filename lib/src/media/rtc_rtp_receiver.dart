@@ -101,7 +101,8 @@ class RTCRtpReceiver {
           clockRate: codec.clockRate,
           channels: codec.channels,
           rtcpFeedback: codec.rtcpFeedback
-              .map((fb) => RTCRtcpFeedback(type: fb.type, parameter: fb.parameter))
+              .map((fb) =>
+                  RTCRtcpFeedback(type: fb.type, parameter: fb.parameter))
               .toList(),
         ),
       ],

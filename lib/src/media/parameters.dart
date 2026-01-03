@@ -161,10 +161,16 @@ class RTCRtpCodecParameters {
   });
 
   /// Get codec name (e.g., "VP8" from "video/VP8")
-  String get name => mimeType.split('/').last;
+  String get name {
+    final idx = mimeType.indexOf('/');
+    return idx == -1 ? mimeType : mimeType.substring(idx + 1);
+  }
 
   /// Get content type (e.g., "video" from "video/VP8")
-  String get contentType => mimeType.split('/').first;
+  String get contentType {
+    final idx = mimeType.indexOf('/');
+    return idx == -1 ? mimeType : mimeType.substring(0, idx);
+  }
 
   /// Get string representation for SDP
   String get str {

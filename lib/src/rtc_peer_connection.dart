@@ -877,8 +877,8 @@ class RTCPeerConnection {
           for (final attr in candidateAttrs) {
             if (attr.value != null) {
               try {
-                var candidate =
-                    await _resolveCandidate(RTCIceCandidate.fromSdp(attr.value!));
+                var candidate = await _resolveCandidate(
+                    RTCIceCandidate.fromSdp(attr.value!));
                 if (candidate != null) {
                   await transport.iceConnection.addRemoteCandidate(candidate);
                 }

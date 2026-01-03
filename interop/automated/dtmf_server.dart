@@ -122,7 +122,9 @@ class DtmfServer {
 
     // Create peer connection
     _pc = RTCPeerConnection(RtcConfiguration(
-      iceServers: [IceServer(urls: ['stun:stun.l.google.com:19302'])],
+      iceServers: [
+        IceServer(urls: ['stun:stun.l.google.com:19302'])
+      ],
     ));
     print('[DTMF] PeerConnection created');
 
@@ -142,7 +144,8 @@ class DtmfServer {
 
     // Track ICE candidates
     _pc!.onIceCandidate.listen((candidate) {
-      print('[DTMF] Local ICE candidate: ${candidate.type} ${candidate.address}:${candidate.port}');
+      print(
+          '[DTMF] Local ICE candidate: ${candidate.type} ${candidate.address}:${candidate.port}');
       _localCandidates.add({
         'candidate': 'candidate:${candidate.toSdp()}',
         'sdpMid': '0',
@@ -190,7 +193,8 @@ class DtmfServer {
     if (_audioSender != null && _audioSender!.dtmf != null) {
       _dtmfSupported = true;
       _dtmfSender = _audioSender!.dtmf;
-      print('[DTMF] DTMF sender available: canInsertDTMF=${_dtmfSender!.canInsertDTMF}');
+      print(
+          '[DTMF] DTMF sender available: canInsertDTMF=${_dtmfSender!.canInsertDTMF}');
 
       // Set up ontonechange listener
       _dtmfSender!.ontonechange = (event) {
@@ -276,10 +280,12 @@ class DtmfServer {
       return;
     }
 
-    print('[DTMF] Inserting DTMF tones: "$tones" (duration=$duration, gap=$gap)');
+    print(
+        '[DTMF] Inserting DTMF tones: "$tones" (duration=$duration, gap=$gap)');
     try {
       _dtmfSender!.insertDTMF(tones, duration: duration, interToneGap: gap);
-      print('[DTMF] DTMF tones queued, toneBuffer: "${_dtmfSender!.toneBuffer}"');
+      print(
+          '[DTMF] DTMF tones queued, toneBuffer: "${_dtmfSender!.toneBuffer}"');
 
       request.response.headers.contentType = ContentType.json;
       request.response.write(jsonEncode({

@@ -413,7 +413,8 @@ class SctpAssociation {
     } else {
       // Non-blocking: data queued, will be sent when T3 fires or SACK received
       // Applications should use bufferedAmount for flow control (W3C WebRTC spec)
-      _log.fine('[SCTP] sendData: T3 running, data queued for later transmission');
+      _log.fine(
+          '[SCTP] sendData: T3 running, data queued for later transmission');
     }
   }
 
@@ -500,7 +501,8 @@ class SctpAssociation {
   /// Dequeues abandoned chunks from the front of sentQueue and
   /// creates a FORWARD-TSN chunk to notify the peer.
   void _updateAdvancedPeerAckPoint() {
-    if (_lastSackedTsn != null && uint32Gt(_lastSackedTsn!, _advancedPeerAckTsn)) {
+    if (_lastSackedTsn != null &&
+        uint32Gt(_lastSackedTsn!, _advancedPeerAckTsn)) {
       _advancedPeerAckTsn = _lastSackedTsn!;
     }
 
@@ -827,7 +829,8 @@ class SctpAssociation {
   /// Handle SACK chunk (RFC 4960 Section 6.2.1)
   Future<void> _handleSack(SctpSackChunk chunk) async {
     // Ignore old SACKs (but accept first SACK when _lastSackedTsn is null)
-    if (_lastSackedTsn != null && uint32Gt(_lastSackedTsn!, chunk.cumulativeTsnAck)) {
+    if (_lastSackedTsn != null &&
+        uint32Gt(_lastSackedTsn!, chunk.cumulativeTsnAck)) {
       return;
     }
 

@@ -4,7 +4,10 @@
   "type": "module",
   "scripts": {
     "srtp": "node srtp_bench.mjs",
-    "all": "node srtp_bench.mjs"
+    "rtp": "node rtp_bench.mjs",
+    "stun": "node stun_bench.mjs",
+    "sdp": "node sdp_bench.mjs",
+    "all": "node srtp_bench.mjs && node rtp_bench.mjs && node stun_bench.mjs && node sdp_bench.mjs"
   },
   "dependencies": {
     "werift": "^0.22.2"

@@ -132,18 +132,19 @@ To see additional examples comparing how to implement in either werift or webrtc
 
 Comparison: webrtc_dart v0.24.0 vs werift v0.22.2
 
-Binary parsing operations are faster than werift (TypeScript). SRTP is slower due to pure Dart crypto vs Node.js native bindings.
+Binary parsing operations are faster than werift (TypeScript). With native OpenSSL, SRTP is now competitive.
 
 | Operation | webrtc_dart | werift | vs werift |
 |-----------|-------------|--------|-----------|
-| RTP parse | 3.5M/s | 1.4M/s | **2.5x faster** |
-| SDP parse | 54K/s | 22K/s | **2.5x faster** |
-| STUN parse | 1.2M/s | 0.7M/s | **1.7x faster** |
+| RTP parse | 3.6M/s | 1.4M/s | **2.6x faster** |
+| SDP parse | 62K/s | 22K/s | **2.9x faster** |
+| STUN parse | 1.2M/s | 0.6M/s | **2.0x faster** |
 | H.264 depacketize | 2.9M/s | 1.1M/s | **2.6x faster** |
-| ICE candidate parse | 5.0M/s | 13M/s | 2.6x slower* |
-| SRTP encrypt (1KB) | 18K/s | 550K/s | 30x slower* |
+| ICE candidate parse | 3.6M/s | 13M/s | 3.7x slower* |
+| SRTP encrypt (1KB) | 157K/s | 426K/s | 2.7x slower** |
 
-\*ICE parsing uses pure Dart regex. SRTP benchmark shows pure Dart vs native comparison.
+\*ICE parsing uses Dart regex vs werift's native string ops.
+\**With native OpenSSL (was 30x slower with pure Dart).
 
 Run benchmarks: `./benchmark/run_perf_tests.sh`
 

@@ -221,6 +221,7 @@ void main() {
         additionalData: aad,
       );
 
+      // Native FFI throws StateError, Dart crypto throws SecretBoxAuthenticationError
       expect(
         () => aesGcmDecrypt(
           key: wrongKey,
@@ -228,7 +229,10 @@ void main() {
           ciphertext: ciphertext,
           additionalData: aad,
         ),
-        throwsA(isA<SecretBoxAuthenticationError>()),
+        throwsA(anyOf(
+          isA<SecretBoxAuthenticationError>(),
+          isA<StateError>(),
+        )),
       );
     });
 
@@ -246,6 +250,7 @@ void main() {
         additionalData: aad,
       );
 
+      // Native FFI throws StateError, Dart crypto throws SecretBoxAuthenticationError
       expect(
         () => aesGcmDecrypt(
           key: key,
@@ -253,7 +258,10 @@ void main() {
           ciphertext: ciphertext,
           additionalData: wrongAad,
         ),
-        throwsA(isA<SecretBoxAuthenticationError>()),
+        throwsA(anyOf(
+          isA<SecretBoxAuthenticationError>(),
+          isA<StateError>(),
+        )),
       );
     });
   });

@@ -211,7 +211,9 @@ void main() {
       );
     });
 
-    test('parse throws on truncated packet', () {
+    test('parse handles truncated packet gracefully', () {
+      // Some devices (e.g., Ring) send RTCP packets shorter than their header claims.
+      // Parser should handle these gracefully instead of throwing.
       final data = Uint8List.fromList([
         0x80, // V=2
         200,
@@ -220,14 +222,10 @@ void main() {
         // Only 8 bytes provided, not 44
       ]);
 
-      expect(
-        () => RtcpPacket.parse(data),
-        throwsA(isA<FormatException>().having(
-          (e) => e.message,
-          'message',
-          contains('truncated'),
-        )),
-      );
+      // Should parse successfully with truncated payload
+      final packet = RtcpPacket.parse(data);
+      expect(packet.packetType, RtcpPacketType.senderReport);
+      expect(packet.length, 10);
     });
 
     test('parse throws on invalid padding length', () {

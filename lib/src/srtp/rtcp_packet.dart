@@ -1,5 +1,9 @@
 import 'dart:typed_data';
 
+import 'package:logging/logging.dart';
+
+final _log = Logger('RtcpPacket');
+
 /// RTCP Packet Types
 /// RFC 3550 Section 6.4
 enum RtcpPacketType {
@@ -153,17 +157,22 @@ class RtcpPacket {
     offset += 4;
 
     // Calculate actual packet size
-    final packetSize = (length + 1) * 4;
-    if (data.length < packetSize) {
-      throw FormatException(
-          'RTCP packet truncated: expected $packetSize, got ${data.length}');
+    var packetSize = (length + 1) * 4;
+    final isTruncated = data.length < packetSize;
+    if (isTruncated) {
+      // Ring sometimes sends RTCP packets shorter than their header claims.
+      // Use available data instead of failing - the payload will be truncated.
+      _log.fine(
+          'RTCP truncated: header says $packetSize bytes, got ${data.length}');
+      packetSize = data.length;
     }
 
     // Payload and padding
     var paddingLength = 0;
     var payloadEnd = packetSize;
 
-    if (padding) {
+    // Skip padding handling for truncated packets - can't reliably read padding byte
+    if (padding && !isTruncated) {
       paddingLength = data[packetSize - 1];
       if (paddingLength == 0 || paddingLength > packetSize - offset) {
         throw FormatException('Invalid padding length: $paddingLength');

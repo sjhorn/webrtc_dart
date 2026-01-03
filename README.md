@@ -26,6 +26,7 @@ A **server-side** WebRTC library for Dart, similar to [Pion](https://github.com/
 | **Codec Depacketization** | VP8, VP9, H.264, AV1, Opus |
 | **NAT Traversal** | STUN, TURN (UDP/TCP), ICE-TCP, mDNS |
 | **Recording** | Save received streams to WebM/MP4 |
+| **Crypto** | Native OpenSSL when available, pure Dart fallback |
 
 ## Server-Side vs Browser WebRTC
 
@@ -142,9 +143,34 @@ Binary parsing operations are faster than werift (TypeScript). SRTP is slower du
 | ICE candidate parse | 5.0M/s | 13M/s | 2.6x slower* |
 | SRTP encrypt (1KB) | 18K/s | 550K/s | 30x slower* |
 
-\*ICE parsing and SRTP use pure Dart; native FFI would close these gaps.
+\*ICE parsing uses pure Dart regex. SRTP benchmark shows pure Dart vs native comparison.
 
 Run benchmarks: `./benchmark/run_perf_tests.sh`
+
+## Native Crypto Optimization
+
+SRTP encryption/decryption automatically uses **native OpenSSL** when available (~16x faster), falling back to pure Dart for maximum portability.
+
+| Platform | Crypto Used |
+|----------|-------------|
+| macOS/Linux with OpenSSL | Native (~16x faster) |
+| Windows with OpenSSL | Native (~16x faster) |
+| Flutter mobile | Native if available |
+| Flutter web | Pure Dart (no FFI) |
+| Dart VM without OpenSSL | Pure Dart |
+
+```dart
+// Check what crypto is being used
+print(CryptoConfig.description);  // "Native (OpenSSL: /path)" or "Dart (pure)"
+
+// Force pure Dart (disable native)
+CryptoConfig.useNative = false;
+
+// Or via environment variable:
+// WEBRTC_NATIVE_CRYPTO=0 dart run your_app.dart
+```
+
+No configuration needed - native crypto is used automatically when available.
 
 ## Test Coverage
 

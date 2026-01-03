@@ -782,6 +782,11 @@ class RTCPeerConnection {
 
   /// Set remote description
   Future<void> setRemoteDescription(RTCSessionDescription description) async {
+    // Ensure async initialization (certificate generation, transport setup) is complete
+    // This prevents race conditions when setRemoteDescription is called immediately
+    // (e.g., with WebSocket signaling where there's no network latency delay)
+    await _initializationComplete;
+
     // Validate state transition
     _sdpManager.validateSetRemoteDescription(description.type, _signalingState);
 

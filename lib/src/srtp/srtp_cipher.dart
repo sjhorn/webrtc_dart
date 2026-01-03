@@ -1,5 +1,7 @@
 import 'dart:typed_data';
-import 'package:cryptography/cryptography.dart';
+
+import 'package:webrtc_dart/src/crypto/aes_gcm.dart';
+import 'package:webrtc_dart/src/crypto/crypto_config.dart';
 import 'package:webrtc_dart/src/srtp/const.dart';
 import 'package:webrtc_dart/src/srtp/rtp_packet.dart';
 import 'package:webrtc_dart/src/srtp/replay_protection.dart';
@@ -7,7 +9,7 @@ import 'package:webrtc_dart/src/srtp/replay_protection.dart';
 /// SRTP Cipher for AES-GCM encryption/decryption
 /// RFC 7714 - AES-GCM Authenticated Encryption in SRTP
 ///
-/// Optimized implementation using package:cryptography for native AES-GCM.
+/// Uses [CryptoConfig] to select between pure Dart and native FFI implementations.
 /// Key derivation should be done by SrtpSession before passing to this cipher.
 class SrtpCipher {
   /// Session encryption key (derived from master key)
@@ -23,11 +25,8 @@ class SrtpCipher {
   /// Tracks how many times the 16-bit sequence number has wrapped around
   final Map<int, int> _rocMap = {};
 
-  /// Cached AES-GCM cipher instance (reused across packets)
-  late final AesGcm _cipher;
-
-  /// Cached secret key (reused across packets)
-  SecretKey? _cachedSecretKey;
+  /// AES-GCM cipher instance (reused across packets)
+  late final AesGcmCipher _cipher;
 
   /// Pre-allocated nonce buffer (reused across packets)
   final Uint8List _nonceBuffer = Uint8List(12);
@@ -38,13 +37,7 @@ class SrtpCipher {
     ReplayProtection? replayProtection,
   }) : replayProtection = replayProtection ?? ReplayProtection() {
     // Initialize cipher once - will be reused for all packets
-    _cipher = AesGcm.with128bits();
-  }
-
-  /// Get or create cached secret key
-  Future<SecretKey> _getSecretKey() async {
-    _cachedSecretKey ??= SecretKey(masterKey);
-    return _cachedSecretKey!;
+    _cipher = CryptoConfig.createAesGcm();
   }
 
   /// Encrypt RTP packet
@@ -59,25 +52,18 @@ class SrtpCipher {
     // Serialize RTP header (authenticated data)
     final header = _serializeHeader(packet);
 
-    // Get cached secret key
-    final secretKey = await _getSecretKey();
-
-    // Encrypt payload using AES-GCM
-    final secretBox = await _cipher.encrypt(
-      packet.payload,
-      secretKey: secretKey,
+    // Encrypt payload using AES-GCM (returns ciphertext + tag)
+    final cipherTextWithTag = await _cipher.encrypt(
+      key: masterKey,
       nonce: nonce,
+      plaintext: packet.payload,
       aad: header,
     );
 
     // Build final SRTP packet: header + encrypted_payload + auth_tag
-    final cipherText = secretBox.cipherText;
-    final mac = secretBox.mac.bytes;
-    final result = Uint8List(header.length + cipherText.length + mac.length);
+    final result = Uint8List(header.length + cipherTextWithTag.length);
     result.setRange(0, header.length, header);
-    result.setRange(
-        header.length, header.length + cipherText.length, cipherText);
-    result.setRange(header.length + cipherText.length, result.length, mac);
+    result.setRange(header.length, result.length, cipherTextWithTag);
 
     return result;
   }
@@ -111,25 +97,15 @@ class SrtpCipher {
     // Build nonce (IV) - reuses pre-allocated buffer
     _buildNonceInPlace(ssrc, sequenceNumber, roc);
 
-    // Extract encrypted payload and MAC
-    final macStart = srtpPacket.length - SrtpAuthTagSize.tag128;
-    final cipherText = Uint8List.sublistView(srtpPacket, headerEnd, macStart);
-    final mac = Mac(Uint8List.sublistView(srtpPacket, macStart));
-
-    // Get cached secret key
-    final secretKey = await _getSecretKey();
+    // Extract encrypted payload with MAC (ciphertext includes the tag)
+    final cipherTextWithTag = Uint8List.sublistView(srtpPacket, headerEnd);
 
     // Decrypt payload using AES-GCM
     try {
-      final secretBox = SecretBox(
-        cipherText,
-        nonce: _nonceBuffer,
-        mac: mac,
-      );
-
       final decrypted = await _cipher.decrypt(
-        secretBox,
-        secretKey: secretKey,
+        key: masterKey,
+        nonce: _nonceBuffer,
+        ciphertext: cipherTextWithTag,
         aad: header,
       );
 
@@ -257,6 +233,10 @@ class SrtpCipher {
   void reset() {
     _rocMap.clear();
     replayProtection.reset();
-    _cachedSecretKey = null;
+  }
+
+  /// Dispose of cipher resources
+  void dispose() {
+    _cipher.dispose();
   }
 }

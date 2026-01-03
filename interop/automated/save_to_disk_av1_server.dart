@@ -35,7 +35,7 @@ class SaveToDiskAv1Server {
   SaveToDiskAv1Server({int recordingDurationSeconds = 5})
       : _recordingDurationSeconds = recordingDurationSeconds;
 
-  Future<void> start({int port = 8776}) async {
+  Future<void> start({int port = 8796}) async {
     _server = await HttpServer.bind(InternetAddress.anyIPv4, port);
     print('[SaveToDisk-AV1] Started on http://localhost:$port');
 
@@ -683,5 +683,5 @@ class SaveToDiskAv1Server {
 
 void main() async {
   final server = SaveToDiskAv1Server(recordingDurationSeconds: 5);
-  await server.start(port: 8776);
+  await server.start(port: 8796);
 }

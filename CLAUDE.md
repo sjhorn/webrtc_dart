@@ -86,46 +86,48 @@ dart run example/webrtc_dart_example.dart
 
 ### Browser Interop Tests
 
-**Recommended: Use test scripts** (handles server startup, timeouts, cleanup):
+**Run all tests (parallel, ~40s):**
 ```bash
 cd interop/automated
+./run_all_tests.sh chrome        # 23 tests, 8 parallel (default)
+./run_all_tests.sh chrome 4      # Run with 4 parallel
+./run_all_tests.sh firefox       # Test Firefox
+```
 
-# Run a single test with automatic server management
+**Run a single test:**
+```bash
 ./run_test.sh browser chrome           # DataChannel test
 ./run_test.sh ice_trickle firefox      # ICE trickle test
 ./run_test.sh media_sendonly safari    # Media test
 ./run_test.sh save_to_disk chrome      # Recording test
+./run_test.sh                          # List all available tests
+```
 
-# Use BROWSER env var instead of argument
-BROWSER=firefox ./run_test.sh ice_restart
-
-# Debug mode - shows full Dart server output
+**Debug mode** (shows full Dart server output):
+```bash
 ./run_debug_test.sh save_to_disk chrome
+```
 
-# List all available tests
-./run_test.sh
-
-# Stop orphaned processes
+**Cleanup orphaned processes:**
+```bash
 ./stop_test.sh              # Kill all test processes
 ./stop_test.sh ice_trickle  # Kill specific test
-
-# Run ALL tests
-./run_all_tests.sh chrome   # Comprehensive test suite
 ```
 
 **Test Results Logging** (preferred for Claude Code sessions):
-The `run_all_tests.sh` script automatically writes results to `test_results.log`. For ad-hoc tests, pipe output to a log file:
 ```bash
-# Run tests and save output for later analysis
-./run_test.sh browser chrome 2>&1 | tee /tmp/browser_test.log
-
-# Check results without re-running
-grep -E "PASS|FAIL|Error" /tmp/browser_test.log
-
-# For run_all_tests.sh, results are in:
+# Results automatically saved to test_results.log
 cat interop/automated/test_results.log
+
+# For single tests, pipe to file
+./run_test.sh browser chrome 2>&1 | tee /tmp/browser_test.log
+grep -E "PASS|FAIL|Error" /tmp/browser_test.log
 ```
-This avoids re-running slow tests repeatedly when investigating failures.
+
+**Serial runner** (if parallel causes issues):
+```bash
+./run_all_tests_serial.sh chrome  # Sequential execution (~4 min)
+```
 
 **Manual testing** (run server and test separately):
 ```bash

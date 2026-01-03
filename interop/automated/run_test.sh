@@ -29,7 +29,7 @@ export PATH="/opt/homebrew/opt/node@22/bin:/opt/homebrew/bin:$PATH"
 # Configuration
 SERVER_STARTUP_TIMEOUT=30   # seconds to wait for server (dart compiles on first run)
 TEST_TIMEOUT=120            # seconds for test execution (2 minutes)
-CLEANUP_TIMEOUT=5           # seconds to wait for cleanup
+CLEANUP_TIMEOUT=2           # seconds to wait for graceful cleanup
 
 # Parse arguments
 TEST_NAME="${1:-}"
@@ -83,24 +83,11 @@ TEST_EXIT_CODE=1
 cleanup() {
     local exit_code=$?
 
-    # Kill server if running
+    # Kill server if running - use SIGKILL for fast cleanup in tests
     if [ -n "$SERVER_PID" ] && kill -0 $SERVER_PID 2>/dev/null; then
         echo "[Cleanup] Stopping server (PID: $SERVER_PID)..."
-        kill $SERVER_PID 2>/dev/null || true
-
-        # Wait briefly for graceful shutdown
-        for i in $(seq 1 $CLEANUP_TIMEOUT); do
-            if ! kill -0 $SERVER_PID 2>/dev/null; then
-                break
-            fi
-            sleep 1
-        done
-
-        # Force kill if still running
-        if kill -0 $SERVER_PID 2>/dev/null; then
-            echo "[Cleanup] Force killing server..."
-            kill -9 $SERVER_PID 2>/dev/null || true
-        fi
+        kill -9 $SERVER_PID 2>/dev/null || true
+        sleep 0.5
     fi
 
     # Kill any orphaned Dart processes on our port
@@ -188,21 +175,8 @@ if timeout $TEST_TIMEOUT node "$TEST_FILE" "$BROWSER_ARG"; then
     echo ""
     echo "[Result] PASSED"
 
-    # Clean up webm files created during this test (only on success)
-    cd "$PROJECT_ROOT"
-    webm_count=0
-    for f in recording-*.webm; do
-        if [ -f "$f" ]; then
-            file_time=$(stat -f %m "$f" 2>/dev/null || stat -c %Y "$f" 2>/dev/null)
-            if [ -n "$file_time" ] && [ "$file_time" -ge "$TEST_START_TIME" ]; then
-                rm -f "$f"
-                webm_count=$((webm_count + 1))
-            fi
-        fi
-    done
-    if [ $webm_count -gt 0 ]; then
-        echo "[Cleanup] Removed $webm_count recording file(s)"
-    fi
+    # Note: Recording file cleanup disabled for parallel test compatibility
+    # Files are cleaned up manually or by run_all_tests_parallel.sh
 else
     TEST_EXIT_CODE=$?
     if [ $TEST_EXIT_CODE -eq 124 ]; then

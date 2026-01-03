@@ -30,7 +30,7 @@ class MediaAnswerServer {
   MediaAnswerServer({int testDurationSeconds = 5})
       : _testDurationSeconds = testDurationSeconds;
 
-  Future<void> start({int port = 8776}) async {
+  Future<void> start({int port = 8795}) async {
     _server = await HttpServer.bind(InternetAddress.anyIPv4, port);
     print('[Media-Answer] Started on http://localhost:$port');
 
@@ -560,5 +560,5 @@ class MediaAnswerServer {
 
 void main() async {
   final server = MediaAnswerServer(testDurationSeconds: 5);
-  await server.start(port: 8776);
+  await server.start(port: 8795);
 }

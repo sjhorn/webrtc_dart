@@ -24,7 +24,7 @@ import {
   checkServer,
 } from './browser_utils.mjs';
 
-const SERVER_URL = 'http://localhost:8776';
+const SERVER_URL = 'http://localhost:8796';
 
 async function runBrowserTest(browserName) {
   console.log(`\n${'='.repeat(60)}`);

@@ -1,5 +1,7 @@
 import 'dart:typed_data';
-import 'package:pointycastle/export.dart';
+
+import 'package:webrtc_dart/src/crypto/aes_gcm.dart';
+import 'package:webrtc_dart/src/crypto/crypto_config.dart';
 import 'package:webrtc_dart/src/srtp/const.dart';
 import 'package:webrtc_dart/src/srtp/rtcp_packet.dart';
 
@@ -12,7 +14,7 @@ import 'package:webrtc_dart/src/srtp/rtcp_packet.dart';
 /// The SRTCP index has the E-flag (encryption flag) in the MSB.
 /// AAD (Additional Authenticated Data) = RTCP Header (8 bytes) + SRTCP Index with E-flag (4 bytes)
 ///
-/// Note: This cipher expects pre-derived session keys, not master keys.
+/// Uses [CryptoConfig] to select between pure Dart and native FFI implementations.
 /// Key derivation should be done by SrtpSession before passing to this cipher.
 class SrtcpCipher {
   /// Session encryption key (derived from master key)
@@ -24,10 +26,15 @@ class SrtcpCipher {
   /// SRTCP index for each SSRC (packet counter)
   final Map<int, int> _indexMap = {};
 
+  /// AES-GCM cipher instance (reused across packets)
+  late final AesGcmCipher _cipher;
+
   SrtcpCipher({
     required this.masterKey,
     required this.masterSalt,
-  });
+  }) {
+    _cipher = CryptoConfig.createAesGcm();
+  }
 
   /// Encrypt RTCP packet
   /// Returns encrypted SRTCP packet bytes
@@ -58,24 +65,13 @@ class SrtcpCipher {
     // Per RFC 7714 Section 17
     final aad = _buildAad(header, indexWithEFlag);
 
-    // Encrypt payload using AES-GCM
-    final gcm = GCMBlockCipher(AESEngine());
-    final params = AEADParameters(
-      KeyParameter(masterKey),
-      128, // 128-bit auth tag
-      nonce,
-      aad,
+    // Encrypt payload using AES-GCM (returns ciphertext + tag)
+    final encrypted = await _cipher.encrypt(
+      key: masterKey,
+      nonce: nonce,
+      plaintext: plaintext,
+      aad: aad,
     );
-
-    gcm.init(true, params);
-
-    // Allocate output buffer (encrypted payload + auth tag)
-    final outputLength = plaintext.length + SrtpAuthTagSize.tag128;
-    final encrypted = Uint8List(outputLength);
-
-    // Encrypt
-    var outOff = gcm.processBytes(plaintext, 0, plaintext.length, encrypted, 0);
-    gcm.doFinal(encrypted, outOff);
 
     // Build SRTCP packet: header + encrypted_payload + auth_tag + index
     final result =
@@ -142,25 +138,13 @@ class SrtcpCipher {
     final aad = _buildAad(header, indexWithEFlag);
 
     // Decrypt using AES-GCM
-    final gcm = GCMBlockCipher(AESEngine());
-    final params = AEADParameters(
-      KeyParameter(masterKey),
-      128, // 128-bit auth tag
-      nonce,
-      aad,
-    );
-
-    gcm.init(false, params);
-
-    // Allocate output buffer (plaintext payload)
-    final outputLength = encryptedData.length - SrtpAuthTagSize.tag128;
-    final plaintext = Uint8List(outputLength);
-
-    // Decrypt
     try {
-      var outOff = gcm.processBytes(
-          encryptedData, 0, encryptedData.length, plaintext, 0);
-      gcm.doFinal(plaintext, outOff);
+      final plaintext = await _cipher.decrypt(
+        key: masterKey,
+        nonce: nonce,
+        ciphertext: encryptedData,
+        aad: aad,
+      );
 
       // Reconstruct full RTCP packet
       final fullPacket = Uint8List(header.length + plaintext.length);
@@ -237,5 +221,10 @@ class SrtcpCipher {
   /// Reset cipher state
   void reset() {
     _indexMap.clear();
+  }
+
+  /// Dispose of cipher resources
+  void dispose() {
+    _cipher.dispose();
   }
 }

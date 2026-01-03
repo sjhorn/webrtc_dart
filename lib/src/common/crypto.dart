@@ -4,6 +4,9 @@ import 'dart:typed_data';
 import 'package:crypto/crypto.dart' as crypto;
 import 'package:cryptography/cryptography.dart';
 
+import 'package:webrtc_dart/src/crypto/aes_gcm.dart';
+import 'package:webrtc_dart/src/crypto/crypto_config.dart';
+
 /// Generate cryptographically secure random bytes
 Uint8List randomBytes(int length) {
   final random = math.Random.secure();
@@ -81,35 +84,35 @@ Uint8List pHash(
   return result;
 }
 
+/// Shared AES-GCM cipher for DTLS operations
+AesGcmCipher? _sharedCipher;
+
+/// Get shared AES-GCM cipher (creates one if needed)
+AesGcmCipher _getSharedCipher() {
+  return _sharedCipher ??= CryptoConfig.createAesGcm();
+}
+
 /// AES-GCM encryption (supports 128-bit and 256-bit keys)
+///
+/// Uses [CryptoConfig] to select between pure Dart and native FFI implementations.
 Future<Uint8List> aesGcmEncrypt({
   required Uint8List key,
   required Uint8List nonce,
   required Uint8List plaintext,
   required Uint8List additionalData,
 }) async {
-  // Select algorithm based on key length
-  final algorithm =
-      key.length == 16 ? AesGcm.with128bits() : AesGcm.with256bits();
-
-  final secretKey = SecretKey(key);
-  final secretBox = await algorithm.encrypt(
-    plaintext,
-    secretKey: secretKey,
+  final cipher = _getSharedCipher();
+  return cipher.encrypt(
+    key: key,
     nonce: nonce,
+    plaintext: plaintext,
     aad: additionalData,
   );
-
-  // Concatenate ciphertext and MAC
-  final result =
-      Uint8List(secretBox.cipherText.length + secretBox.mac.bytes.length);
-  result.setAll(0, secretBox.cipherText);
-  result.setAll(secretBox.cipherText.length, secretBox.mac.bytes);
-
-  return result;
 }
 
 /// AES-GCM decryption
+///
+/// Uses [CryptoConfig] to select between pure Dart and native FFI implementations.
 Future<Uint8List> aesGcmDecrypt({
   required Uint8List key,
   required Uint8List nonce,
@@ -121,28 +124,13 @@ Future<Uint8List> aesGcmDecrypt({
     throw ArgumentError('Ciphertext too short');
   }
 
-  // Select algorithm based on key length
-  final algorithm =
-      key.length == 16 ? AesGcm.with128bits() : AesGcm.with256bits();
-
-  // Split ciphertext and MAC
-  final actualCiphertext = ciphertext.sublist(0, ciphertext.length - macLength);
-  final mac = ciphertext.sublist(ciphertext.length - macLength);
-
-  final secretKey = SecretKey(key);
-  final secretBox = SecretBox(
-    actualCiphertext,
+  final cipher = _getSharedCipher();
+  return cipher.decrypt(
+    key: key,
     nonce: nonce,
-    mac: Mac(mac),
-  );
-
-  final plaintext = await algorithm.decrypt(
-    secretBox,
-    secretKey: secretKey,
+    ciphertext: ciphertext,
     aad: additionalData,
   );
-
-  return Uint8List.fromList(plaintext);
 }
 
 /// AES-128-CBC encryption

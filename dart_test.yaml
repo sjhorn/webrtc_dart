@@ -1,0 +1,14 @@
+# Test configuration for webrtc_dart
+#
+# Run all tests: dart test
+# Run fast tests only: dart test --exclude-tags=slow
+# Run slow tests separately: dart test --tags=slow --concurrency=1
+
+tags:
+  slow:
+    # Long-running tests that should run with limited concurrency
+  performance:
+    # Performance regression tests
+
+# Override timeout for all tests
+timeout: 2m

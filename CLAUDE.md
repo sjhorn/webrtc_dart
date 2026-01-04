@@ -56,6 +56,12 @@ dart pub get
 # Run all tests
 dart test
 
+# Run fast tests only (excludes 20-second stability test)
+dart test --exclude-tags=slow
+
+# Run slow/integration tests with limited concurrency
+dart test --tags=slow --concurrency=1
+
 # Run a specific test file
 dart test test/webrtc_dart_test.dart
 
@@ -66,6 +72,10 @@ dart test 2>&1 > /tmp/test_output.txt
 grep -E "failed|passed" /tmp/test_output.txt
 tail -5 /tmp/test_output.txt
 ```
+
+**Test Tags:**
+- `slow` - Long-running tests (20+ seconds) that may be flaky when run concurrently
+- `performance` - Performance regression tests
 
 ### Code Quality
 ```bash

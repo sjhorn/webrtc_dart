@@ -2,6 +2,13 @@
 ///
 /// Tests that a WebRTC connection remains stable for at least 20 seconds
 /// with periodic message exchange to verify ongoing connectivity.
+///
+/// This test is tagged as 'slow' and should be run with limited concurrency:
+///   dart test --tags=slow --concurrency=1
+///
+/// Or exclude from fast test runs:
+///   dart test --exclude-tags=slow
+@Tags(['slow'])
 library;
 
 import 'dart:async';

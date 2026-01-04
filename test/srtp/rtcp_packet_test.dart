@@ -12,6 +12,7 @@ void main() {
       expect(RtcpPacketType.applicationDefined.value, equals(204));
       expect(RtcpPacketType.transportFeedback.value, equals(205));
       expect(RtcpPacketType.payloadFeedback.value, equals(206));
+      expect(RtcpPacketType.extendedReport.value, equals(207));
     });
 
     test('fromValue returns correct type', () {
@@ -28,12 +29,14 @@ void main() {
           equals(RtcpPacketType.transportFeedback));
       expect(RtcpPacketType.fromValue(206),
           equals(RtcpPacketType.payloadFeedback));
+      expect(RtcpPacketType.fromValue(207),
+          equals(RtcpPacketType.extendedReport));
     });
 
     test('fromValue returns null for unknown values', () {
       expect(RtcpPacketType.fromValue(0), isNull);
       expect(RtcpPacketType.fromValue(199), isNull);
-      expect(RtcpPacketType.fromValue(207), isNull);
+      expect(RtcpPacketType.fromValue(208), isNull); // AVB - not implemented
       expect(RtcpPacketType.fromValue(255), isNull);
     });
   });
@@ -195,7 +198,7 @@ void main() {
 
     test('parse returns placeholder for unknown packet type (matches werift)', () {
       // Unknown packet types should be skipped silently, matching werift behavior
-      // This handles XR (207), AVB (208), and proprietary extensions
+      // This handles AVB (208) and proprietary extensions
       final data = Uint8List.fromList([
         0x80, // V=2
         199, // Unknown packet type

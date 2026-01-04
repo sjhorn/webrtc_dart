@@ -119,14 +119,12 @@ class DataChannelManager {
 
     _log.fine('Creating RTCDataChannel: label=$label, streamId=$streamId');
 
-    // Open the channel (sends DCEP OPEN)
-    _log.fine('Calling channel.open() for streamId=$streamId');
-    channel.open().then((_) {
-      _log.fine('channel.open() completed for streamId=$streamId');
-    }).catchError((e) {
-      // Handle error
+    // Open the channel (sends DCEP OPEN) - fire immediately, don't await
+    // Using unawaited() to start execution immediately without scheduling delay
+    // (matches werift's synchronous dataChannelOpen pattern)
+    unawaited(channel.open().catchError((e) {
       _log.warning('Failed to open RTCDataChannel: $e');
-    });
+    }));
 
     return channel;
   }

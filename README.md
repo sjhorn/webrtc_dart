@@ -175,12 +175,13 @@ No configuration needed - native crypto is used automatically when available.
 
 ## Test Coverage
 
-**2625 tests passing** (including 38 performance regression tests) with browser interop validation.
+**2660 tests passing** (including 41 performance regression tests) with browser interop validation.
 
 ```bash
 dart test                        # Run all tests
-dart test test/ice/              # Run specific suite
-dart test test/performance/      # Run performance tests
+dart test --exclude-tags=slow    # Fast tests only (~7s)
+dart test --tags=slow            # Slow/integration tests
+dart test test/performance/      # Performance regression tests
 ```
 
 ## Acknowledgments

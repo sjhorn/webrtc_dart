@@ -64,6 +64,9 @@ class RtcpPacket {
   /// Padding length (if padding flag is set)
   final int paddingLength;
 
+  /// Actual bytes consumed when parsing (may differ from size for truncated packets)
+  final int bytesConsumed;
+
   const RtcpPacket({
     this.version = 2,
     this.padding = false,
@@ -73,6 +76,7 @@ class RtcpPacket {
     required this.ssrc,
     required this.payload,
     this.paddingLength = 0,
+    this.bytesConsumed = 0,
   });
 
   /// Fixed header size
@@ -144,13 +148,20 @@ class RtcpPacket {
     // Byte 1
     final packetTypeValue = buffer.getUint8(offset++);
     final packetType = RtcpPacketType.fromValue(packetTypeValue);
-    if (packetType == null) {
-      throw FormatException('Unknown RTCP packet type: $packetTypeValue');
-    }
 
     // Length (in 32-bit words minus one)
     final length = buffer.getUint16(offset);
     offset += 2;
+
+    // Calculate packet size from header (used for skipping in compound packets)
+    final declaredSize = (length + 1) * 4;
+
+    // For unknown packet types, skip this packet silently (matches werift behavior)
+    // This handles XR (207), AVB (208), and any proprietary extensions
+    if (packetType == null) {
+      _log.fine('Skipping unknown RTCP packet type: $packetTypeValue');
+      return _UnknownRtcpPacket(declaredSize, data.length);
+    }
 
     // SSRC
     final ssrc = buffer.getUint32(offset);
@@ -182,6 +193,10 @@ class RtcpPacket {
 
     final payload = data.sublist(offset, payloadEnd);
 
+    // For truncated packets, bytesConsumed is actual data.length
+    // For normal packets, bytesConsumed is the declared size from header
+    final actualBytesConsumed = isTruncated ? data.length : declaredSize;
+
     return RtcpPacket(
       version: version,
       padding: padding,
@@ -191,6 +206,7 @@ class RtcpPacket {
       ssrc: ssrc,
       payload: payload,
       paddingLength: paddingLength,
+      bytesConsumed: actualBytesConsumed,
     );
   }
 
@@ -238,9 +254,19 @@ class RtcpCompoundPacket {
         break; // Not enough data for another packet
       }
 
-      final packet = RtcpPacket.parse(data.sublist(offset));
-      packets.add(packet);
-      offset += packet.size;
+      try {
+        final packet = RtcpPacket.parse(data.sublist(offset));
+        // Skip unknown packets (they're just placeholders for advancing offset)
+        if (packet is! _UnknownRtcpPacket) {
+          packets.add(packet);
+        }
+        // Use bytesConsumed to correctly advance past truncated/unknown packets
+        offset += packet.bytesConsumed > 0 ? packet.bytesConsumed : packet.size;
+      } catch (e) {
+        // Match werift: log and skip malformed packets in compound
+        _log.fine('Skipping malformed RTCP packet in compound: $e');
+        break; // Can't reliably continue parsing
+      }
     }
 
     return RtcpCompoundPacket(packets);
@@ -250,4 +276,20 @@ class RtcpCompoundPacket {
   String toString() {
     return 'RtcpCompoundPacket(${packets.length} packets)';
   }
+}
+
+/// Internal placeholder for unknown RTCP packet types
+/// Used to correctly advance offset in compound packet parsing
+class _UnknownRtcpPacket extends RtcpPacket {
+  _UnknownRtcpPacket(int declaredSize, int availableBytes)
+      : super(
+          reportCount: 0,
+          packetType: RtcpPacketType.senderReport, // Placeholder
+          length: (declaredSize ~/ 4) - 1,
+          ssrc: 0,
+          payload: Uint8List(0),
+          // Use minimum of declared size and available bytes
+          bytesConsumed:
+              availableBytes < declaredSize ? availableBytes : declaredSize,
+        );
 }

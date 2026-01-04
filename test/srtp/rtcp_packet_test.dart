@@ -193,22 +193,19 @@ void main() {
       );
     });
 
-    test('parse throws on unknown packet type', () {
+    test('parse returns placeholder for unknown packet type (matches werift)', () {
+      // Unknown packet types should be skipped silently, matching werift behavior
+      // This handles XR (207), AVB (208), and proprietary extensions
       final data = Uint8List.fromList([
         0x80, // V=2
-        199, // Invalid packet type
-        0, 1,
+        199, // Unknown packet type
+        0, 1, // length = 1 (8 bytes total)
         0, 0, 0, 0,
       ]);
 
-      expect(
-        () => RtcpPacket.parse(data),
-        throwsA(isA<FormatException>().having(
-          (e) => e.message,
-          'message',
-          contains('Unknown RTCP packet type'),
-        )),
-      );
+      // Should return a placeholder packet, not throw
+      final packet = RtcpPacket.parse(data);
+      expect(packet.bytesConsumed, 8); // Correctly advances past unknown packet
     });
 
     test('parse handles truncated packet gracefully', () {

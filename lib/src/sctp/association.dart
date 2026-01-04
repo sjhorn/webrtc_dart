@@ -407,9 +407,8 @@ class SctpAssociation {
     _log.fine(
         '[SCTP] sendData: streamId=$streamId, ppid=$ppid, data=${data.length} bytes, t3=${_t3Timer != null}');
     if (_t3Timer == null) {
-      _log.fine('[SCTP] sendData: calling _transmit()');
-      await _transmit();
-      _log.fine('[SCTP] sendData: _transmit() completed');
+      _log.fine('[SCTP] sendData: triggering _transmit() (fire-and-forget)');
+      unawaited(_transmit());
     } else {
       // Non-blocking: data queued, will be sent when T3 fires or SACK received
       // Applications should use bufferedAmount for flow control (W3C WebRTC spec)

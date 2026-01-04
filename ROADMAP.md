@@ -173,6 +173,9 @@ dart run benchmark/save_results.dart v0.24.0
   - Add timeout to graceful close
   - Process incoming reconfig requests while in closing state
   - Provide non-blocking close option
+- **RTCP Extended Reports (XR)** - RFC 3611: Advanced QoS metrics for SFU analytics
+  - Priority: Low (browsers don't generate, not required for basic WebRTC)
+  - Use cases: VoIP monitoring, quality dashboards, SFU operators
 
 ### Long-term
 

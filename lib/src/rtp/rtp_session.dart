@@ -717,6 +717,10 @@ class RtpSession {
         // PSFB packets (PLI, FIR, etc.) handled by higher layer (RtpTransceiver)
         // werift routes these to onPictureLossIndication/onFir callbacks
         break;
+      case RtcpPacketType.extendedReport:
+        // XR packets (RFC 3611) - extended reporting for QoS metrics
+        // Parsed at higher layer if needed via RtcpExtendedReport.fromPacket()
+        break;
     }
   }
 

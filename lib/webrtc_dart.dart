@@ -81,6 +81,9 @@ export 'src/rtcp/psfb/remb.dart';
 export 'src/rtcp/rtpfb/twcc.dart';
 export 'src/rtcp/nack.dart';
 
+// RTCP Extended Reports (XR) - RFC 3611
+export 'src/rtcp/xr/xr.dart';
+
 // RTP Extensions
 export 'src/rtp/rtx.dart';
 export 'src/rtp/nack_handler.dart';

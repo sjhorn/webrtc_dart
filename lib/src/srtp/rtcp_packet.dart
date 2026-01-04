@@ -5,7 +5,7 @@ import 'package:logging/logging.dart';
 final _log = Logger('RtcpPacket');
 
 /// RTCP Packet Types
-/// RFC 3550 Section 6.4
+/// RFC 3550 Section 6.4, RFC 3611 (XR)
 enum RtcpPacketType {
   senderReport(200),
   receiverReport(201),
@@ -13,7 +13,8 @@ enum RtcpPacketType {
   goodbye(203),
   applicationDefined(204),
   transportFeedback(205),
-  payloadFeedback(206);
+  payloadFeedback(206),
+  extendedReport(207); // RFC 3611 RTCP XR
 
   final int value;
   const RtcpPacketType(this.value);

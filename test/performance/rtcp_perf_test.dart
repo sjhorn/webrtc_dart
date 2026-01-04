@@ -1,6 +1,6 @@
 /// RTCP Performance Regression Tests
 ///
-/// Tests RTCP NACK serialization/parsing - critical for retransmission.
+/// Tests RTCP NACK and XR serialization/parsing.
 ///
 /// Run: dart test test/performance/rtcp_perf_test.dart
 @Tags(['performance'])
@@ -8,6 +8,7 @@ library;
 
 import 'package:test/test.dart';
 import 'package:webrtc_dart/src/rtcp/nack.dart';
+import 'package:webrtc_dart/src/rtcp/xr/xr.dart';
 
 import 'perf_test_utils.dart';
 
@@ -119,6 +120,91 @@ void main() {
       result.checkThreshold(PerfThreshold(
         name: 'NACK round-trip',
         minOpsPerSecond: 100000,
+      ));
+    });
+  });
+
+  group('RTCP XR Performance', () {
+    test('XR RRTR serialize meets threshold', () {
+      const iterations = 100000;
+
+      final rrtr = ReceiverReferenceTimeBlock(
+        ntpTimestampMsw: 0x12345678,
+        ntpTimestampLsw: 0xABCDEF01,
+      );
+
+      final result = runBenchmarkSync(
+        name: 'XR RRTR serialize',
+        iterations: iterations,
+        warmupIterations: 1000,
+        operation: () {
+          rrtr.serialize();
+        },
+      );
+
+      // Threshold: >500,000 ops/sec (simple 12-byte block)
+      result.checkThreshold(PerfThreshold(
+        name: 'XR RRTR serialize',
+        minOpsPerSecond: 500000,
+      ));
+    });
+
+    test('XR DLRR serialize meets threshold', () {
+      const iterations = 50000;
+
+      final dlrr = DlrrBlock([
+        DlrrSubBlock(ssrc: 0x11111111, lastRr: 0x22222222, delaySinceLastRr: 1000),
+        DlrrSubBlock(ssrc: 0x33333333, lastRr: 0x44444444, delaySinceLastRr: 2000),
+        DlrrSubBlock(ssrc: 0x55555555, lastRr: 0x66666666, delaySinceLastRr: 3000),
+      ]);
+
+      final result = runBenchmarkSync(
+        name: 'XR DLRR serialize',
+        iterations: iterations,
+        warmupIterations: 500,
+        operation: () {
+          dlrr.serialize();
+        },
+        metadata: {'subBlocks': 3},
+      );
+
+      // Threshold: >200,000 ops/sec
+      result.checkThreshold(PerfThreshold(
+        name: 'XR DLRR serialize',
+        minOpsPerSecond: 200000,
+      ));
+    });
+
+    test('XR full packet round-trip meets threshold', () {
+      const iterations = 50000;
+
+      final xr = RtcpExtendedReport(
+        ssrc: 0xDEADBEEF,
+        blocks: [
+          ReceiverReferenceTimeBlock(
+            ntpTimestampMsw: 0x12345678,
+            ntpTimestampLsw: 0xABCDEF01,
+          ),
+          DlrrBlock([
+            DlrrSubBlock(ssrc: 0x11111111, lastRr: 0x22222222, delaySinceLastRr: 1000),
+          ]),
+        ],
+      );
+
+      final result = runBenchmarkSync(
+        name: 'XR round-trip',
+        iterations: iterations,
+        warmupIterations: 500,
+        operation: () {
+          final packet = xr.toRtcpPacket();
+          RtcpExtendedReport.fromPacket(packet);
+        },
+      );
+
+      // Threshold: >50,000 round-trips/sec
+      result.checkThreshold(PerfThreshold(
+        name: 'XR round-trip',
+        minOpsPerSecond: 50000,
       ));
     });
   });

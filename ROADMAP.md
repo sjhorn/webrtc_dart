@@ -35,7 +35,7 @@ A server-side WebRTC library like [Pion](https://github.com/pion/webrtc) (Go), [
 | **DTLS** | ECDHE with AES-GCM, AES-256, ChaCha20 |
 | **SRTP** | AES-CM-128, AES-GCM, replay protection |
 | **SCTP** | Partial reliability (RFC 3758) |
-| **RTP/RTCP** | SR, RR, SDES, BYE, NACK, PLI, FIR, REMB, TWCC |
+| **RTP/RTCP** | SR, RR, SDES, BYE, NACK, PLI, FIR, REMB, TWCC, XR |
 
 ### API Classes
 
@@ -173,15 +173,16 @@ dart run benchmark/save_results.dart v0.24.0
   - Add timeout to graceful close
   - Process incoming reconfig requests while in closing state
   - Provide non-blocking close option
-- **RTCP Extended Reports (XR)** - RFC 3611: Advanced QoS metrics for SFU analytics
-  - Priority: Low (browsers don't generate, not required for basic WebRTC)
-  - Use cases: VoIP monitoring, quality dashboards, SFU operators
 
 ### Long-term
 
 - Flutter platform channel bindings
 - WebTransport (HTTP/3 QUIC)
 - WHIP/WHEP protocols
+
+### Not Planned
+
+- **RTCP AVB (PT=208)** - IEEE 1733 for managed LANs (audio/video bridging). Not used in WebRTC - requires specialized network infrastructure with time synchronization.
 
 ---
 

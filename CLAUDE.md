@@ -22,9 +22,9 @@ This is a pure Dart port of the [werift-webrtc](https://github.com/shinyoshiaki/
 All WebRTC features complete: ICE, DTLS, SRTP, SCTP, RTP/RTCP, DataChannels, Media.
 Codecs: VP8, VP9, H.264, AV1, Opus. Features: NACK, PLI/FIR, RTX, TWCC, Simulcast, getStats().
 
-**2625 tests passing, 0 analyzer issues**
+**2661 tests passing, 0 analyzer issues**
 
-### Server-Side WebRTC (v0.24.0)
+### Server-Side WebRTC (v0.25.0)
 
 This is a **server-side** WebRTC library like Pion (Go), aiortc (Python), werift (TS).
 - Complete transport layer: ICE, DTLS, SRTP, SCTP, RTP/RTCP

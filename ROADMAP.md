@@ -1,6 +1,6 @@
 # webrtc_dart Roadmap
 
-## Current Status (v0.24.0)
+## Current Status (v0.25.0)
 
 webrtc_dart is a **server-side** WebRTC library with complete transport implementation and W3C-compatible API naming.
 
@@ -14,7 +14,7 @@ A server-side WebRTC library like [Pion](https://github.com/pion/webrtc) (Go), [
 | **API Naming** | W3C-compatible (RTCPeerConnection, etc.) |
 | **Werift Parity** | 100% feature complete |
 | **Browser Interop** | Chrome, Firefox, Safari working |
-| **Test Coverage** | 2625 tests passing |
+| **Test Coverage** | 2661 tests passing |
 
 ### Server-Side vs Browser
 
@@ -132,7 +132,7 @@ and JIT differences. Further optimization would require native FFI bindings.
 | `rtcp_perf_test.dart` | RTCP NACK serialize/parse |
 | `ice_perf_test.dart` | ICE candidate parse/serialize |
 
-**Current Performance (webrtc_dart v0.24.0 vs werift v0.22.2):**
+**Current Performance (webrtc_dart v0.25.0 vs werift v0.22.2):**
 
 | Operation | webrtc_dart | werift | Comparison |
 |-----------|-------------|--------|------------|
@@ -159,7 +159,7 @@ and JIT differences. Further optimization would require native FFI bindings.
 ./benchmark/compare.sh
 
 # Save results for a release
-dart run benchmark/save_results.dart v0.24.0
+dart run benchmark/save_results.dart v0.25.0
 ```
 
 **Historical Results:** Stored in `benchmark/results/<version>.json`

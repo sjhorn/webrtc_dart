@@ -46,7 +46,7 @@ webrtc_dart handles **transport**, not **media capture/playback**:
 
 ```yaml
 dependencies:
-  webrtc_dart: ^0.24.0
+  webrtc_dart: ^0.25.0
 ```
 
 ## Quick Start
@@ -130,7 +130,7 @@ To see additional examples comparing how to implement in either werift or webrtc
 
 ## Performance
 
-Comparison: webrtc_dart v0.24.0 vs werift v0.22.2
+Comparison: webrtc_dart v0.25.0 vs werift v0.22.2
 
 Binary parsing operations are faster than werift (TypeScript). With native OpenSSL, SRTP is now competitive.
 
@@ -175,7 +175,7 @@ No configuration needed - native crypto is used automatically when available.
 
 ## Test Coverage
 
-**2660 tests passing** (including 41 performance regression tests) with browser interop validation.
+**2661 tests passing** (including 41 performance regression tests) with browser interop validation.
 
 ```bash
 dart test                        # Run all tests

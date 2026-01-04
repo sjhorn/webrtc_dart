@@ -2,6 +2,32 @@
 
 All notable changes to this project will be documented in this file.
 
+## 0.25.0
+
+### Added
+
+- **RTCP Extended Reports (XR) - RFC 3611** - Full implementation of RTCP XR (PT=207):
+  - `RtcpExtendedReport` - Main XR packet wrapper
+  - `ReceiverReferenceTimeBlock` (BT=4) - Enables RTT for non-senders
+  - `DlrrBlock` (BT=5) - Delay Since Last Receiver Report for RTT calculation
+  - `StatisticsSummaryBlock` (BT=6) - Aggregate QoS metrics
+  - 33 new tests for XR parsing/serialization
+  - 3 new XR performance tests
+
+### Performance
+
+- **DataChannel timing matches werift** - Changed SCTP `sendData()` to use fire-and-forget `_transmit()`, eliminating blocking in `DataChannel.send()` and `open()`
+
+### Fixed
+
+- **DTLS race condition** - Await initialization in `setRemoteDescription` to prevent DTLS handshake race
+- **RTCP lenient handling** - Skip unknown RTCP packet types gracefully (matches werift behavior)
+- **Test stability** - Tagged flaky concurrent tests as `slow` for isolated execution
+
+### Tests
+
+- 2661 tests passing (including 41 performance tests)
+
 ## 0.24.0
 
 ### Performance

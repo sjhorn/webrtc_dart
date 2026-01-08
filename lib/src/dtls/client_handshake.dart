@@ -61,6 +61,33 @@ class ClientHandshakeCoordinator {
 
   ClientHandshakeState get state => _state;
 
+  /// Get current flight number for retransmit tracking
+  /// Maps handshake state to DTLS flight numbers:
+  /// - Flight 1: ClientHello
+  /// - Flight 3: ClientHello with cookie (after HelloVerifyRequest)
+  /// - Flight 5: Certificate, ClientKeyExchange, CertificateVerify, ChangeCipherSpec, Finished
+  /// - Flight 6: Handshake complete
+  int get currentFlight {
+    switch (_state) {
+      case ClientHandshakeState.initial:
+        return 0;
+      case ClientHandshakeState.waitingForHelloVerifyRequest:
+        return 1;
+      case ClientHandshakeState.waitingForServerHello:
+        return 3; // After cookie, waiting for server flight 4
+      case ClientHandshakeState.waitingForCertificate:
+      case ClientHandshakeState.waitingForServerKeyExchange:
+      case ClientHandshakeState.waitingForServerHelloDone:
+        return 3; // Still in server's flight 4
+      case ClientHandshakeState.waitingForServerFinished:
+        return 5; // Sent flight 5, waiting for server flight 6
+      case ClientHandshakeState.completed:
+        return 6;
+      case ClientHandshakeState.failed:
+        return -1;
+    }
+  }
+
   /// Start the handshake by sending initial ClientHello
   Future<void> start() async {
     if (_state != ClientHandshakeState.initial) {

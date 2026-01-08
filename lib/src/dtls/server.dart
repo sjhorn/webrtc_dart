@@ -234,7 +234,8 @@ class DtlsServer extends DtlsSocket {
       }
     }
 
-    // Send any pending flights
+    // Send any pending flights (non-blocking)
+    // Retransmission is handled at the transport layer with timeout
     await _sendPendingFlights();
   }
 
@@ -264,19 +265,115 @@ class DtlsServer extends DtlsSocket {
   }
 
   /// Send pending flights
-  Future<void> _sendPendingFlights() async {
+  /// Maximum retransmit count matching werift behavior
+  static const int _maxRetransmitCount = 10;
+
+  /// Send pending flights with retransmission support
+  /// If [waitForResponse] is true, will retransmit until response received
+  Future<void> _sendPendingFlights({bool waitForResponse = false}) async {
     final currentFlight = flightManager.currentFlight;
-    if (currentFlight != null &&
-        !currentFlight.sent &&
-        currentFlight.messages.isNotEmpty) {
+    if (currentFlight == null || currentFlight.sent || currentFlight.messages.isEmpty) {
+      return;
+    }
+
+    // Determine expected next flight based on current handshake state
+    final flightNumber = currentFlight.flight.flightNumber;
+    int? expectedNextFlight;
+
+    // Server flights and their expected responses:
+    // Flight 2 (HelloVerifyRequest) -> expects Flight 3 (ClientHello with cookie)
+    // Flight 4 (ServerHello, Certificate, etc.) -> expects Flight 5 (ClientKeyExchange, Finished)
+    // Flight 6 (Finished) -> no response expected (handshake complete)
+    if (flightNumber == 2) {
+      expectedNextFlight = 4; // After client sends cookie, we process and send flight 4
+    } else if (flightNumber == 4) {
+      expectedNextFlight = 6; // After client sends Finished, we send flight 6
+    }
+
+    if (waitForResponse && expectedNextFlight != null) {
+      await _transmitFlightWithRetry(
+        currentFlight.messages,
+        flightNumber,
+        expectedNextFlight,
+      );
+    } else {
+      // Simple send without waiting (for flights that don't expect a response, like flight 6)
       _log.fine(
-        'Sending flight ${currentFlight.flight.flightNumber} with ${currentFlight.messages.length} messages',
+        'Sending flight $flightNumber with ${currentFlight.messages.length} messages',
       );
       for (final message in currentFlight.messages) {
         await transport.send(message);
       }
-      currentFlight.markSent();
     }
+    currentFlight.markSent();
+  }
+
+  /// Polling interval for checking handshake progress during retransmit wait
+  static const int _progressPollIntervalMs = 10;
+
+  /// Send flight with retransmission matching werift behavior
+  /// Retransmits up to [_maxRetransmitCount] times with increasing delays
+  /// Uses polling to detect progress early and avoid unnecessary delays
+  Future<void> _transmitFlightWithRetry(
+    List<Uint8List> messages,
+    int flightNumber,
+    int expectedNextFlight,
+  ) async {
+    for (int retransmitCount = 0;
+        retransmitCount <= _maxRetransmitCount;
+        retransmitCount++) {
+      // Send all messages in flight
+      if (retransmitCount == 0) {
+        _log.fine(
+          'Sending flight $flightNumber with ${messages.length} messages',
+        );
+      } else {
+        _log.fine(
+          'Retransmitting flight $flightNumber (attempt $retransmitCount/$_maxRetransmitCount)',
+        );
+      }
+
+      for (final message in messages) {
+        await transport.send(message);
+      }
+
+      // Wait with increasing delay matching werift formula:
+      // 1000 * ((retransmitCount + 1) / 2) = 500, 1000, 1500, 2000, ...
+      // But poll for progress every 10ms to exit early when response arrives
+      final maxDelayMs = (1000 * ((retransmitCount + 1) / 2)).ceil().clamp(500, 5500);
+      var elapsedMs = 0;
+
+      while (elapsedMs < maxDelayMs) {
+        await Future.delayed(const Duration(milliseconds: _progressPollIntervalMs));
+        elapsedMs += _progressPollIntervalMs;
+
+        // Check if we've progressed (response received and processed)
+        final currentFlightNum = _handshakeCoordinator.currentFlight;
+        if (currentFlightNum >= expectedNextFlight ||
+            _handshakeCoordinator.state == ServerHandshakeState.completed) {
+          _log.fine(
+            'Flight $flightNumber complete, advanced to state ${_handshakeCoordinator.state}',
+          );
+          return;
+        }
+
+        // Also check if handshake failed or closed
+        if (_handshakeCoordinator.state == ServerHandshakeState.failed ||
+            state == DtlsSocketState.failed ||
+            state == DtlsSocketState.closed) {
+          _log.fine('Flight $flightNumber aborted due to failure/close');
+          return;
+        }
+      }
+    }
+
+    // Exhausted retries
+    _log.warning(
+      'Flight $flightNumber: retransmit failed after $_maxRetransmitCount attempts',
+    );
+    throw StateError(
+      'DTLS handshake timeout: flight $flightNumber retransmit failed after ${_maxRetransmitCount + 1} attempts',
+    );
   }
 
   /// Called when handshake completes

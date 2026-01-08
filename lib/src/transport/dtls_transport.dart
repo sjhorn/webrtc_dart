@@ -80,6 +80,41 @@ class RtcDtlsParameters {
   });
 }
 
+/// Exception thrown when DTLS handshake fails
+/// Provides diagnostic information about the failure cause
+class DtlsHandshakeException implements Exception {
+  /// Human-readable description of why the handshake failed
+  final String message;
+
+  /// Whether this was a timeout failure
+  final bool isTimeout;
+
+  /// The DTLS socket state when failure occurred (if available)
+  final DtlsSocketState? state;
+
+  /// The underlying cause (if any)
+  final Object? cause;
+
+  const DtlsHandshakeException(
+    this.message, {
+    this.isTimeout = false,
+    this.state,
+    this.cause,
+  });
+
+  @override
+  String toString() {
+    final buffer = StringBuffer('DtlsHandshakeException: $message');
+    if (isTimeout) buffer.write(' (timeout)');
+    if (state != null) buffer.write(' [state: $state]');
+    if (cause != null) buffer.write(' caused by: $cause');
+    return buffer.toString();
+  }
+}
+
+/// Default DTLS handshake timeout (matches werift's ~33 second effective timeout)
+const Duration defaultDtlsHandshakeTimeout = Duration(seconds: 30);
+
 /// RTCDtlsTransport - Wraps DTLS socket and manages SRTP
 /// Reference: werift-webrtc/packages/webrtc/src/transport/dtls.ts RTCDtlsTransport
 ///
@@ -289,30 +324,79 @@ class RtcDtlsTransport {
     // Note: DtlsSocket doesn't have onClose - closed state is detected via onStateChange
   }
 
-  /// Perform DTLS handshake
+  /// Perform DTLS handshake with timeout and improved error handling
   Future<void> _performHandshake() async {
     final completer = Completer<void>();
+    String? failureReason;
 
     _dtlsStateSubscription = dtls!.onStateChange.listen((dtlsState) {
+      _log.fine('$_debugPrefix DTLS socket state: $dtlsState');
+
       if (dtlsState == DtlsSocketState.connected) {
         if (!completer.isCompleted) {
           completer.complete();
         }
       } else if (dtlsState == DtlsSocketState.failed) {
+        failureReason = 'DTLS socket entered failed state';
         _setState(RtcDtlsState.failed);
         if (!completer.isCompleted) {
-          completer.completeError(StateError('DTLS handshake failed'));
+          completer.completeError(DtlsHandshakeException(
+            failureReason!,
+            state: dtlsState,
+          ));
         }
       } else if (dtlsState == DtlsSocketState.closed) {
+        // Handle unexpected close during handshake
+        failureReason = 'DTLS socket closed unexpectedly during handshake';
         _setState(RtcDtlsState.closed);
+        if (!completer.isCompleted) {
+          completer.completeError(DtlsHandshakeException(
+            failureReason!,
+            state: dtlsState,
+          ));
+        }
+      }
+    });
+
+    // Also listen to error stream for diagnostic info
+    dtls!.onError.listen((error) {
+      _log.warning('$_debugPrefix DTLS error during handshake: $error');
+      failureReason = 'DTLS error: $error';
+      if (!completer.isCompleted) {
+        completer.completeError(DtlsHandshakeException(
+          failureReason!,
+          cause: error,
+        ));
       }
     });
 
     // Start handshake
+    _log.fine(
+        '$_debugPrefix Starting DTLS handshake (timeout: ${defaultDtlsHandshakeTimeout.inSeconds}s)');
     await dtls!.connect();
 
-    // Wait for connected state
-    await completer.future;
+    // Wait for connected state with timeout
+    try {
+      await completer.future.timeout(
+        defaultDtlsHandshakeTimeout,
+        onTimeout: () {
+          failureReason =
+              'DTLS handshake timed out after ${defaultDtlsHandshakeTimeout.inSeconds} seconds';
+          _log.warning('$_debugPrefix $failureReason');
+          _setState(RtcDtlsState.failed);
+          throw DtlsHandshakeException(
+            failureReason!,
+            isTimeout: true,
+          );
+        },
+      );
+    } catch (e) {
+      // Log diagnostic info on failure
+      _log.warning('$_debugPrefix Handshake failed: $failureReason');
+      _log.fine(
+          '$_debugPrefix DTLS state at failure: ${dtls?.state}, effectiveRole: $_effectiveRole');
+      rethrow;
+    }
 
     // Start SRTP
     startSrtp();

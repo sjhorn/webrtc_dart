@@ -67,6 +67,29 @@ class ServerHandshakeCoordinator {
 
   ServerHandshakeState get state => _state;
 
+  /// Get current flight number for retransmit tracking
+  /// Maps handshake state to DTLS flight numbers (server perspective):
+  /// - Flight 2: HelloVerifyRequest
+  /// - Flight 4: ServerHello, Certificate, ServerKeyExchange, ServerHelloDone
+  /// - Flight 6: ChangeCipherSpec, Finished
+  int get currentFlight {
+    switch (_state) {
+      case ServerHandshakeState.initial:
+      case ServerHandshakeState.waitingForClientHello:
+        return 0;
+      case ServerHandshakeState.waitingForClientHelloWithCookie:
+        return 2; // Sent HelloVerifyRequest, waiting for ClientHello with cookie
+      case ServerHandshakeState.waitingForClientKeyExchange:
+        return 4; // Sent flight 4, waiting for client flight 5
+      case ServerHandshakeState.waitingForClientFinished:
+        return 4; // Still waiting for client flight 5
+      case ServerHandshakeState.completed:
+        return 6;
+      case ServerHandshakeState.failed:
+        return -1;
+    }
+  }
+
   /// Process received handshake record
   Future<void> processHandshake(Uint8List data) async {
     // For now, assume data is just the message body without header

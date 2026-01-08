@@ -2206,6 +2206,7 @@ class IceConnectionImpl implements IceConnection {
   @override
   Future<void> restart() async {
     _stopConsentChecks();
+    _consentFailureCount = 0; // Reset consent failure count for fresh start
     _generation++;
     _localUsername = randomString(4);
     _localPassword = randomString(22);

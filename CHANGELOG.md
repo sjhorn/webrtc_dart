@@ -2,6 +2,17 @@
 
 All notable changes to this project will be documented in this file.
 
+## 0.25.1
+
+### Fixed
+
+- **DTLS server handles retransmitted ClientHello** - When HelloVerifyRequest is lost due to packet loss, client retransmits its original ClientHello (no cookie). Server now correctly re-sends HelloVerifyRequest instead of throwing "Unexpected first ClientHello" error. Per RFC 6347, matches werift behavior.
+
+### Tests
+
+- Added regression test for DTLS retransmission scenario
+- Added `SelectiveDropTransport` and `ReplayFirstPacketTransport` test utilities
+
 ## 0.25.0
 
 ### Added

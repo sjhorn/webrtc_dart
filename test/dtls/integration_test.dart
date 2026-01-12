@@ -302,6 +302,88 @@ void main() {
       await server.close();
     }, timeout: const Timeout(Duration(seconds: 15)));
 
+    test('server handles retransmitted first ClientHello (no cookie)', () async {
+      // This test verifies the fix for the issue where the server would throw:
+      // "Bad state: Unexpected first ClientHello in state waitingForClientHelloWithCookie"
+      //
+      // Scenario:
+      // 1. Client sends ClientHello (no cookie)
+      // 2. Server responds with HelloVerifyRequest
+      // 3. HelloVerifyRequest is lost (packet loss)
+      // 4. Client retransmits original ClientHello (no cookie)
+      // 5. Server is in waitingForClientHelloWithCookie state but receives no-cookie ClientHello
+      //
+      // Per RFC 6347, the server should re-send the HelloVerifyRequest
+      // instead of throwing an error.
+      //
+      // This test simulates the retransmission by using a ReplayTransport that
+      // replays the first ClientHello after a delay.
+
+      // Generate server certificate
+      final serverCert = await generateSelfSignedCertificate(
+        info: CertificateInfo(commonName: 'Test Server'),
+      );
+
+      // Create mock transports
+      // The client transport will replay its first sent packet after a delay
+      final clientTransport = ReplayFirstPacketTransport(
+        replayDelayMs: 200, // Replay after 200ms
+      );
+      final serverTransport = SelectiveDropTransport();
+
+      // Connect transports
+      clientTransport.remotePeer = serverTransport;
+      serverTransport.remotePeer = clientTransport;
+
+      // Drop the first outgoing packet from server (HelloVerifyRequest)
+      // This simulates packet loss which triggers client retransmission
+      serverTransport.dropNextNPackets(1);
+
+      // Create client and server
+      final client = DtlsClient(
+        transport: clientTransport,
+        cipherSuites: [CipherSuite.tlsEcdheEcdsaWithAes128GcmSha256],
+        supportedCurves: [NamedCurve.x25519],
+      );
+
+      final server = DtlsServer(
+        transport: serverTransport,
+        cipherSuites: [CipherSuite.tlsEcdheEcdsaWithAes128GcmSha256],
+        supportedCurves: [NamedCurve.x25519],
+        certificate: serverCert.certificate,
+        privateKey: serverCert.privateKey,
+      );
+
+      // Track errors - the fix ensures no errors are thrown
+      final serverErrors = <Object>[];
+      server.onError.listen(serverErrors.add);
+
+      // Start handshake
+      await server.connect();
+      await client.connect();
+
+      // Wait for the replay to trigger
+      // The first ClientHello is sent, HelloVerifyRequest is dropped,
+      // then after 200ms the ClientHello is replayed
+      await Future.delayed(const Duration(milliseconds: 300));
+
+      // At this point:
+      // - Server received first ClientHello, sent HelloVerifyRequest (dropped)
+      // - Server is in waitingForClientHelloWithCookie state
+      // - Server received replayed ClientHello (no cookie)
+      // - Without the fix, this would throw "Unexpected first ClientHello"
+      // - With the fix, server re-sends HelloVerifyRequest
+
+      // Verify no errors occurred on server
+      expect(serverErrors, isEmpty,
+          reason:
+              'Server should not throw "Unexpected first ClientHello" error');
+
+      // Clean up
+      await client.close();
+      await server.close();
+    }, timeout: const Timeout(Duration(seconds: 10)));
+
     test('close during async processing does not throw', () async {
       // This test verifies the fix for race condition where close() is called
       // while async processing is still happening, which could cause

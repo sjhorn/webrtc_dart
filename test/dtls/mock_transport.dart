@@ -72,3 +72,170 @@ class MockTransport implements DtlsTransport {
     transport2.remotePeer = transport1;
   }
 }
+
+/// Mock transport that can selectively drop specific packets
+/// Useful for testing retransmission scenarios
+class SelectiveDropTransport implements DtlsTransport {
+  final StreamController<Uint8List> _dataController =
+      StreamController<Uint8List>.broadcast();
+
+  /// The remote transport to send data to (any DtlsTransport that has _dataController)
+  DtlsTransport? remotePeer;
+
+  /// Deliver data directly to this transport (for testing)
+  void deliverData(Uint8List data) {
+    if (!_closed) {
+      _dataController.add(data);
+    }
+  }
+
+  /// Whether the transport is closed
+  bool _closed = false;
+
+  /// Number of packets to drop from the start
+  int _packetsToDropCount = 0;
+
+  /// Number of packets sent so far
+  int _packetsSent = 0;
+
+  @override
+  bool get isOpen => !_closed;
+
+  @override
+  Stream<Uint8List> get onData => _dataController.stream;
+
+  /// Drop the next N outgoing packets
+  void dropNextNPackets(int count) {
+    _packetsToDropCount = count;
+    _packetsSent = 0;
+  }
+
+  /// Enable debug logging
+  bool debugLog = false;
+
+  @override
+  Future<void> send(Uint8List data) async {
+    if (_closed) {
+      throw StateError('Transport is closed');
+    }
+
+    if (remotePeer == null) {
+      throw StateError('No remote peer connected');
+    }
+
+    // Check if we should drop this packet
+    _packetsSent++;
+    if (_packetsSent <= _packetsToDropCount) {
+      // Drop packet silently - simulates packet loss
+      if (debugLog) {
+        print('[SelectiveDropTransport] Dropping packet $_packetsSent (${data.length} bytes)');
+      }
+      return;
+    }
+
+    if (debugLog) {
+      print('[SelectiveDropTransport] Sending packet $_packetsSent (${data.length} bytes)');
+    }
+
+    // Deliver to remote peer
+    final peer = remotePeer;
+    if (peer != null && peer.isOpen) {
+      if (peer is SelectiveDropTransport) {
+        peer.deliverData(data);
+      } else if (peer is ReplayFirstPacketTransport) {
+        peer.deliverData(data);
+      } else if (peer is MockTransport) {
+        peer._dataController.add(data);
+      }
+    }
+  }
+
+  @override
+  Future<void> close() async {
+    if (_closed) return;
+    _closed = true;
+    await _dataController.close();
+  }
+
+  /// Connect two selective drop transports together
+  static void connectPair(
+      SelectiveDropTransport transport1, SelectiveDropTransport transport2) {
+    transport1.remotePeer = transport2;
+    transport2.remotePeer = transport1;
+  }
+}
+
+/// Mock transport that replays the first sent packet after a delay
+/// Useful for testing retransmission scenarios where we need to simulate
+/// the client retransmitting its first message
+class ReplayFirstPacketTransport implements DtlsTransport {
+  final StreamController<Uint8List> _dataController =
+      StreamController<Uint8List>.broadcast();
+
+  /// The remote transport to send data to
+  SelectiveDropTransport? remotePeer;
+
+  /// Whether the transport is closed
+  bool _closed = false;
+
+  /// Deliver data directly to this transport (for testing)
+  void deliverData(Uint8List data) {
+    if (!_closed) {
+      _dataController.add(data);
+    }
+  }
+
+  /// First packet sent (will be replayed)
+  Uint8List? _firstPacket;
+
+  /// Whether we've already sent the first packet
+  bool _firstPacketSent = false;
+
+  /// Delay before replaying the first packet
+  final int replayDelayMs;
+
+  ReplayFirstPacketTransport({this.replayDelayMs = 200});
+
+  @override
+  bool get isOpen => !_closed;
+
+  @override
+  Stream<Uint8List> get onData => _dataController.stream;
+
+  @override
+  Future<void> send(Uint8List data) async {
+    if (_closed) {
+      throw StateError('Transport is closed');
+    }
+
+    if (remotePeer == null) {
+      throw StateError('No remote peer connected');
+    }
+
+    // Capture the first packet for replay
+    if (!_firstPacketSent) {
+      _firstPacket = Uint8List.fromList(data);
+      _firstPacketSent = true;
+
+      // Schedule replay after delay
+      Future.delayed(Duration(milliseconds: replayDelayMs), () {
+        if (!_closed && !remotePeer!._closed && _firstPacket != null) {
+          // Replay the first packet to remote peer
+          remotePeer!._dataController.add(_firstPacket!);
+        }
+      });
+    }
+
+    // Deliver to remote peer
+    if (!remotePeer!._closed) {
+      remotePeer!._dataController.add(data);
+    }
+  }
+
+  @override
+  Future<void> close() async {
+    if (_closed) return;
+    _closed = true;
+    await _dataController.close();
+  }
+}

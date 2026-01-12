@@ -157,6 +157,20 @@ class ServerHandshakeCoordinator {
     // Check if cookie is present
     if (clientHello.cookie.isEmpty) {
       // First ClientHello without cookie - send HelloVerifyRequest
+      // Handle retransmission: if we're in waitingForClientHelloWithCookie state,
+      // the client may not have received our HelloVerifyRequest (packet loss).
+      // Per RFC 6347, we should re-send the HelloVerifyRequest.
+      if (_state == ServerHandshakeState.waitingForClientHelloWithCookie) {
+        _log.fine(
+            'Retransmitted first ClientHello (no cookie) detected, re-sending HelloVerifyRequest');
+        final currentFlight = flightManager.currentFlight;
+        if (currentFlight != null) {
+          // Mark as not sent so it gets retransmitted
+          currentFlight.markNotSent();
+        }
+        return;
+      }
+
       if (_state != ServerHandshakeState.waitingForClientHello) {
         throw StateError('Unexpected first ClientHello in state $_state');
       }

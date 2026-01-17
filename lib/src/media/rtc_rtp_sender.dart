@@ -535,21 +535,10 @@ class RTCRtpSender {
       _replaceRTP(header);
     });
 
-    // Debug: track packets received for logging
-    int nonstandardPacketCount = 0;
-
     _trackSubscription = track.onReceiveRtp.listen((event) async {
       if (_stopped) return;
 
       final (rtp, _) = event;
-
-      // Debug: log periodically
-      nonstandardPacketCount++;
-      if (nonstandardPacketCount % 50 == 1) {
-        print('[RTCRtpSender] onReceiveRtp #$nonstandardPacketCount: '
-            'pt=${rtp.payloadType}, ts=${rtp.timestamp}, len=${rtp.payload.length}, '
-            'kind=${track.kind}, mid=$mid, codecPt=${codec.payloadType}');
-      }
 
       // Filter RTX and probing packets (VIDEO ONLY):
       // - RTX packets use a different payload type (marked in SDP with rtx attribute)
@@ -576,15 +565,22 @@ class RTCRtpSender {
       //
       // If SSRC changes (e.g., on replay), accept the new SSRC.
       // The marker bit typically indicates the start of a new stream.
+      //
+      // IMPORTANT: Only capture incoming PT for video (echo/forward scenarios).
+      // For audio (talk-back), we always use the negotiated codec PT because
+      // we're sending newly encoded audio, not echoing received packets.
       if (_primarySsrc == null) {
         _primarySsrc = rtp.ssrc;
-        // Capture the actual payload type being used by the remote.
-        // Chrome may choose a different codec than our default (e.g., AV1 vs VP8).
-        _actualPayloadType = rtp.payloadType;
+        // Only capture PT for video - audio should use negotiated codec PT
+        if (isVideo) {
+          _actualPayloadType = rtp.payloadType;
+        }
       } else if (rtp.ssrc != _primarySsrc) {
         // Accept new SSRC (e.g., on replay), update tracking
         _primarySsrc = rtp.ssrc;
-        _actualPayloadType = rtp.payloadType;
+        if (isVideo) {
+          _actualPayloadType = rtp.payloadType;
+        }
       }
 
       // Build header extension config at SEND TIME, not at attachment time
@@ -615,11 +611,6 @@ class RTCRtpSender {
         payloadType: effectivePayloadType,
         extensionConfig: extensionConfig,
       );
-
-      // Debug: log successful send periodically
-      if (nonstandardPacketCount % 50 == 1) {
-        print('[RTCRtpSender] sent packet #$nonstandardPacketCount via rtpSession');
-      }
     });
   }
 

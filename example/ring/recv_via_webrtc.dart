@@ -159,7 +159,7 @@ class RingVideoServer {
 
     // Use camera[1] if available, otherwise fall back to camera[0]
     // final camera = cameras.length > 1 ? cameras[1] : cameras[0];
-    final camera = cameras[0];
+    final camera = cameras[3];
 
     print('[Ring] Found camera: ${camera.name}');
 

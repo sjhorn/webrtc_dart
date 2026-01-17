@@ -258,7 +258,7 @@ class RTCPeerConnection {
 
   /// Next MID counter
   /// Starts at 1 because MID 0 is reserved for RTCDataChannel (SCTP)
-  int _nextMid = 1;
+  int _nextMid = 0; // Match werift (starts at 0)
 
   /// Default extension ID for sdes:mid header extension
   /// Standard browsers typically use ID 1 for mid
@@ -617,8 +617,9 @@ class RTCPeerConnection {
         ? computeCertificateFingerprint(_certificate!.certificate)
         : 'sha-256 00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00'; // fallback for tests
 
-    // For bundlePolicy:disable, pre-create MediaTransports with their own ICE credentials
-    // before building the SDP, so each m-line gets unique ufrag/pwd
+    // For bundlePolicy:disable, pre-create MediaTransports before building the SDP
+    // Note: All transports share the same ICE credentials (like werift)
+    // This is required for Ring camera compatibility
     Map<String, ({String ufrag, String pwd})>? perMidCredentials;
     if (_configuration.bundlePolicy == BundlePolicy.disable) {
       perMidCredentials = {};
@@ -1701,6 +1702,17 @@ class RTCPeerConnection {
       options: iceOptions,
       debugLabel: '$_debugLabel-$mid',
     );
+
+    // Share ICE credentials with existing transports (like werift does)
+    // This is critical for Ring compatibility - all m-lines must have same ufrag/pwd
+    // Reference: werift secureTransportManager.ts:108-111
+    if (_mediaTransports.isNotEmpty) {
+      final existing = _mediaTransports.values.first;
+      iceConnection.localUsername = existing.iceConnection.localUsername;
+      iceConnection.localPassword = existing.iceConnection.localPassword;
+      _log.fine(
+          '[$_debugLabel] Sharing ICE credentials with existing transport: ufrag=${iceConnection.localUsername}');
+    }
 
     // Forward ICE candidates with m-line index set
     iceConnection.onIceCandidate.listen((candidate) {

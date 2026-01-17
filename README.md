@@ -46,7 +46,7 @@ webrtc_dart handles **transport**, not **media capture/playback**:
 
 ```yaml
 dependencies:
-  webrtc_dart: ^0.25.1
+  webrtc_dart: ^0.25.2
 ```
 
 ## Quick Start

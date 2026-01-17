@@ -1,3 +1,5 @@
+import 'dart:math' show Random;
+
 import 'package:webrtc_dart/src/media/media_stream_track.dart';
 import 'package:webrtc_dart/src/media/parameters.dart' show SimulcastDirection;
 import 'package:webrtc_dart/src/media/rtc_rtp_transceiver.dart';
@@ -5,6 +7,18 @@ import 'package:webrtc_dart/src/rtc_peer_connection.dart';
 import 'package:webrtc_dart/src/rtp/header_extension.dart';
 import 'package:webrtc_dart/src/sdp/rtx_sdp.dart';
 import 'package:webrtc_dart/src/sdp/sdp.dart';
+
+/// Generate a UUID-like string for msid attributes
+String _generateUuid() {
+  final random = Random.secure();
+  final bytes = List<int>.generate(16, (_) => random.nextInt(256));
+  // Set version 4 and variant bits
+  bytes[6] = (bytes[6] & 0x0f) | 0x40; // version 4
+  bytes[8] = (bytes[8] & 0x3f) | 0x80; // variant 10
+  final hex = bytes.map((b) => b.toRadixString(16).padLeft(2, '0')).join();
+  return '${hex.substring(0, 8)}-${hex.substring(8, 12)}-'
+      '${hex.substring(12, 16)}-${hex.substring(16, 20)}-${hex.substring(20)}';
+}
 
 /// SDPManager handles SDP building, parsing, and description state management.
 ///
@@ -49,7 +63,7 @@ class SdpManager {
   final Set<String> _seenMid = {};
 
   /// Next MID counter (starts at 1, 0 reserved for RTCDataChannel)
-  int _nextMidCounter = 1;
+  int _nextMidCounter = 0; // Match werift (starts at 0)
 
   SdpManager({
     required this.cname,
@@ -332,13 +346,21 @@ class SdpManager {
       // Use per-MID credentials if available (for bundlePolicy:disable)
       final midUfrag = perMidCredentials?[mid]?.ufrag ?? iceUfrag;
       final midPwd = perMidCredentials?[mid]?.pwd ?? icePwd;
+      // Generate msid UUIDs for media stream identification (matching werift)
+      final streamId = _generateUuid();
+      final trackId = _generateUuid();
+
       final attributes = <SdpAttribute>[
         SdpAttribute(key: 'ice-ufrag', value: midUfrag),
         SdpAttribute(key: 'ice-pwd', value: midPwd),
+        SdpAttribute(key: 'ice-options', value: 'trickle'),
         SdpAttribute(key: 'fingerprint', value: dtlsFingerprint),
         SdpAttribute(key: 'setup', value: 'actpass'),
-        SdpAttribute(key: 'mid', value: mid),
         SdpAttribute(key: directionStr),
+        SdpAttribute(key: 'mid', value: mid),
+        // msid: media stream identifier (required by werift/Ring)
+        SdpAttribute(key: 'msid', value: '$streamId $trackId'),
+        SdpAttribute(key: 'rtcp', value: '9 IN IP4 0.0.0.0'),
         SdpAttribute(key: 'rtcp-mux'),
         // Add sdes:mid header extension for media identification
         SdpAttribute(
@@ -528,8 +550,10 @@ class SdpManager {
         ..addAll(orderedDescriptions);
     }
 
-    // Build session-level attributes
+    // Build session-level attributes (matching werift TypeScript)
     final sessionAttributes = <SdpAttribute>[
+      SdpAttribute(key: 'extmap-allow-mixed'),
+      SdpAttribute(key: 'msid-semantic', value: 'WMS *'),
       SdpAttribute(key: 'ice-options', value: 'trickle'),
     ];
 

@@ -2,6 +2,26 @@
 
 All notable changes to this project will be documented in this file.
 
+## 0.25.2
+
+### Fixed
+
+- **ICE credential sharing for bundlePolicy:disable** - All media transports now share the same ice-ufrag/ice-pwd credentials, matching werift behavior. Required for Ring camera compatibility.
+
+- **XOR-MAPPED-ADDRESS encoding (RFC 5389)** - Fixed XOR pad to use 6-byte prefix `[0x21, 0x12, 0x21, 0x12, 0xa4, 0x42]` for correct port and IPv4 address XOR alignment, matching werift implementation.
+
+- **Socket tracking for STUN responses** - STUN binding responses are now sent from the same socket that received the request, critical for NAT traversal. Previously could select wrong socket (e.g., 192.168.205.1 instead of 192.168.1.200).
+
+- **MID numbering starts at 0** - Transceiver MIDs now start at 0 instead of 1, matching werift and browser behavior.
+
+### Improved
+
+- **SDP generation closer to werift** - Added `msid`, `ice-options: trickle`, `extmap-allow-mixed`, and `msid-semantic` attributes for better compatibility.
+
+- **ICE socket error handling** - Added `onError` handler for async socket errors; consolidated error handling in `_trySendDatagram` helper.
+
+- **Test reliability under parallel execution** - Event-driven waiting, trickle ICE, increased timeouts, and retry logic for resource-intensive integration tests.
+
 ## 0.25.1
 
 ### Fixed

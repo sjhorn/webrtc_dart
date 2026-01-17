@@ -318,8 +318,14 @@ class IceConnectionImpl implements IceConnection {
   @override
   String get localUsername => _localUsername;
 
+  /// Set local username (for credential sharing with bundlePolicy:disable)
+  set localUsername(String value) => _localUsername = value;
+
   @override
   String get localPassword => _localPassword;
+
+  /// Set local password (for credential sharing with bundlePolicy:disable)
+  set localPassword(String value) => _localPassword = value;
 
   @override
   String get remoteUsername => _remoteUsername;
@@ -1065,7 +1071,7 @@ class IceConnectionImpl implements IceConnection {
                 '[ICE] Socket received ${datagram.data.length} bytes from ${datagram.address.address}:${datagram.port}');
             try {
               _handleIncomingData(
-                  datagram.data, datagram.address, datagram.port);
+                  datagram.data, datagram.address, datagram.port, socket);
             } on SocketException catch (e) {
               // Can happen when sending STUN response to unreachable address
               _log.fine('[ICE] Socket error handling incoming data: $e');
@@ -1084,22 +1090,32 @@ class IceConnectionImpl implements IceConnection {
   }
 
   /// Handle incoming data from socket
-  void _handleIncomingData(Uint8List data, InternetAddress address, int port) {
+  void _handleIncomingData(
+      Uint8List data, InternetAddress address, int port, RawDatagramSocket receivingSocket) {
+    // Debug: log first byte of every packet
+    final firstByte = data.isNotEmpty ? data[0] : -1;
+    _log.fine(
+        '[ICE] Received packet: ${data.length} bytes, firstByte=0x${firstByte.toRadixString(16).padLeft(2, '0')} from ${address.address}:$port');
+
     // Check if this is a STUN message
     if (_isStunMessage(data)) {
-      _handleStunMessage(data, address, port);
+      _handleStunMessage(data, address, port, receivingSocket);
       return;
     }
 
     // Non-STUN data - deliver to application layer
     // This would be DTLS data in a real WebRTC connection
     _log.fine(
-        '[ICE] Delivering ${data.length} bytes of non-STUN data to application');
+        '[ICE] Delivering ${data.length} bytes of non-STUN data (firstByte=0x${firstByte.toRadixString(16).padLeft(2, '0')}) to application');
     _dataController.add(data);
   }
 
   /// Handle incoming STUN message
-  void _handleStunMessage(Uint8List data, InternetAddress address, int port) {
+  ///
+  /// [receivingSocket] is the UDP socket that received the message, or null for TCP/TURN.
+  void _handleStunMessage(
+      Uint8List data, InternetAddress address, int port,
+      [RawDatagramSocket? receivingSocket]) {
     try {
       final message = parseStunMessage(data);
       if (message == null) {
@@ -1125,7 +1141,7 @@ class IceConnectionImpl implements IceConnection {
       } else if (message.messageClass == StunClass.request) {
         // Handle incoming STUN requests (binding requests from remote peer)
         _log.fine(' Processing incoming STUN binding request');
-        _handleStunRequest(message, address, port);
+        _handleStunRequest(message, address, port, receivingSocket: receivingSocket);
       }
     } catch (e) {
       _log.fine(' Error handling STUN message: $e');
@@ -1133,18 +1149,38 @@ class IceConnectionImpl implements IceConnection {
   }
 
   /// Handle incoming STUN binding request
+  ///
+  /// [receivingSocket] is the UDP socket that received the request. If null (for TCP/TURN),
+  /// we fall back to searching for a matching socket.
   void _handleStunRequest(
-      StunMessage request, InternetAddress address, int port) {
+      StunMessage request, InternetAddress address, int port,
+      {RawDatagramSocket? receivingSocket}) {
+    // Debug: Log incoming request attributes to understand what Ring is sending
+    final hasUseCandidate =
+        request.getAttribute(StunAttributeType.useCandidate) != null;
+    final hasIceControlling =
+        request.getAttribute(StunAttributeType.iceControlling) != null;
+    final hasIceControlled =
+        request.getAttribute(StunAttributeType.iceControlled) != null;
+    // Extract USERNAME to see which credentials Ring expects
+    final usernameAttr = request.getAttribute(StunAttributeType.username);
+    final usernameStr = usernameAttr is String ? usernameAttr : null;
+    _log.fine(
+        '[ICE] Incoming STUN request from ${address.address}:$port - '
+        'USE_CANDIDATE=$hasUseCandidate, ICE_CONTROLLING=$hasIceControlling, '
+        'ICE_CONTROLLED=$hasIceControlled, tid=${request.transactionIdHex}, '
+        'USERNAME=$usernameStr');
+
     // RFC 8445 Section 7.2.1: Queue early checks if check list isn't ready
     if (_checkList.isEmpty && !_earlyChecksDone) {
       _log.fine('[ICE] Queueing early check from ${address.address}:$port '
           '(check list not ready, ${_earlyChecks.length + 1} queued)');
-      _earlyChecks.add(_EarlyCheck(request, address, port));
+      _earlyChecks.add(_EarlyCheck(request, address, port, receivingSocket: receivingSocket));
       return;
     }
 
     // RFC 8445 Section 7.2.1.1: Detecting and Repairing Role Conflicts
-    if (!_handleRoleConflict(request, address, port)) {
+    if (!_handleRoleConflict(request, address, port, receivingSocket: receivingSocket)) {
       return; // Role conflict detected, 487 error response sent
     }
 
@@ -1163,9 +1199,12 @@ class IceConnectionImpl implements IceConnection {
       (address.address, port),
     );
 
-    // Add MESSAGE-INTEGRITY if request had it
+    // Always add MESSAGE-INTEGRITY to STUN responses (RFC 8445 Section 7.2.2)
     // For ICE, responses use the local password (which is the remote's perspective)
-    if (request.getAttribute(StunAttributeType.messageIntegrity) != null) {
+    // Note: werift always adds MESSAGE-INTEGRITY regardless of whether request had it
+    if (_localPassword.isNotEmpty) {
+      _log.fine(
+          '[ICE] Using password for MESSAGE-INTEGRITY: ${_localPassword.substring(0, 8)}... (ufrag=${_localUsername.substring(0, 4)})');
       final passwordBytes = Uint8List.fromList(_localPassword.codeUnits);
       response.addMessageIntegrity(passwordBytes);
     }
@@ -1173,31 +1212,39 @@ class IceConnectionImpl implements IceConnection {
     // Always add FINGERPRINT for ICE (RFC 8445 requires it)
     response.addFingerprint();
 
-    // RFC 8445: When a controlled agent receives a valid STUN request from the
-    // controlling agent, it considers connectivity established from its perspective.
-    // Find and update the matching candidate pair.
-    if (!_iceControlling) {
-      _handleTriggeredCheck(address.address, port);
-    }
+    // RFC 8445 Section 7.2.1.4: Triggered checks
+    // When receiving a STUN request, handle it as a triggered check regardless
+    // of ICE role. This ensures both sides see the pair as succeeded.
+    // Note: werift always calls checkIncoming regardless of role
+    _handleTriggeredCheck(address.address, port);
 
-    // Find the socket that matches the remote's address family (IPv4 vs IPv6)
-    // Since we're responding to a request that arrived on our socket, we need to
-    // send the response from the same socket. In practice, find the socket
-    // that can reach the remote address.
-    RawDatagramSocket? sendSocket;
-    for (final socket in _sockets.values) {
-      // Match IPv4 to IPv4, IPv6 to IPv6
-      if (socket.address.type == address.type) {
-        sendSocket = socket;
-        break;
+    // CRITICAL: Send response from the SAME socket that received the request.
+    // This is required for NAT traversal - the response must come from the same
+    // local IP:port that received the request.
+    final responseBytes = response.toBytes();
+    // Debug: log response details including first few bytes in hex
+    final hexPreview = responseBytes
+        .take(32)
+        .map((b) => b.toRadixString(16).padLeft(2, '0'))
+        .join(' ');
+
+    // Use the receiving socket if available, otherwise fall back to searching
+    // (null receivingSocket happens for TCP/TURN paths)
+    RawDatagramSocket? sendSocket = receivingSocket;
+    if (sendSocket == null) {
+      for (final socket in _sockets.values) {
+        if (socket.address.type == address.type) {
+          sendSocket = socket;
+          break;
+        }
       }
+      sendSocket ??= _sockets.values.isNotEmpty ? _sockets.values.first : null;
     }
-
-    // Fallback to any socket if we couldn't find a matching type
-    sendSocket ??= _sockets.values.isNotEmpty ? _sockets.values.first : null;
 
     if (sendSocket != null) {
-      final responseBytes = response.toBytes();
+      _log.fine(
+          '[ICE] STUN response: ${responseBytes.length} bytes, tid=${response.transactionIdHex}, '
+          'local port=${sendSocket.port}, hex=$hexPreview');
       if (_trySendDatagram(sendSocket, responseBytes, address, port)) {
         _log.fine(' Sent STUN response to ${address.address}:$port');
       } else {
@@ -1212,7 +1259,8 @@ class IceConnectionImpl implements IceConnection {
   ///
   /// Returns true if the request should continue processing, false if a 487 error was sent.
   bool _handleRoleConflict(
-      StunMessage request, InternetAddress address, int port) {
+      StunMessage request, InternetAddress address, int port,
+      {RawDatagramSocket? receivingSocket}) {
     final remoteControlling =
         request.getAttribute(StunAttributeType.iceControlling);
     final remoteControlled =
@@ -1272,7 +1320,7 @@ class IceConnectionImpl implements IceConnection {
         _log.fine(
             '[ICE] Tie-breaker: we win ($_tieBreaker > $theirTieBreaker), '
             'sending 487 Role Conflict');
-        _send487RoleConflict(request, address, port);
+        _send487RoleConflict(request, address, port, receivingSocket: receivingSocket);
         return false;
       }
     } else {
@@ -1289,7 +1337,7 @@ class IceConnectionImpl implements IceConnection {
         _log.fine(
             '[ICE] Tie-breaker: we win ($_tieBreaker > $theirTieBreaker), '
             'sending 487 Role Conflict');
-        _send487RoleConflict(request, address, port);
+        _send487RoleConflict(request, address, port, receivingSocket: receivingSocket);
         return false;
       }
     }
@@ -1297,7 +1345,8 @@ class IceConnectionImpl implements IceConnection {
 
   /// Send a 487 Role Conflict error response
   void _send487RoleConflict(
-      StunMessage request, InternetAddress address, int port) {
+      StunMessage request, InternetAddress address, int port,
+      {RawDatagramSocket? receivingSocket}) {
     final response = StunMessage(
       method: request.method,
       messageClass: StunClass.errorResponse,
@@ -1319,15 +1368,17 @@ class IceConnectionImpl implements IceConnection {
     // Always add FINGERPRINT for ICE
     response.addFingerprint();
 
-    // Find socket to send response
-    RawDatagramSocket? sendSocket;
-    for (final socket in _sockets.values) {
-      if (socket.address.type == address.type) {
-        sendSocket = socket;
-        break;
+    // Use the receiving socket if available, otherwise fall back to searching
+    RawDatagramSocket? sendSocket = receivingSocket;
+    if (sendSocket == null) {
+      for (final socket in _sockets.values) {
+        if (socket.address.type == address.type) {
+          sendSocket = socket;
+          break;
+        }
       }
+      sendSocket ??= _sockets.values.isNotEmpty ? _sockets.values.first : null;
     }
-    sendSocket ??= _sockets.values.isNotEmpty ? _sockets.values.first : null;
 
     if (sendSocket != null) {
       final responseBytes = response.toBytes();
@@ -1355,7 +1406,9 @@ class IceConnectionImpl implements IceConnection {
       // Process the check now that check list is ready
       // Skip the early check queue logic since we're already processing
       _earlyChecksDone = true; // Prevent re-queueing
-      _handleStunRequest(check.request, check.address, check.port);
+      _handleStunRequest(
+          check.request, check.address, check.port,
+          receivingSocket: check.receivingSocket);
     }
 
     _earlyChecks.clear();
@@ -1546,7 +1599,8 @@ class IceConnectionImpl implements IceConnection {
       // Send request - via TURN for relay candidates, direct for others
       final requestBytes = request.toBytes();
       _log.fine(
-          '[ICE] Sending STUN request (${requestBytes.length} bytes) to ${remoteCandidate.host}:${remoteCandidate.port}');
+          '[ICE] Sending STUN request (${requestBytes.length} bytes) to ${remoteCandidate.host}:${remoteCandidate.port}'
+          ' controlling=$_iceControlling USE_CANDIDATE=${_iceControlling}');
 
       // Record start time for RTT measurement
       final startTime = DateTime.now();
@@ -2314,6 +2368,7 @@ class _EarlyCheck {
   final StunMessage request;
   final InternetAddress address;
   final int port;
+  final RawDatagramSocket? receivingSocket;
 
-  _EarlyCheck(this.request, this.address, this.port);
+  _EarlyCheck(this.request, this.address, this.port, {this.receivingSocket});
 }

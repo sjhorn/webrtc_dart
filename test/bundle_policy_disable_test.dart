@@ -124,11 +124,11 @@ void main() {
       expect(pcAnswer.connectionState, equals(PeerConnectionState.connected),
           reason: 'Answerer should be connected with bundlePolicy:disable');
 
-      // Verify transceivers have correct MIDs
-      expect(audioTransceiver.mid, equals('1'),
-          reason: 'Audio transceiver should have mid=1');
-      expect(videoTransceiver.mid, equals('2'),
-          reason: 'Video transceiver should have mid=2');
+      // Verify transceivers have correct MIDs (starts at 0 like werift)
+      expect(audioTransceiver.mid, equals('0'),
+          reason: 'Audio transceiver should have mid=0');
+      expect(videoTransceiver.mid, equals('1'),
+          reason: 'Video transceiver should have mid=1');
 
       // Clean up - allow time for OS to release sockets
       await pcOffer.close();

@@ -1,0 +1,38 @@
+{
+  "version": "v0.25.2",
+  "timestamp": "2026-01-17T14:47:10.081465",
+  "platform": "macos",
+  "dartVersion": "3.10.7",
+  "results": [
+    {
+      "name": "SRTP decrypt 1KB",
+      "opsPerSecond": 168503,
+      "testFile": "test/performance/srtp_perf_test.dart"
+    },
+    {
+      "name": "RTP parse",
+      "opsPerSecond": 4057124,
+      "testFile": "test/performance/rtp_perf_test.dart"
+    },
+    {
+      "name": "RTP serialize",
+      "opsPerSecond": 3791182,
+      "testFile": "test/performance/rtp_perf_test.dart"
+    },
+    {
+      "name": "SDP parse realistic",
+      "opsPerSecond": 47438,
+      "testFile": "test/performance/sdp_perf_test.dart"
+    },
+    {
+      "name": "STUN parse",
+      "opsPerSecond": 1052432,
+      "testFile": "test/performance/stun_perf_test.dart"
+    },
+    {
+      "name": "SCTP batch removal",
+      "opsPerSecond": 97953,
+      "testFile": "test/performance/sctp_perf_test.dart"
+    }
+  ]
+}

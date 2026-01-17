@@ -60,15 +60,30 @@ Address unpackAddress(Uint8List data) {
 }
 
 /// XOR an address with the magic cookie and transaction ID
+///
+/// RFC 5389 Section 15.2:
+/// - Port is XOR'd with most significant 16 bits of magic cookie (0x2112)
+/// - IPv4 address is XOR'd with full magic cookie (0x2112A442)
+/// - IPv6 address is XOR'd with magic cookie + transaction ID
+///
+/// Werift uses a 6-byte prefix to align XOR operations correctly:
+/// [COOKIE_HIGH, COOKIE_HIGH, COOKIE] = [21 12, 21 12 a4 42]
+/// This way:
+/// - Port at data[2:4] XORs with prefix[0:2] = magic_high
+/// - IPv4 at data[4:8] XORs with prefix[2:6] = full magic cookie
 Uint8List xorAddress(Uint8List data, Uint8List transactionId) {
-  // Create XOR pad: magic cookie (4 bytes) + transaction ID (12 bytes)
-  final xPad = Uint8List(16);
-  final cookieData = ByteData(4);
-  cookieData.setUint32(0, stunCookie);
-  xPad.setAll(0, cookieData.buffer.asUint8List());
-  xPad.setAll(4, transactionId);
+  // Create XOR pad with 6-byte prefix (like werift) + transaction ID
+  // Prefix = [cookie_high(2), cookie(4)] = [21 12, 21 12 a4 42]
+  final xPad = Uint8List(6 + transactionId.length);
+  xPad[0] = (stunCookie >> 24) & 0xFF; // 0x21
+  xPad[1] = (stunCookie >> 16) & 0xFF; // 0x12
+  xPad[2] = (stunCookie >> 24) & 0xFF; // 0x21
+  xPad[3] = (stunCookie >> 16) & 0xFF; // 0x12
+  xPad[4] = (stunCookie >> 8) & 0xFF; // 0xa4
+  xPad[5] = stunCookie & 0xFF; // 0x42
+  xPad.setAll(6, transactionId);
 
-  // XOR everything except the first 2 bytes
+  // XOR everything except the first 2 bytes (reserved + family)
   final result = Uint8List(data.length);
   result.setAll(0, data.sublist(0, 2)); // Copy first 2 bytes unchanged
 

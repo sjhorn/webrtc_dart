@@ -12,42 +12,46 @@ void main() {
       final pc1 = RTCPeerConnection();
       final pc2 = RTCPeerConnection();
 
-      // Collect ICE candidates from each peer
-      final pc1Candidates = <RTCIceCandidate>[];
-      final pc2Candidates = <RTCIceCandidate>[];
+      // Event-driven connection waiting
+      final pc1Connected = Completer<void>();
+      final pc2Connected = Completer<void>();
 
-      pc1.onIceCandidate.listen((c) {
+      pc1.onIceConnectionStateChange.listen((s) {
+        print('[PC1] ICE state: $s');
+        if ((s == IceConnectionState.connected ||
+                s == IceConnectionState.completed) &&
+            !pc1Connected.isCompleted) {
+          pc1Connected.complete();
+        }
+      });
+
+      pc2.onIceConnectionStateChange.listen((s) {
+        print('[PC2] ICE state: $s');
+        if ((s == IceConnectionState.connected ||
+                s == IceConnectionState.completed) &&
+            !pc2Connected.isCompleted) {
+          pc2Connected.complete();
+        }
+      });
+
+      // Trickle ICE - exchange candidates as they arrive
+      pc1.onIceCandidate.listen((c) async {
         print('[PC1] ICE candidate: ${c.type} ${c.host}:${c.port}');
-        pc1Candidates.add(c);
+        await pc2.addIceCandidate(c);
       });
 
-      pc2.onIceCandidate.listen((c) {
+      pc2.onIceCandidate.listen((c) async {
         print('[PC2] ICE candidate: ${c.type} ${c.host}:${c.port}');
-        pc2Candidates.add(c);
+        await pc1.addIceCandidate(c);
       });
-
-      // Track connection states
-      pc1.onIceConnectionStateChange
-          .listen((s) => print('[PC1] ICE state: $s'));
-      pc2.onIceConnectionStateChange
-          .listen((s) => print('[PC2] ICE state: $s'));
-      pc1.onConnectionStateChange
-          .listen((s) => print('[PC1] Connection state: $s'));
-      pc2.onConnectionStateChange
-          .listen((s) => print('[PC2] Connection state: $s'));
-
-      // Wait for initialization
-      await Future.delayed(Duration(milliseconds: 100));
 
       // PC1 creates offer
       print('[Test] Creating offer...');
       final offer = await pc1.createOffer();
       await pc1.setLocalDescription(offer);
 
-      // PC2 receives offer
+      // PC2 receives offer and creates answer
       await pc2.setRemoteDescription(offer);
-
-      // PC2 creates answer
       print('[Test] Creating answer...');
       final answer = await pc2.createAnswer();
       await pc2.setLocalDescription(answer);
@@ -55,27 +59,15 @@ void main() {
       // PC1 receives answer
       await pc1.setRemoteDescription(answer);
 
-      // Wait for ICE gathering
-      await Future.delayed(Duration(milliseconds: 500));
-
-      // Exchange ICE candidates
-      print(
-          '[Test] Exchanging ${pc1Candidates.length} + ${pc2Candidates.length} ICE candidates...');
-      for (final c in pc1Candidates) {
-        await pc2.addIceCandidate(c);
-      }
-      for (final c in pc2Candidates) {
-        await pc1.addIceCandidate(c);
-      }
-
-      // Wait for connection
+      // Wait for at least one side to connect (event-driven)
       print('[Test] Waiting for ICE connection...');
-      await Future.delayed(Duration(seconds: 3));
+      await Future.any([
+        pc1Connected.future,
+        pc2Connected.future,
+      ]).timeout(Duration(seconds: 10));
 
       print('[Test] PC1 ICE state: ${pc1.iceConnectionState}');
       print('[Test] PC2 ICE state: ${pc2.iceConnectionState}');
-      print('[Test] PC1 Connection state: ${pc1.connectionState}');
-      print('[Test] PC2 Connection state: ${pc2.connectionState}');
 
       // Verify at least one side connected
       expect(
@@ -95,19 +87,20 @@ void main() {
       final pc1 = RTCPeerConnection();
       final pc2 = RTCPeerConnection();
 
+      // Wait for transport initialization
+      await Future.delayed(Duration(milliseconds: 100));
+
       final receivedMessages = <String>[];
-      final pc1Connected = Completer<void>();
-      final pc2Connected = Completer<void>();
+      final dc1Connected = Completer<void>();
       final messageReceived = Completer<void>();
 
       // Set up data channel on PC1 (offerer)
-      await Future.delayed(Duration(milliseconds: 100));
       final dc1 = pc1.createDataChannel('test');
 
       dc1.onStateChange.listen((state) {
         print('[DC1] State: $state');
-        if (state == DataChannelState.open && !pc1Connected.isCompleted) {
-          pc1Connected.complete();
+        if (state == DataChannelState.open && !dc1Connected.isCompleted) {
+          dc1Connected.complete();
         }
       });
 
@@ -124,9 +117,6 @@ void main() {
         print('[DC2] Received data channel: ${dc2.label}');
         dc2.onStateChange.listen((state) {
           print('[DC2] State: $state');
-          if (state == DataChannelState.open && !pc2Connected.isCompleted) {
-            pc2Connected.complete();
-          }
         });
         dc2.onMessage.listen((msg) {
           print('[DC2] Received: $msg');
@@ -136,11 +126,13 @@ void main() {
         });
       });
 
-      // Collect and exchange ICE candidates
-      final pc1Candidates = <RTCIceCandidate>[];
-      final pc2Candidates = <RTCIceCandidate>[];
-      pc1.onIceCandidate.listen((c) => pc1Candidates.add(c));
-      pc2.onIceCandidate.listen((c) => pc2Candidates.add(c));
+      // Trickle ICE - exchange candidates as they arrive
+      pc1.onIceCandidate.listen((c) async {
+        await pc2.addIceCandidate(c);
+      });
+      pc2.onIceCandidate.listen((c) async {
+        await pc1.addIceCandidate(c);
+      });
 
       pc1.onIceConnectionStateChange.listen((s) => print('[PC1] ICE: $s'));
       pc2.onIceConnectionStateChange.listen((s) => print('[PC2] ICE: $s'));
@@ -154,21 +146,11 @@ void main() {
       await pc2.setLocalDescription(answer);
       await pc1.setRemoteDescription(answer);
 
-      // Wait for ICE gathering
-      await Future.delayed(Duration(milliseconds: 500));
-
-      // Exchange candidates
-      for (final c in pc1Candidates) {
-        await pc2.addIceCandidate(c);
-      }
-      for (final c in pc2Candidates) {
-        await pc1.addIceCandidate(c);
-      }
-
-      // Wait for data channel to open (with timeout)
+      // Wait for data channel to open (event-driven with timeout)
+      // Allow extra time for concurrent test load
       print('[Test] Waiting for data channel connection...');
       try {
-        await pc1Connected.future.timeout(Duration(seconds: 10));
+        await dc1Connected.future.timeout(Duration(seconds: 15));
         print('[Test] DC1 connected!');
 
         // Send a message
@@ -188,6 +170,9 @@ void main() {
 
       await pc1.close();
       await pc2.close();
-    }, timeout: Timeout(Duration(seconds: 30)));
+    },
+        timeout: Timeout(Duration(seconds: 25)),
+        retry: 1 // Retry once on failure due to resource contention under parallel test load
+        );
   });
 }

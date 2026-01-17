@@ -52,25 +52,31 @@ dart pub get
 ```
 
 ### Testing
+
+**IMPORTANT: Always pipe test output to `/tmp/` to avoid re-running tests for grep/analysis:**
+
 ```bash
-# Run all tests
-dart test
+# Standard workflow - run once, analyze from file
+dart test --exclude-tags=slow 2>&1 | tee /tmp/dart_test.txt
+# Then grep/analyze without re-running:
+grep -E "passed|failed|Some tests" /tmp/dart_test.txt
+tail -20 /tmp/dart_test.txt
+grep -i "error\|exception" /tmp/dart_test.txt
+
+# Run all tests (save to file)
+dart test 2>&1 | tee /tmp/dart_test.txt
 
 # Run fast tests only (excludes 20-second stability test)
-dart test --exclude-tags=slow
+dart test --exclude-tags=slow 2>&1 | tee /tmp/dart_test.txt
 
 # Run slow/integration tests with limited concurrency
-dart test --tags=slow --concurrency=1
+dart test --tags=slow --concurrency=1 2>&1 | tee /tmp/dart_test.txt
 
 # Run a specific test file
-dart test test/webrtc_dart_test.dart
+dart test test/webrtc_dart_test.dart 2>&1 | tee /tmp/dart_test.txt
 
-# IMPORTANT: When running tests repeatedly during development, save output to file
-# to avoid running the full suite multiple times:
-dart test 2>&1 > /tmp/test_output.txt
-# Then grep from the file:
-grep -E "failed|passed" /tmp/test_output.txt
-tail -5 /tmp/test_output.txt
+# Run a single test by name
+dart test --plain-name 'test name here' 2>&1 | tee /tmp/dart_test.txt
 ```
 
 **Test Tags:**

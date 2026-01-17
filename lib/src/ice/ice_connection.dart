@@ -591,11 +591,8 @@ class IceConnectionImpl implements IceConnection {
         _log.fine(
             '[ICE] STUN: Sending binding request to ${stunAddress.address}:$stunPort (tid=$tid)');
         final bytes = request.toBytes();
-        try {
-          socket.send(bytes, stunAddress, stunPort);
-        } catch (e) {
-          // Socket send can fail for IPv6 addresses on misconfigured networks
-          _log.fine('[ICE] STUN: Send failed for ${hostCandidate.host}: $e');
+        if (!_trySendDatagram(socket, bytes, stunAddress, stunPort)) {
+          _log.fine('[ICE] STUN: Send failed for ${hostCandidate.host}');
           _pendingStunTransactions.remove(tid);
           continue;
         }
@@ -1059,16 +1056,31 @@ class IceConnectionImpl implements IceConnection {
 
   /// Set up socket listener for incoming data
   void _setupSocketListener(RawDatagramSocket socket) {
-    socket.listen((event) {
-      if (event == RawSocketEvent.read) {
-        final datagram = socket.receive();
-        if (datagram != null) {
-          _log.fine(
-              '[ICE] Socket received ${datagram.data.length} bytes from ${datagram.address.address}:${datagram.port}');
-          _handleIncomingData(datagram.data, datagram.address, datagram.port);
+    socket.listen(
+      (event) {
+        if (event == RawSocketEvent.read) {
+          final datagram = socket.receive();
+          if (datagram != null) {
+            _log.fine(
+                '[ICE] Socket received ${datagram.data.length} bytes from ${datagram.address.address}:${datagram.port}');
+            try {
+              _handleIncomingData(
+                  datagram.data, datagram.address, datagram.port);
+            } on SocketException catch (e) {
+              // Can happen when sending STUN response to unreachable address
+              _log.fine('[ICE] Socket error handling incoming data: $e');
+            } catch (e) {
+              _log.fine('[ICE] Error handling incoming data: $e');
+            }
+          }
         }
-      }
-    });
+      },
+      onError: (error, stackTrace) {
+        // Socket errors (e.g., EHOSTDOWN, ENETUNREACH) can be delivered
+        // asynchronously through the stream's error channel
+        _log.fine('[ICE] Socket stream error: $error');
+      },
+    );
   }
 
   /// Handle incoming data from socket
@@ -1186,8 +1198,11 @@ class IceConnectionImpl implements IceConnection {
 
     if (sendSocket != null) {
       final responseBytes = response.toBytes();
-      sendSocket.send(responseBytes, address, port);
-      _log.fine(' Sent STUN response to ${address.address}:$port');
+      if (_trySendDatagram(sendSocket, responseBytes, address, port)) {
+        _log.fine(' Sent STUN response to ${address.address}:$port');
+      } else {
+        _log.fine(' Failed to send STUN response to ${address.address}:$port');
+      }
     } else {
       _log.fine(' No socket available to send STUN response');
     }
@@ -1540,18 +1555,12 @@ class IceConnectionImpl implements IceConnection {
         final peerAddress = (remoteCandidate.host, remoteCandidate.port);
         await _turnClient!.sendData(peerAddress, requestBytes);
       } else {
-        try {
-          socket!.send(requestBytes, remoteAddr, remoteCandidate.port);
-        } on SocketException catch (e) {
-          // Socket send can fail for IPv6 addresses on misconfigured networks
+        final sendResult = _trySendDatagram(
+            socket!, requestBytes, remoteAddr, remoteCandidate.port);
+        if (!sendResult) {
           _log.fine(
-              '[ICE] Connectivity check send failed (SocketException) for ${localCandidate.host}: $e');
-          _pendingStunTransactions.remove(tid);
-          return false;
-        } catch (e) {
-          // Catch any other exceptions
-          _log.fine(
-              '[ICE] Connectivity check send failed for ${localCandidate.host}: $e');
+              '[ICE] Connectivity check send failed for '
+              '${localCandidate.host} -> ${remoteCandidate.host}');
           _pendingStunTransactions.remove(tid);
           return false;
         }
@@ -1949,11 +1958,8 @@ class IceConnectionImpl implements IceConnection {
       }
 
       final remoteAddr = InternetAddress(remoteCandidate.host);
-      try {
-        socket.send(data, remoteAddr, remoteCandidate.port);
-      } catch (e) {
-        // Socket send can fail for IPv6 addresses on misconfigured networks
-        _log.fine('[ICE] Data send failed for ${localCandidate.host}: $e');
+      if (!_trySendDatagram(socket, data, remoteAddr, remoteCandidate.port)) {
+        _log.fine('[ICE] Data send failed for ${localCandidate.host}');
         return;
       }
     }
@@ -2134,12 +2140,10 @@ class IceConnectionImpl implements IceConnection {
       final peerAddress = (remoteCandidate.host, remoteCandidate.port);
       await _turnClient!.sendData(peerAddress, requestBytes);
     } else {
-      try {
-        socket!.send(requestBytes, remoteAddr, remoteCandidate.port);
-      } catch (e) {
-        // Socket send can fail for IPv6 addresses on misconfigured networks
+      if (!_trySendDatagram(
+          socket!, requestBytes, remoteAddr, remoteCandidate.port)) {
         _log.fine(
-            '[ICE] Consent check send failed for ${localCandidate.host}: $e');
+            '[ICE] Consent check send failed for ${localCandidate.host}');
         _pendingStunTransactions.remove(tid);
         return false;
       }
@@ -2269,6 +2273,38 @@ class IceConnectionImpl implements IceConnection {
     _options = options;
     _log.fine(
         '[ICE] Updated options: stunServer=${options.stunServer}, turnServer=${options.turnServer}');
+  }
+
+  /// Helper to send datagram with error handling.
+  /// Returns true if send succeeded, false if it failed (e.g., no route to host).
+  bool _trySendDatagram(RawDatagramSocket socket, Uint8List data,
+      InternetAddress address, int port) {
+    final localAddr = socket.address;
+
+    // Skip IPv6 ULA/link-local addresses - these typically can't route externally
+    // and attempting to send often fails. ULA = fd00::/8, fc00::/8; link-local = fe80::/10
+    if (localAddr.type == InternetAddressType.IPv6 &&
+        address.type == InternetAddressType.IPv6) {
+      final localHex = localAddr.address.toLowerCase();
+      if (localHex.startsWith('fd') ||
+          localHex.startsWith('fc') ||
+          localHex.startsWith('fe80')) {
+        _log.fine(
+            '[ICE] Skipping send from ULA/link-local IPv6 $localAddr to $address');
+        return false;
+      }
+    }
+
+    try {
+      socket.send(data, address, port);
+      return true;
+    } on SocketException catch (e) {
+      _log.fine('[ICE] Socket send failed (SocketException): $e');
+      return false;
+    } catch (e) {
+      _log.fine('[ICE] Socket send failed (${e.runtimeType}): $e');
+      return false;
+    }
   }
 }
 

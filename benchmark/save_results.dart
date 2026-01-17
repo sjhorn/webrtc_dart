@@ -1,6 +1,6 @@
 /// Save Benchmark Results
 ///
-/// Runs all performance tests and saves results to benchmark/results/<version>.json
+/// Runs all performance tests and saves results to `benchmark/results/{version}.json`
 ///
 /// Usage:
 ///   dart run benchmark/save_results.dart          # Uses version from pubspec.yaml

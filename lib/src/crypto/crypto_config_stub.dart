@@ -1,6 +1,7 @@
 /// Stub implementation for platforms without dart:ffi (e.g., Flutter web)
 ///
 /// This file is used when dart:ffi is not available.
+library;
 
 import 'aes_gcm.dart';
 

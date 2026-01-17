@@ -353,7 +353,7 @@ class FfiAesGcmCipher implements AesGcmCipher {
     final encLen = _outLen.value;
 
     // Finalize
-    if (_encryptFinal(_ctx, _outPtr.elementAt(encLen), _outLen) != 1) {
+    if (_encryptFinal(_ctx, _outPtr + encLen, _outLen) != 1) {
       throw StateError('EVP_EncryptFinal_ex failed');
     }
 
@@ -444,7 +444,7 @@ class FfiAesGcmCipher implements AesGcmCipher {
     }
 
     // Finalize and verify tag
-    if (_decryptFinal(_ctx, _outPtr.elementAt(decLen), _outLen) != 1) {
+    if (_decryptFinal(_ctx, _outPtr + decLen, _outLen) != 1) {
       throw StateError('Authentication failed');
     }
 

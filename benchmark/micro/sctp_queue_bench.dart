@@ -4,6 +4,7 @@
 /// for SCTP sent/outbound queue operations.
 ///
 /// Usage: dart run benchmark/micro/sctp_queue_bench.dart
+library;
 
 import 'dart:collection';
 
@@ -32,7 +33,7 @@ void main() {
     benchmarkLinkedListRemoveFirst(size);
   }
 
-  print('\n' + '=' * 60);
+  print('\n${'=' * 60}');
   print('Benchmark complete');
 }
 

@@ -535,23 +535,39 @@ class RTCRtpSender {
       _replaceRTP(header);
     });
 
+    // Debug: track packets received for logging
+    int nonstandardPacketCount = 0;
+
     _trackSubscription = track.onReceiveRtp.listen((event) async {
       if (_stopped) return;
 
       final (rtp, _) = event;
 
-      // Filter RTX and probing packets:
+      // Debug: log periodically
+      nonstandardPacketCount++;
+      if (nonstandardPacketCount % 50 == 1) {
+        print('[RTCRtpSender] onReceiveRtp #$nonstandardPacketCount: '
+            'pt=${rtp.payloadType}, ts=${rtp.timestamp}, len=${rtp.payload.length}, '
+            'kind=${track.kind}, mid=$mid, codecPt=${codec.payloadType}');
+      }
+
+      // Filter RTX and probing packets (VIDEO ONLY):
       // - RTX packets use a different payload type (marked in SDP with rtx attribute)
       // - Probing packets often have ts=0 and come early in stream
       // - We want to forward the primary video stream only
       //
-      // RTX payload types are typically the main codec PT + 1 (e.g., VP8=96, VP8-RTX=97)
-      // Also skip padding probes (ts=0, small payload)
-      final isProbing = rtp.timestamp == 0 && rtp.payload.length < 300;
-      final isLikelyRtx = rtp.payloadType == (codec.payloadType ?? 96) + 1;
+      // IMPORTANT: Skip this filtering for audio tracks - audio packets are small
+      // and legitimately can have timestamp=0 initially
+      final isVideo = track.kind == nonstandard.MediaKind.video;
+      if (isVideo) {
+        // RTX payload types are typically the main codec PT + 1 (e.g., VP8=96, VP8-RTX=97)
+        // Also skip padding probes (ts=0, small payload)
+        final isProbing = rtp.timestamp == 0 && rtp.payload.length < 300;
+        final isLikelyRtx = rtp.payloadType == (codec.payloadType ?? 96) + 1;
 
-      if (isProbing || isLikelyRtx) {
-        return;
+        if (isProbing || isLikelyRtx) {
+          return;
+        }
       }
 
       // Lock onto the first non-RTX, non-probing SSRC as primary.
@@ -599,6 +615,11 @@ class RTCRtpSender {
         payloadType: effectivePayloadType,
         extensionConfig: extensionConfig,
       );
+
+      // Debug: log successful send periodically
+      if (nonstandardPacketCount % 50 == 1) {
+        print('[RTCRtpSender] sent packet #$nonstandardPacketCount via rtpSession');
+      }
     });
   }
 

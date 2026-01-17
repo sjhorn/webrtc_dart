@@ -27,12 +27,6 @@ import 'crypto_config_stub.dart'
     if (dart.library.ffi) 'crypto_config_native.dart' as platform;
 
 class CryptoConfig {
-  /// Whether to use native crypto (OpenSSL/BoringSSL FFI) when available.
-  ///
-  /// Default: true (try native, fall back to Dart if unavailable)
-  /// Set to false to force pure Dart implementation.
-  static bool _useNative = _initUseNative();
-
   static bool _initUseNative() {
     try {
       return platform.checkNativeEnvVar();
@@ -41,15 +35,12 @@ class CryptoConfig {
     }
   }
 
-  /// Get whether native crypto is enabled.
-  static bool get useNative => _useNative;
-
-  /// Set whether to use native crypto.
+  /// Whether to use native crypto (OpenSSL/BoringSSL FFI) when available.
   ///
-  /// Should be called before creating any RTCPeerConnection instances.
-  static set useNative(bool value) {
-    _useNative = value;
-  }
+  /// Default: true (try native, fall back to Dart if unavailable)
+  /// Set to false to force pure Dart implementation.
+  /// Should be set before creating any RTCPeerConnection instances.
+  static bool useNative = _initUseNative();
 
   /// Cached check for native availability (computed once)
   static bool? _nativeAvailable;
@@ -91,9 +82,7 @@ class CryptoConfig {
   /// This is useful when you want to reuse the same cipher across
   /// multiple operations to avoid FFI setup overhead.
   static AesGcmCipher getSharedCipher() {
-    if (_cachedCipher == null) {
-      _cachedCipher = createAesGcm();
-    }
+    _cachedCipher ??= createAesGcm();
     return _cachedCipher!;
   }
 

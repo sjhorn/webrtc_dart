@@ -5,6 +5,7 @@
 /// 2. Byte-level: work with codeUnits directly
 ///
 /// Run: dart run benchmark/micro/ice_parse_experiment.dart
+library;
 
 import 'dart:typed_data';
 
@@ -35,7 +36,7 @@ void main() {
   final indexOfTime = sw.elapsedMicroseconds;
   final indexOfOps = (iterations / indexOfTime * 1000000).round();
   print('indexOf + substring:');
-  print('  ${indexOfOps} ops/sec');
+  print('  $indexOfOps ops/sec');
   print('  ${(indexOfTime / iterations).toStringAsFixed(2)} µs/op\n');
 
   // Benchmark codeUnits approach
@@ -47,7 +48,7 @@ void main() {
   final codeUnitsTime = sw.elapsedMicroseconds;
   final codeUnitsOps = (iterations / codeUnitsTime * 1000000).round();
   print('codeUnits byte-level:');
-  print('  ${codeUnitsOps} ops/sec');
+  print('  $codeUnitsOps ops/sec');
   print('  ${(codeUnitsTime / iterations).toStringAsFixed(2)} µs/op\n');
 
   // Benchmark codeUnits with pre-encoded input
@@ -60,7 +61,7 @@ void main() {
   final preEncodedTime = sw.elapsedMicroseconds;
   final preEncodedOps = (iterations / preEncodedTime * 1000000).round();
   print('Pre-encoded codeUnits:');
-  print('  ${preEncodedOps} ops/sec');
+  print('  $preEncodedOps ops/sec');
   print('  ${(preEncodedTime / iterations).toStringAsFixed(2)} µs/op\n');
 
   print('=' * 60);

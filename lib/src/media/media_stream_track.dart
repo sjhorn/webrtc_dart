@@ -250,26 +250,32 @@ class MediaTrackConstraints {
     final json = <String, dynamic>{};
     if (width != null) json['width'] = _constraintToJson(width);
     if (height != null) json['height'] = _constraintToJson(height);
-    if (aspectRatio != null)
+    if (aspectRatio != null) {
       json['aspectRatio'] = _constraintToJson(aspectRatio);
+    }
     if (frameRate != null) json['frameRate'] = _constraintToJson(frameRate);
     if (facingMode != null) json['facingMode'] = _constraintToJson(facingMode);
     if (resizeMode != null) json['resizeMode'] = _constraintToJson(resizeMode);
     if (sampleRate != null) json['sampleRate'] = _constraintToJson(sampleRate);
     if (sampleSize != null) json['sampleSize'] = _constraintToJson(sampleSize);
-    if (echoCancellation != null)
+    if (echoCancellation != null) {
       json['echoCancellation'] = _constraintToJson(echoCancellation);
-    if (autoGainControl != null)
+    }
+    if (autoGainControl != null) {
       json['autoGainControl'] = _constraintToJson(autoGainControl);
-    if (noiseSuppression != null)
+    }
+    if (noiseSuppression != null) {
       json['noiseSuppression'] = _constraintToJson(noiseSuppression);
+    }
     if (latency != null) json['latency'] = _constraintToJson(latency);
-    if (channelCount != null)
+    if (channelCount != null) {
       json['channelCount'] = _constraintToJson(channelCount);
+    }
     if (deviceId != null) json['deviceId'] = _constraintToJson(deviceId);
     if (groupId != null) json['groupId'] = _constraintToJson(groupId);
-    if (advanced != null)
+    if (advanced != null) {
       json['advanced'] = advanced!.map((c) => c.toJson()).toList();
+    }
     return json;
   }
 

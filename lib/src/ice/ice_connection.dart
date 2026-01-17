@@ -1600,7 +1600,7 @@ class IceConnectionImpl implements IceConnection {
       final requestBytes = request.toBytes();
       _log.fine(
           '[ICE] Sending STUN request (${requestBytes.length} bytes) to ${remoteCandidate.host}:${remoteCandidate.port}'
-          ' controlling=$_iceControlling USE_CANDIDATE=${_iceControlling}');
+          ' controlling=$_iceControlling USE_CANDIDATE=$_iceControlling');
 
       // Record start time for RTT measurement
       final startTime = DateTime.now();

@@ -350,26 +350,29 @@ Each layer should be validated independently before building on top of it.
 # 1. Run all tests (must pass)
 dart test
 
-# 2. Run performance tests (check for regressions)
+# 2. Run dart analyze (no errors or warnings, infos OK for FFI naming)
+dart analyze
+
+# 3. Run performance tests (check for regressions)
 ./benchmark/run_perf_tests.sh
 
-# 3. Save benchmark results for this release
+# 4. Save benchmark results for this release
 dart run benchmark/save_results.dart vX.Y.Z
 
-# 4. Update version in all files:
+# 5. Update version in all files:
 #    - pubspec.yaml - version field
 #    - README.md - installation example (webrtc_dart: ^X.Y.Z)
 #    - CHANGELOG.md - add new version section
 #    - REFACTOR.md - test count if changed
 #    - CLAUDE.md - test count if changed
 
-# 5. Commit and tag
+# 6. Commit and tag
 git add .
 git commit -m "Release vX.Y.Z"
 git tag -a vX.Y.Z -m "Release version X.Y.Z"
 git push origin main --tags
 
-# 6. Publish to pub.dev
+# 7. Publish to pub.dev
 dart pub publish
 ```
 

@@ -1,6 +1,7 @@
 /// Native implementation for platforms with dart:ffi support
 ///
 /// This file is used when dart:ffi is available (native platforms).
+library;
 
 import 'dart:io';
 

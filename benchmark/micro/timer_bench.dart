@@ -3,6 +3,7 @@
 /// Measures the latency difference between scheduling mechanisms.
 ///
 /// Usage: dart run benchmark/micro/timer_bench.dart
+library;
 
 import 'dart:async';
 
@@ -59,7 +60,7 @@ void main() async {
   final futureDelayUs = sw4.elapsedMicroseconds / iterations;
   print('Future(() {}):         ${futureDelayUs.toStringAsFixed(2)} µs/call');
 
-  print('\n' + '-' * 60);
+  print('\n${'-' * 60}');
   print(
       'Speedup (scheduleMicrotask vs Timer): ${(timerUs / microUs).toStringAsFixed(2)}x');
 }

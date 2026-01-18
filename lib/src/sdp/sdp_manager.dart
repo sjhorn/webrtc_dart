@@ -492,10 +492,8 @@ class SdpManager {
     // Skip for bundlePolicy:disable unless explicit data channel support is needed
     // Each m-line would need its own transport for bundlePolicy:disable
     if (bundlePolicy != BundlePolicy.disable) {
-      const dataChannelMid = '0';
-      if (!bundleMids.contains(dataChannelMid)) {
-        bundleMids.add(dataChannelMid);
-      }
+      final dataChannelMid = allocateMid();
+      bundleMids.add(dataChannelMid);
       mediaDescriptions.add(
         SdpMedia(
           type: 'application',

@@ -281,7 +281,7 @@ class RTCPeerConnection {
 
   /// Next MID counter
   /// Starts at 1 because MID 0 is reserved for RTCDataChannel (SCTP)
-  int _nextMid = 0; // Match werift (starts at 0)
+  // MID allocation is handled by _sdpManager.allocateMid() for consistency
 
   /// Default extension ID for sdes:mid header extension
   /// Standard browsers typically use ID 1 for mid
@@ -1423,7 +1423,7 @@ class RTCPeerConnection {
     }
 
     // Create new transceiver for this track
-    final mid = '${_nextMid++}';
+    final mid = _sdpManager.allocateMid();
 
     // Generate unique SSRC
     final ssrc = _generateSsrc();
@@ -1530,7 +1530,7 @@ class RTCPeerConnection {
     }
 
     // Create new transceiver
-    final mid = '${_nextMid++}';
+    final mid = _sdpManager.allocateMid();
     final ssrc = _generateSsrc();
 
     // Create RTP session with receiver callback

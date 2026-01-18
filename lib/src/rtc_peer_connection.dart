@@ -96,12 +96,29 @@ class RtcConfiguration {
   /// Reusing certificates saves 50-200ms per connection.
   final CertificateKeyPair? certificate;
 
+  /// ICE candidate pair checking interval.
+  /// Lower values speed up connection but may overwhelm constrained networks.
+  /// Default: 5ms
+  final Duration icePacingInterval;
+
+  /// Timeout for STUN binding requests.
+  /// Lower values speed up failover but may fail on slow networks.
+  /// Default: 1500ms
+  final Duration stunTimeout;
+
+  /// Timeout for DTLS handshake completion.
+  /// Default: 30 seconds
+  final Duration dtlsHandshakeTimeout;
+
   const RtcConfiguration({
     this.iceServers = _defaultIceServers,
     this.iceTransportPolicy = IceTransportPolicy.all,
     this.bundlePolicy = BundlePolicy.maxCompat,
     this.codecs = const RtcCodecs(),
     this.certificate,
+    this.icePacingInterval = const Duration(milliseconds: 5),
+    this.stunTimeout = const Duration(milliseconds: 1500),
+    this.dtlsHandshakeTimeout = const Duration(seconds: 30),
   });
 }
 
@@ -352,6 +369,7 @@ class RTCPeerConnection {
     _transport = IntegratedTransport(
       iceConnection: _iceConnection,
       serverCertificate: _certificate,
+      dtlsHandshakeTimeout: _configuration.dtlsHandshakeTimeout,
       debugLabel: _debugLabel,
     );
 
@@ -433,6 +451,8 @@ class RTCPeerConnection {
       turnUsername: turnUsername,
       turnPassword: turnPassword,
       relayOnly: config.iceTransportPolicy == IceTransportPolicy.relay,
+      icePacingInterval: config.icePacingInterval,
+      stunTimeout: config.stunTimeout,
     );
   }
 

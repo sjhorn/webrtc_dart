@@ -440,6 +440,7 @@ class IntegratedTransport {
     required IceConnection iceConnection,
     DtlsRole dtlsRole = DtlsRole.auto,
     CertificateKeyPair? serverCertificate,
+    Duration dtlsHandshakeTimeout = rtc.defaultDtlsHandshakeTimeout,
     this.debugLabel = '',
   }) {
     // Create transport wrapper chain: IceGatherer -> IceTransport -> DtlsTransport
@@ -457,6 +458,7 @@ class IntegratedTransport {
       iceTransport: _iceTransport,
       localCertificate: serverCertificate,
       role: rtcDtlsRole,
+      handshakeTimeout: dtlsHandshakeTimeout,
     );
     _dtlsTransport.debugLabel = debugLabel;
 

@@ -186,15 +186,20 @@ class RtcDtlsTransport {
   /// Debug label
   String debugLabel = '';
 
+  /// Handshake timeout (configurable)
+  final Duration handshakeTimeout;
+
   /// Creates an RTCDtlsTransport.
   ///
   /// [iceTransport] - The underlying ICE transport
   /// [localCertificate] - Local certificate for DTLS (required for server role)
   /// [role] - DTLS role (auto-detect if not specified)
+  /// [handshakeTimeout] - Timeout for DTLS handshake (default: 30 seconds)
   RtcDtlsTransport({
     required this.iceTransport,
     this.localCertificate,
     this.role = RtcDtlsRole.auto,
+    this.handshakeTimeout = defaultDtlsHandshakeTimeout,
   }) {
     // Create the ICE-to-DTLS adapter for packet demuxing
     _dtlsAdapter = _IceToDtlsAdapter(iceTransport.connection);
@@ -372,16 +377,16 @@ class RtcDtlsTransport {
 
     // Start handshake
     _log.fine(
-        '$_debugPrefix Starting DTLS handshake (timeout: ${defaultDtlsHandshakeTimeout.inSeconds}s)');
+        '$_debugPrefix Starting DTLS handshake (timeout: ${handshakeTimeout.inSeconds}s)');
     await dtls!.connect();
 
     // Wait for connected state with timeout
     try {
       await completer.future.timeout(
-        defaultDtlsHandshakeTimeout,
+        handshakeTimeout,
         onTimeout: () {
           failureReason =
-              'DTLS handshake timed out after ${defaultDtlsHandshakeTimeout.inSeconds} seconds';
+              'DTLS handshake timed out after ${handshakeTimeout.inSeconds} seconds';
           _log.warning('$_debugPrefix $failureReason');
           _setState(RtcDtlsState.failed);
           throw DtlsHandshakeException(

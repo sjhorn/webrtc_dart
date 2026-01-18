@@ -106,6 +106,16 @@ class IceOptions {
   /// Corresponds to iceTransportPolicy: "relay" in W3C WebRTC spec.
   final bool relayOnly;
 
+  /// ICE candidate pair checking interval.
+  /// Lower values speed up connection but may overwhelm constrained networks.
+  /// Default: 5ms
+  final Duration icePacingInterval;
+
+  /// Timeout for STUN binding requests.
+  /// Lower values speed up failover but may fail on slow networks.
+  /// Default: 1500ms
+  final Duration stunTimeout;
+
   const IceOptions({
     this.stunServer,
     this.turnServer,
@@ -118,6 +128,8 @@ class IceOptions {
     this.useUdp = true,
     this.useMdns = false, // Disabled by default for compatibility
     this.relayOnly = false,
+    this.icePacingInterval = const Duration(milliseconds: 5),
+    this.stunTimeout = const Duration(milliseconds: 1500),
   });
 }
 
@@ -607,7 +619,7 @@ class IceConnectionImpl implements IceConnection {
         StunMessage response;
         try {
           response = await completer.future.timeout(
-            const Duration(milliseconds: 1500),
+            _options.stunTimeout,
             onTimeout: () {
               _pendingStunTransactions.remove(tid);
               throw TimeoutException('STUN request timed out');
@@ -976,10 +988,10 @@ class IceConnectionImpl implements IceConnection {
     // RFC 8445 Section 7.2.1: Process early checks that were queued
     _processEarlyChecks();
 
-    // Use parallel checking with pacing (5ms between check starts)
+    // Use parallel checking with pacing between check starts
     // This allows multiple checks to run concurrently, so we don't wait
     // for failing pairs before reaching working reflexive pairs
-    const pacingInterval = Duration(milliseconds: 5);
+    final pacingInterval = _options.icePacingInterval;
     const maxCheckTime = Duration(seconds: 15);
 
     final successCompleter = Completer<CandidatePair>();
@@ -1623,7 +1635,7 @@ class IceConnectionImpl implements IceConnection {
       // Wait for response with timeout
       try {
         final response = await completer.future.timeout(
-          Duration(milliseconds: 1500),
+          _options.stunTimeout,
           onTimeout: () {
             _pendingStunTransactions.remove(tid);
             throw TimeoutException('STUN connectivity check timed out');
@@ -1939,7 +1951,7 @@ class IceConnectionImpl implements IceConnection {
 
     // Run checks asynchronously with parallel pacing
     Future(() async {
-      const pacingInterval = Duration(milliseconds: 5);
+      final pacingInterval = _options.icePacingInterval;
 
       // Start all checks with pacing - don't await each one
       for (final pair in newPairs) {

@@ -1,6 +1,6 @@
 # webrtc_dart
 
-Server-side WebRTC in pure Dart. Build SFUs, recording servers, and media pipelines.
+Server-side WebRTC (Web Real-Time Communication) in pure Dart. Build SFUs (Selective Forwarding Units), recording servers, and media pipelines.
 
 [![pub package](https://img.shields.io/pub/v/webrtc_dart.svg)](https://pub.dev/packages/webrtc_dart)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
@@ -20,11 +20,11 @@ A **server-side** WebRTC library for Dart, similar to [Pion](https://github.com/
 
 | What we handle | Details |
 |----------------|---------|
-| **WebRTC Transport** | ICE, DTLS, SRTP, SCTP, RTP/RTCP |
+| **WebRTC Transport** | ICE (Interactive Connectivity Establishment), DTLS (Datagram Transport Layer Security), SRTP (Secure Real-time Transport Protocol), SCTP (Stream Control Transmission Protocol), RTP/RTCP (Real-time Transport Protocol / Control Protocol) |
 | **DataChannels** | Reliable/unreliable, ordered/unordered |
-| **RTP Processing** | NACK, PLI, FIR, REMB, TWCC, RTX, Simulcast |
+| **RTP Processing** | NACK (Negative Acknowledgment), PLI (Picture Loss Indication), FIR (Full Intra Request), REMB (Receiver Estimated Maximum Bitrate), TWCC (Transport Wide Congestion Control), RTX (Retransmission), Simulcast |
 | **Codec Depacketization** | VP8, VP9, H.264, AV1, Opus |
-| **NAT Traversal** | STUN, TURN (UDP/TCP), ICE-TCP, mDNS |
+| **NAT Traversal** | STUN (Session Traversal Utilities for NAT), TURN (Traversal Using Relays around NAT) (UDP/TCP), ICE-TCP, mDNS (Multicast DNS) |
 | **Recording** | Save received streams to WebM/MP4 |
 | **Crypto** | Native OpenSSL when available, pure Dart fallback |
 
@@ -46,7 +46,7 @@ webrtc_dart handles **transport**, not **media capture/playback**:
 
 ```yaml
 dependencies:
-  webrtc_dart: ^0.25.2
+  webrtc_dart: ^0.25.3
 ```
 
 ## Quick Start
@@ -108,10 +108,10 @@ await recorder.stop();
 | `RTCPeerConnection` | WebRTC connection management |
 | `RTCDataChannel` | Data messaging |
 | `RTCRtpTransceiver` | Media track handling |
-| `RTCRtpSender` | Send RTP + DTMF |
+| `RTCRtpSender` | Send RTP + DTMF (Dual-Tone Multi-Frequency) |
 | `RTCRtpReceiver` | Receive RTP |
 | `RTCIceCandidate` | ICE connectivity |
-| `RTCSessionDescription` | SDP offer/answer |
+| `RTCSessionDescription` | SDP (Session Description Protocol) offer/answer |
 
 ## Browser Interop
 
@@ -157,7 +157,7 @@ SRTP encryption/decryption automatically uses **native OpenSSL** when available 
 | macOS/Linux with OpenSSL | Native (~16x faster) |
 | Windows with OpenSSL | Native (~16x faster) |
 | Flutter mobile | Native if available |
-| Flutter web | Pure Dart (no FFI) |
+| Flutter web | Pure Dart (no FFI - Foreign Function Interface) |
 | Dart VM without OpenSSL | Pure Dart |
 
 ```dart

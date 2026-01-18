@@ -2,6 +2,35 @@
 
 All notable changes to this project will be documented in this file.
 
+## 0.25.3
+
+### Fixed
+
+- **SDP (Session Description Protocol) MID allocation** - Unified MID (Media Identification) allocation to prevent duplicate `a=mid` values in offers. Transceivers and data channels now share a single counter.
+
+- **SDP m-line order preserved** - Re-offers (e.g., for ICE restart) now preserve the established m-line order per RFC 3264, fixing "m-line order doesn't match" errors from browsers.
+
+- **Data channel MID caching** - Data channel MID is now cached and reused across offers, preventing MID changes during ICE (Interactive Connectivity Establishment) restart.
+
+- **ICE restart detection** - Remote ICE restart is now only detected on incoming offers, not answers. Previously, receiving a restart answer incorrectly triggered a second restart, causing state to reset.
+
+### Added
+
+- **Configurable timing options** - `RtcConfiguration` now accepts optional timing parameters:
+  - `certificate` - Pre-generated certificate to reuse (saves 50-200ms)
+  - `icePacingInterval` - Interval between ICE checks (default 5ms)
+  - `stunTimeout` - STUN request timeout (default 1500ms)
+  - `dtlsHandshakeTimeout` - DTLS (Datagram Transport Layer Security) handshake timeout (default 30s)
+  - `dtlsFlightTimeout` - DTLS flight retransmission timeout (default 500ms)
+
+### Performance
+
+- **Reduced default timeouts** - ICE pacing reduced from 20ms to 5ms, STUN timeout from 3s to 1.5s, DTLS flight timeout from 1000ms to 500ms for faster connection establishment.
+
+### Improved
+
+- **README acronym clarity** - All technical acronyms now include expanded names on first use (e.g., "SRTP (Secure Real-time Transport Protocol)").
+
 ## 0.25.2
 
 ### Fixed

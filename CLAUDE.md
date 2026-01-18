@@ -362,6 +362,8 @@ dart run benchmark/save_results.dart vX.Y.Z
 # 5. Update version in all files:
 #    - pubspec.yaml - version field
 #    - README.md - installation example (webrtc_dart: ^X.Y.Z)
+#    - README.md - ensure acronyms have expanded names on first use
+#      (e.g., "SFU (Selective Forwarding Unit)", "ICE (Interactive Connectivity Establishment)")
 #    - CHANGELOG.md - add new version section
 #    - REFACTOR.md - test count if changed
 #    - CLAUDE.md - test count if changed

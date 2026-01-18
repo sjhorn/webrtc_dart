@@ -930,8 +930,11 @@ class RTCPeerConnection {
         // Bundled - use primary transport for first media line
         if (i == 0) {
           if (iceUfrag != null && icePwd != null) {
-            // Detect remote ICE restart
-            final isRemoteIceRestart = _previousRemoteIceUfrag != null &&
+            // Detect remote ICE restart - only on offers (remote initiated)
+            // When we receive an answer with new credentials, it's a response to
+            // our own restart offer, not a new remote-initiated restart
+            final isRemoteIceRestart = description.type == 'offer' &&
+                _previousRemoteIceUfrag != null &&
                 _previousRemoteIcePwd != null &&
                 (_previousRemoteIceUfrag != iceUfrag ||
                     _previousRemoteIcePwd != icePwd);

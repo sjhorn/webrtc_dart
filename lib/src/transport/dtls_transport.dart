@@ -591,17 +591,22 @@ class _IceToDtlsAdapter implements dtls_ctx.DtlsTransport {
   /// Buffer for DTLS packets that arrive before DtlsSocket subscribes
   final List<Uint8List> _receiveBuffer = [];
 
+  /// Buffer for SRTP packets that arrive before SRTP session subscribes
+  /// This is critical because SRTP subscription happens AFTER DTLS handshake
+  /// completes, but media packets may arrive during the handshake.
+  final List<Uint8List> _srtpBuffer = [];
+
   /// Controller for DTLS packets - broadcast with buffering for early packets
   late final StreamController<Uint8List> _receiveController;
 
   /// Stream of SRTP/SRTCP packets (first byte 128-191)
-  /// These bypass DTLS and go directly to SRTP session for decryption
-  /// Broadcast is OK here because SRTP subscription happens synchronously.
-  final StreamController<Uint8List> _srtpController =
-      StreamController<Uint8List>.broadcast();
+  /// These bypass DTLS and go directly to SRTP session for decryption.
+  /// Uses buffering because SRTP subscription happens AFTER DTLS handshake.
+  late final StreamController<Uint8List> _srtpController;
 
   bool _isOpen = true;
   bool _hasListener = false;
+  bool _hasSrtpListener = false;
   StreamSubscription? _iceDataSubscription;
 
   _IceToDtlsAdapter(this.iceConnection) {
@@ -616,6 +621,21 @@ class _IceToDtlsAdapter implements dtls_ctx.DtlsTransport {
           }
         }
         _receiveBuffer.clear();
+      },
+    );
+
+    // Create SRTP controller with buffering for packets that arrive before
+    // the SRTP session subscribes (which happens after DTLS handshake)
+    _srtpController = StreamController<Uint8List>.broadcast(
+      onListen: () {
+        _hasSrtpListener = true;
+        // Replay any buffered SRTP packets
+        for (final packet in _srtpBuffer) {
+          if (!_srtpController.isClosed) {
+            _srtpController.add(packet);
+          }
+        }
+        _srtpBuffer.clear();
       },
     );
 
@@ -635,8 +655,12 @@ class _IceToDtlsAdapter implements dtls_ctx.DtlsTransport {
             _receiveBuffer.add(data);
           }
         } else if (firstByte >= 128 && firstByte <= 191) {
-          // RTP/RTCP packet (SRTP encrypted) - bypass DTLS
-          _srtpController.add(data);
+          // RTP/RTCP packet (SRTP encrypted) - buffer if no listener yet
+          if (_hasSrtpListener) {
+            _srtpController.add(data);
+          } else {
+            _srtpBuffer.add(data);
+          }
         } else {
           // Unknown packet type - forward to DTLS as fallback
           if (_hasListener) {
@@ -668,6 +692,7 @@ class _IceToDtlsAdapter implements dtls_ctx.DtlsTransport {
     if (_isOpen) {
       _isOpen = false;
       _receiveBuffer.clear();
+      _srtpBuffer.clear();
       await _iceDataSubscription?.cancel();
       await _receiveController.close();
       await _srtpController.close();

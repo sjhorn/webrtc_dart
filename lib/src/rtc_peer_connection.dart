@@ -837,6 +837,8 @@ class RTCPeerConnection {
               .map((m) => m.getAttributeValue('mid') ?? '')
               .where((mid) => mid.isNotEmpty)
               .toList();
+          // Pass to SdpManager for subsequent offer generation
+          _sdpManager.establishedMlineOrder = _establishedMlineOrder;
           _log.fine(
               '[$_debugLabel] Captured m-line order: $_establishedMlineOrder');
         }

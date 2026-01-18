@@ -62,8 +62,11 @@ class SdpManager {
   /// Set of allocated MIDs to prevent duplicates
   final Set<String> _seenMid = {};
 
-  /// Next MID counter (starts at 1, 0 reserved for RTCDataChannel)
+  /// Next MID counter
   int _nextMidCounter = 0; // Match werift (starts at 0)
+
+  /// Cached data channel MID (reused across offers)
+  String? _dataChannelMid;
 
   SdpManager({
     required this.cname,
@@ -492,7 +495,9 @@ class SdpManager {
     // Skip for bundlePolicy:disable unless explicit data channel support is needed
     // Each m-line would need its own transport for bundlePolicy:disable
     if (bundlePolicy != BundlePolicy.disable) {
-      final dataChannelMid = allocateMid();
+      // Reuse data channel MID if already allocated (for re-offers like ICE restart)
+      _dataChannelMid ??= allocateMid();
+      final dataChannelMid = _dataChannelMid!;
       bundleMids.add(dataChannelMid);
       mediaDescriptions.add(
         SdpMedia(

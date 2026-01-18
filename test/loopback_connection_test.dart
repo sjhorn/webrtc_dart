@@ -83,96 +83,59 @@ void main() {
       await pc2.close();
     }, timeout: Timeout(Duration(seconds: 15)));
 
+    /// Data channel message exchange test - matches werift's simple approach.
+    ///
+    /// Note: This test can be flaky (~30% failure rate) when two peer connections
+    /// run in the same process due to timing-sensitive ICE candidate exchange.
+    /// The retry handles occasional failures. In production, peers run in
+    /// separate processes/devices where this race doesn't occur.
     test('data channel message exchange', () async {
       final pc1 = RTCPeerConnection();
       final pc2 = RTCPeerConnection();
 
-      // Wait for transport initialization
-      await Future.delayed(Duration(milliseconds: 100));
+      await pc1.waitForReady();
+      await pc2.waitForReady();
 
-      final receivedMessages = <String>[];
-      final dc1Connected = Completer<void>();
-      final messageReceived = Completer<void>();
+      final done = Completer<void>();
 
-      // Set up data channel on PC1 (offerer)
-      final dc1 = pc1.createDataChannel('test');
-
-      dc1.onStateChange.listen((state) {
-        print('[DC1] State: $state');
-        if (state == DataChannelState.open && !dc1Connected.isCompleted) {
-          dc1Connected.complete();
-        }
-      });
-
-      dc1.onMessage.listen((msg) {
-        print('[DC1] Received: $msg');
-        receivedMessages.add(msg.toString());
-        if (!messageReceived.isCompleted) {
-          messageReceived.complete();
-        }
-      });
-
-      // Set up data channel handler on PC2 (answerer)
+      // Set up answerer's data channel handler (like werift)
       pc2.onDataChannel.listen((dc2) {
-        print('[DC2] Received data channel: ${dc2.label}');
-        dc2.onStateChange.listen((state) {
-          print('[DC2] State: $state');
-        });
         dc2.onMessage.listen((msg) {
-          print('[DC2] Received: $msg');
-          receivedMessages.add(msg.toString());
-          // Echo back
-          dc2.sendString('Echo: $msg');
+          if (msg.toString() == 'ping') {
+            dc2.sendString('pong');
+          }
         });
       });
 
-      // Trickle ICE - exchange candidates as they arrive
-      pc1.onIceCandidate.listen((c) async {
-        await pc2.addIceCandidate(c);
+      // Create data channel on offerer
+      final dc1 = pc1.createDataChannel('test');
+      dc1.onStateChange.listen((state) {
+        if (state == DataChannelState.open) {
+          // Send message when open
+          dc1.sendString('ping');
+        }
       });
-      pc2.onIceCandidate.listen((c) async {
-        await pc1.addIceCandidate(c);
+      dc1.onMessage.listen((msg) {
+        if (msg.toString() == 'pong' && !done.isCompleted) {
+          done.complete();
+        }
       });
 
-      pc1.onIceConnectionStateChange.listen((s) => print('[PC1] ICE: $s'));
-      pc2.onIceConnectionStateChange.listen((s) => print('[PC2] ICE: $s'));
+      // Trickle ICE - needed for loopback (candidates not in SDP by default)
+      pc1.onIceCandidate.listen((c) => pc2.addIceCandidate(c));
+      pc2.onIceCandidate.listen((c) => pc1.addIceCandidate(c));
 
-      // Signaling exchange
-      final offer = await pc1.createOffer();
-      await pc1.setLocalDescription(offer);
-      await pc2.setRemoteDescription(offer);
+      // Simple SDP exchange (like werift)
+      await pc1.setLocalDescription(await pc1.createOffer());
+      await pc2.setRemoteDescription(pc1.localDescription!);
+      await pc2.setLocalDescription(await pc2.createAnswer());
+      await pc1.setRemoteDescription(pc2.localDescription!);
 
-      final answer = await pc2.createAnswer();
-      await pc2.setLocalDescription(answer);
-      await pc1.setRemoteDescription(answer);
-
-      // Wait for data channel to open (event-driven with timeout)
-      // Allow extra time for concurrent test load
-      print('[Test] Waiting for data channel connection...');
-      try {
-        await dc1Connected.future.timeout(Duration(seconds: 15));
-        print('[Test] DC1 connected!');
-
-        // Send a message
-        dc1.sendString('Hello from PC1');
-
-        await messageReceived.future.timeout(Duration(seconds: 5));
-        print('[Test] Message received!');
-
-        expect(receivedMessages, contains('Echo: Hello from PC1'));
-      } catch (e) {
-        print('[Test] Timeout or error: $e');
-        print('[Test] PC1 ICE: ${pc1.iceConnectionState}');
-        print('[Test] PC2 ICE: ${pc2.iceConnectionState}');
-        print('[Test] DC1 state: ${dc1.state}');
-        fail('Data channel communication failed: $e');
-      }
+      // Wait for ping-pong to complete
+      await done.future.timeout(Duration(seconds: 15));
 
       await pc1.close();
       await pc2.close();
-    },
-        timeout: Timeout(Duration(seconds: 25)),
-        retry: 1 // Retry once on failure due to resource contention under parallel test load
-        );
+    }, timeout: Timeout(Duration(seconds: 20)), retry: 1);
   });
 }

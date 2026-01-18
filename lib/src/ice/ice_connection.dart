@@ -607,7 +607,7 @@ class IceConnectionImpl implements IceConnection {
         StunMessage response;
         try {
           response = await completer.future.timeout(
-            const Duration(seconds: 3),
+            const Duration(milliseconds: 1500),
             onTimeout: () {
               _pendingStunTransactions.remove(tid);
               throw TimeoutException('STUN request timed out');
@@ -976,10 +976,10 @@ class IceConnectionImpl implements IceConnection {
     // RFC 8445 Section 7.2.1: Process early checks that were queued
     _processEarlyChecks();
 
-    // Use parallel checking with pacing (20ms between check starts)
+    // Use parallel checking with pacing (5ms between check starts)
     // This allows multiple checks to run concurrently, so we don't wait
-    // 3 seconds per failing IPv6 pair before reaching working reflexive pairs
-    const pacingInterval = Duration(milliseconds: 20);
+    // for failing pairs before reaching working reflexive pairs
+    const pacingInterval = Duration(milliseconds: 5);
     const maxCheckTime = Duration(seconds: 15);
 
     final successCompleter = Completer<CandidatePair>();
@@ -1623,7 +1623,7 @@ class IceConnectionImpl implements IceConnection {
       // Wait for response with timeout
       try {
         final response = await completer.future.timeout(
-          Duration(seconds: 3),
+          Duration(milliseconds: 1500),
           onTimeout: () {
             _pendingStunTransactions.remove(tid);
             throw TimeoutException('STUN connectivity check timed out');
@@ -1939,7 +1939,7 @@ class IceConnectionImpl implements IceConnection {
 
     // Run checks asynchronously with parallel pacing
     Future(() async {
-      const pacingInterval = Duration(milliseconds: 20);
+      const pacingInterval = Duration(milliseconds: 5);
 
       // Start all checks with pacing - don't await each one
       for (final pair in newPairs) {

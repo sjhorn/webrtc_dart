@@ -98,6 +98,10 @@ export 'src/transport/transport.dart';
 export 'src/dtls/dtls_transport.dart';
 export 'src/sctp/association.dart';
 
+// Certificate Generation
+export 'src/dtls/certificate/certificate_generator.dart'
+    show CertificateKeyPair, CertificateInfo, generateSelfSignedCertificate;
+
 // STUN Protocol
 export 'src/stun/message.dart';
 export 'src/stun/attributes.dart';

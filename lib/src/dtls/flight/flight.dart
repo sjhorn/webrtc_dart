@@ -22,9 +22,9 @@ abstract class Flight {
   bool get expectsResponse;
 
   /// Get timeout for retransmission (in milliseconds)
-  /// Implements exponential backoff: 1s, 2s, 4s, 8s, 16s, ...
+  /// Implements exponential backoff: 500ms, 1s, 2s, 4s, 8s, ...
   int getTimeout(int retransmitCount) {
-    final baseTimeout = 1000; // 1 second
+    final baseTimeout = 500; // 500ms
     final maxTimeout = 60000; // 60 seconds
 
     final timeout = baseTimeout * (1 << retransmitCount);

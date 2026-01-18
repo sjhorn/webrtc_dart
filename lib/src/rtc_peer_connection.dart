@@ -91,11 +91,17 @@ class RtcConfiguration {
   /// Codecs to use for audio/video (matching TypeScript werift)
   final RtcCodecs codecs;
 
+  /// Pre-generated certificate to reuse across connections.
+  /// If null, a new certificate will be generated for each connection.
+  /// Reusing certificates saves 50-200ms per connection.
+  final CertificateKeyPair? certificate;
+
   const RtcConfiguration({
     this.iceServers = _defaultIceServers,
     this.iceTransportPolicy = IceTransportPolicy.all,
     this.bundlePolicy = BundlePolicy.maxCompat,
     this.codecs = const RtcCodecs(),
+    this.certificate,
   });
 }
 
@@ -333,10 +339,14 @@ class RTCPeerConnection {
 
   /// Initialize async components (certificate generation, transport setup)
   Future<void> _initializeAsync() async {
-    // Generate DTLS certificate
-    _certificate = await generateSelfSignedCertificate(
-      info: CertificateInfo(commonName: 'WebRTC'),
-    );
+    // Use provided certificate or generate a new one
+    if (_configuration.certificate != null) {
+      _certificate = _configuration.certificate;
+    } else {
+      _certificate = await generateSelfSignedCertificate(
+        info: CertificateInfo(commonName: 'WebRTC'),
+      );
+    }
 
     // Create integrated transport
     _transport = IntegratedTransport(
